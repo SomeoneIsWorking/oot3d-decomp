@@ -180,7 +180,7 @@ GROUND TRUTH — they pin the bug→address mapping the static work narrowed:
 |---|---|---|---|
 | **idle / yawn (#88)** | **0x4ba538** | default 0x1c/0x1b; **fidget/yawn = 0x50** | = N64 Player_Action_Idle. Picker alternates default↔fidget (idleType toggle); yawn is anim 0x50 |
 | **run (#86)** | **0x4ba378** | 0x47 | = the run/turn locomotion func (matches static decomp of FUN_004ba378) |
-| **walk/turn-start** | **0x4a34d0** | 0xe4 | transition into movement (decompile next) |
+| **walk/turn-start** | **0x4a34d0** | 0xe4 | = **turn-in-place** (N64 Player_Action turn family): when stick tilt gives ~0 speed it steps shape.rot.y(+0xbe) toward stick yaw via Math_ScaledStepToS, uses Player_GetIdleAnim + the TurnInPlace handler list; else hands off (FUN_002c3c7c) into walk |
 
 ### ✅ #86 walk-stop torso snap — ROOT CAUSE CONFIRMED LIVE
 On run→stop, OoT3D switches actionFunc `0x4ba378`(run) → `0x4ba538`(idle) and the base-anim
