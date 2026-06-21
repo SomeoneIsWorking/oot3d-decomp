@@ -121,8 +121,8 @@ addresses** without any live run:
 | literal-pool DAT | actionFunc value | Common context (line in 00250ad0.c) | role |
 |---|---|---|---|
 | DAT_00251cf0 | **0x4b9920** | `==` @1166 | slope/slippery-floor velocity ×factor |
-| DAT_00251cd8 | **0x4ba378** | `==` @1201 | (paired w/ a speed threshold check) |
-| DAT_00251cd4 | **0x4ba538** | @767/770 | grouped w/ above in a floor/landing branch |
+| DAT_00251cd8 | **0x4ba378** | `==` @1201 | **= run/locomotion (LIVE-confirmed #86)**; paired w/ speed threshold |
+| DAT_00251cd4 | **0x4ba538** | @767/770 | **= Player_Action_Idle (LIVE-confirmed #88)**; floor/landing branch |
 | DAT_00252944 | **0x4bc22c** | `!=` @1140 | EXCLUDED from slope-slide (floorType 4/7/0xc) |
 | DAT_00252930 | **0x4bcccc** | `!=` @1120 | now decoded (ARM); gap func |
 | DAT_00253408 | **0x4bf18c** | `==` @1379 | in-air/land branch (see special funcs above) |
@@ -172,6 +172,29 @@ helpers above. They are locomotion/physics action funcs in block 0x4b9000–0x4b
   GetMovementSpeedAndYaw + the `>0x6000` turn logic + StepToF on yaw/speed; a **complex ground
   locomotion** (run/turn-in-place family).
 
+## LIVE-CONFIRMED action funcs (oracle, Azahar, scene 52 Link's House, 2026-06-21)
+Read straight from `playerInstance+0x1708` while driving Link (tools/link_action_probe.py). These are
+GROUND TRUTH — they pin the bug→address mapping the static work narrowed:
+
+| state | actionFunc | anim (+0x284) | notes |
+|---|---|---|---|
+| **idle / yawn (#88)** | **0x4ba538** | default 0x1c/0x1b; **fidget/yawn = 0x50** | = N64 Player_Action_Idle. Picker alternates default↔fidget (idleType toggle); yawn is anim 0x50 |
+| **run (#86)** | **0x4ba378** | 0x47 | = the run/turn locomotion func (matches static decomp of FUN_004ba378) |
+| **walk/turn-start** | **0x4a34d0** | 0xe4 | transition into movement (decompile next) |
+
+### ✅ #86 walk-stop torso snap — ROOT CAUSE CONFIRMED LIVE
+On run→stop, OoT3D switches actionFunc `0x4ba378`(run) → `0x4ba538`(idle) and the base-anim
+**morphWeight (+0x288) jumps to 1.000 then decays 1.0 → 0.5 → 0.167 → 0.0 over ~5 frames**
+(curFrame +0x290 advancing 0→4.7), i.e. it **cross-fades** the run→idle pose. This is exactly the
+MORPH the SoH3D 3d3 path hard-cuts. **Fix for #86 = apply this morphWeight 1→0 blend (morphRate
+≈0.33/frame, ~3–5 frames) on Player action/anim transitions**, per docs/anim_system.md. Verified by
+live frame sampling, not inference.
+
+### Boot-to-gameplay recipe (oracle, no savestate mod)
+Title → `tap('start')`×3 → `tap('a')` (select save file 1 "Link") → `tap('a')`×2. Lands in scene 52
+(Link's House), Link controllable, playerInstance 0x098f4010. (Savestate RPC mod is NOT loaded —
+savestate() returns False; re-navigate the title each boot, it's ~6 taps.)
+
 ## ⇒ Fastest next step: oracle-read `actionFunc` per behavior
 Now that **actionFunc is at Player+0x1708**, the exact OoT3D function for any behavior is one RAM
 read away: in the live oracle (Azahar), drive Link into state X (idle/yawn, carrying an object,
@@ -182,8 +205,9 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 ## Bug → behavior → N64 function (decompile these OoT3D twins first)
 | reported bug | N64 function family (start here) |
 |---|---|
-| walk-stop torso snap; run-off-edge jump | locomotion action funcs + the morph; Player_Action_Run/Idle, jump/ledge |
-| weird yawn (idle fidget) | `Player_StartMode_Idle` + idle-anim picker |
+| walk-stop torso snap (#86) | **CONFIRMED**: run 0x4ba378 → idle 0x4ba538 applies morphWeight 1→0 blend (~5 frames); soh3d hard-cuts. Fix = apply the morph |
+| run-off-edge jump (#86) | in-air/land 0x4bf18c family (see special-case table) |
+| weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
 | door-exit slide | door action func (sDoorAction / Player door state) |
@@ -219,3 +243,10 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   garbage was a persisted wrong-mode context). 0x183634 looks like the **climb/ledge action (#79)**:
   sets DISABLE_ROTATION_Z_TARGET, gates on anim id +0x284 (0xe6/0x3a), compares anim height to
   +0x2270, sets ledge timer +0x2238. All 11 UpdateCommon special-cased funcs now in build/decomp/.
+- 2026-06-21 (cont.4): **LIVE oracle run** (Azahar, scene 52). Added tools/link_action_probe.py.
+  Confirmed actionFuncs by reading +0x1708 while driving Link: idle=0x4ba538 (Player_Action_Idle,
+  yawn=anim 0x50), run=0x4ba378, walk-start=0x4a34d0. **#86 ROOT CAUSE CONFIRMED**: run→idle applies
+  morphWeight (+0x288) 1.0→0 over ~5 frames (cross-fade) — soh3d hard-cuts; fix = apply the morph.
+  Documented the boot-to-gameplay tap recipe (no savestate mod). NEXT (live): carry/pickup
+  (#6/#85/#9 — needs a liftable pot/Cucco scene), climb (#79 — confirm 0x183634 on a ladder),
+  door-exit slide. Then decompile 0x4a34d0 + align 0x4ba538/0x4ba378 to N64 Idle/run twins.
