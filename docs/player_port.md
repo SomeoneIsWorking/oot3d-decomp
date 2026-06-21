@@ -232,10 +232,22 @@ action.** Verified statement-for-statement against N64 8084377C (z_player.c:9491
   land multipliers + child offset all matching N64. The step-up settle `+0xc4` is
   `Math_StepToF(&actor.shape.yOffset, 0.0f, 150.0f)` — a real lerp+snap, not an instant set. Only the
   documented framerate step-scaling touches the yOffset settle *speed* (not position).
-- **⇒ Real #79 lead:** the actual `world.pos.y += yDistToLedge` / `shape.yOffset` pre-offset
-  compensation lives in the **CALLER `Player_ActionHandler_12`** (N64 z_player.c:4975-4978), which
-  hands off into this action on a ledge-grab. A dropped yOffset compensation THERE would read as the
-  one-frame climb teleport. **Its OoT3D address is not yet identified — next alignment target for #79.**
+- **⇒ #79 root cause traced to the CALLER `Player_ActionHandler_12` = OoT3D `FUN_0023c7ac`** (848B,
+  ledge-grab handler that sets up the step-up action). Pinned: of all 145 `Player_SetupAction`
+  (FUN_0036055c) call sites, **exactly one** loads `0x00183634` — the call at `0x0023c918` inside this
+  func. **Also FAITHFUL:** Grezzo keeps the #79-critical pre-offset pair byte-exact (N64 z_player.c:
+  4975-4978 ↔ OoT3D L148-150): `world.pos.y(+0x2c) += yDistToLedge` and the compensating
+  `shape.yOffset(+0xc4) -= sp34 * 100.0f` (same per-anim 60/59/41×unk_08 decrements, same 100.0f). All
+  literals match N64. Only the framerate scaling touches the `ledgeClimbDelayTimer` arm thresholds, not
+  position math.
+- **⇒ #79 IS A SoH3D INTEGRATION BUG, not a Grezzo change** (handler AND action both faithful). The
+  handler hides the one-frame `pos.y += yDistToLedge` jump behind a large negative `shape.yOffset`
+  that the step-up action lerps back to 0 over the climb. If SoH3D doesn't set/carry/decay
+  `shape.yOffset` the same way, that pos.y jump shows as a **teleport**. **Fix on the SoH3D side =
+  replicate the `shape.yOffset` set (in FUN_0023c7ac) + the `Math_StepToF(&yOffset,0,150)` decay (in
+  0x183634)** — do NOT touch the (already-correct) position math. New helpers: `FUN_0023c7ac` =
+  Player_ActionHandler_12, `FUN_00358dfc` = LinkAnimation_PlayOnceSetSpeed, `FUN_00330ed8` =
+  AnimationContext_DisableQueue. Full diff: scratch/align/79_handler.md.
 - **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
   GetMovementSpeedAndYaw + the `>0x6000` turn logic + StepToF on yaw/speed; a **complex ground
   locomotion** (run/turn-in-place family).
@@ -318,7 +330,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
 | door-exit slide | door action func (sDoorAction / Player door state) |
-| higher-surface climb teleport (#79) | **step-up action 0x183634 = N64 `Player_Action_80845668` is FAITHFUL** (mount = clamped velocity launch + yOffset lerp, NOT a teleport). Real lead: the pos.y compensation in the CALLER **`Player_ActionHandler_12`** (N64 z_player.c:4975-4978) — OoT3D addr NOT yet identified; next target |
+| higher-surface climb teleport (#79) | **RESOLVED & FAITHFUL** — step-up action 0x183634 (`Player_Action_80845668`) AND its caller `Player_ActionHandler_12` = **0x0023c7ac** both byte-exact to N64. #79 is a SoH3D **integration** bug: handler does `pos.y += yDistToLedge` hidden behind a negative `shape.yOffset(+0xc4)` that the action lerps to 0; SoH3D must replicate that yOffset set+decay, not change position math |
 
 ## Phased plan
 0. **Pipeline up** (this session): Ghidra analyzed; DecompDump.py; function inventory; decompile
@@ -395,3 +407,19 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   offsets: +0xc4 actor.shape.yOffset, +0x2270 yDistToLedge. Note: 86/79 alignments done read-only (no
   Ghidra) by a parallel subagent while the #86 freefall agent held the Ghidra project. Note:
   scratch/align/{4ba378,4a34d0,4bf18c,86_freefall,79_climb}.md hold the full per-func diffs (gitignored).
+- 2026-06-21 (cont.8): **#79 climb-teleport ROOT CAUSE traced & RESOLVED — FAITHFUL.** The ledge-grab
+  caller `Player_ActionHandler_12` = OoT3D `FUN_0023c7ac` (pinned: unique `Player_SetupAction(0x183634)`
+  call site, @0x0023c918). Grezzo keeps the `pos.y(+0x2c) += yDistToLedge` + compensating
+  `shape.yOffset(+0xc4) -= sp34*100` pre-offset byte-exact. ⇒ #79 is a SoH3D **integration** bug (handler
+  AND step-up action both faithful): the pos.y jump is hidden behind a negative shape.yOffset lerped to 0;
+  SoH3D must replicate the yOffset set (FUN_0023c7ac) + Math_StepToF(&yOffset,0,150) decay (0x183634), NOT
+  alter the position math. New helpers: FUN_0023c7ac=Player_ActionHandler_12, FUN_00358dfc=
+  LinkAnimation_PlayOnceSetSpeed, FUN_00330ed8=AnimationContext_DisableQueue. Decomp: build/decomp/0023c7ac.c.
+
+## STATUS (end of 2026-06-21 static block): 3 of the locomotion/idle bugs root-caused
+- **#86 run-off-edge jump** = SoH3D integration bug (framerate of gating reads); auto-jump FAITHFUL. No port.
+- **#79 higher-surface climb teleport** = SoH3D integration bug (replicate shape.yOffset set+decay); FAITHFUL. No port.
+- **#88 weird yawn** = likely the Grezzo `+0x4c37→FIDGET_HOT` override (needs +0x4c37 resolved + live check).
+- **#86 walk-stop torso snap** = apply the morphWeight 1→0 blend (prior session, confirmed live).
+- Action-func map COMPLETE for: run/turn/idle/knockback-land/freefall/climb-stepup + their key callers.
+- NOT yet done (LIVE, needs oracle): carry/pickup (#6/#85/#9), door-exit slide, sword-on-back (equipment draw).
