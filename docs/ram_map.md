@@ -67,15 +67,22 @@ These are STATIC (.data/.bss) → **run-stable every boot**, unlike the heap add
   (51 files indexed). `__FILE__` strings are NOT referenced by absolute literals (PC-relative `ADR`),
   so absolute-literal xref misses them — find actor fns by structure / vtables, not by string xref.
 
-### DEAD ENDS (don't repeat — 2026-06-21)
-- Heap signature-scan for `actorLists[12]` as {head, s32 length} pairs with the N64 invariant
-  `Actor.category == list index` at **Actor+0x02** → **0 valid hits** (tried stride 8 & 12, both
-  pair orders, strict head⟺length, ≥3 populated categories, over 0x08000000–0x08c00000).
-  **Conclusion: the GREZZO C++ Actor struct is NOT laid out like N64 OoT** — `id`@+0/`category`@+2
-  is wrong here. Must recover the real Actor layout from the **static code** (disassemble an actor
-  function), not by assuming N64 offsets.
-- Loose {small count, 0x08-ptr}×12 scan found `0x08134b70` (shape cat0=0,cat1=1,cat2=2,rest 0) but
-  its "heads" deref to indexed tables, not Actors → not the actor list.
+### ACTOR SYSTEM — SOLVED 2026-06-21 (see `docs/actor_layout.md`)
+The actor list, actorCtx, Actor struct, gActorOverlayTable, ActorProfile, and gPlayState are all
+recovered and **verified live** at Link's House. Enumerate with `tools/actors.py`. Key anchors:
+`gPlayState @ 0x0050AF34 → PlayState → +0x208C actorCtx → +0x0C ActorListEntry[12]{count,head} →
+Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor IS N64-compatible
+(id@0/category@2 ARE correct) — the prior dead-end failed for ONE reason only (below), not layout.
+
+### DEAD ENDS (resolved — kept for the record)
+- The heap signature-scan for the actor lists scanned only **0x08000000–0x08c00000**. WRONG REGION:
+  actors are allocated from the zelda **arena at ~0x098F4000** (0x09xxxxxx). The Actor layout was
+  fine (id@0, category@2); nothing in 0x08xxxxxx is an actor, so every scan there returned 0 — this
+  was a scan-range bug, NOT a "C++ Actor differs from N64" problem (that earlier conclusion was wrong;
+  corrected here). actorCtx itself happens to sit in 0x08xxxxxx (PlayState heap), but the Actor*
+  heads point into 0x099xxxxx. Always reach actors via the chain, not a region scan.
+- The `>>7` id trick (accessor 0x3C06BC reads `(u16@+0x1C)>>7` as an id) does NOT apply to Actors:
+  on a real Actor +0x1C is `params`. That accessor walks a different struct. Read id as s16 @ +0x00.
 
 ### NEXT (durable anchors still needed)
 - **Recover the OoT3D Actor struct layout from static code.** The port is C++ (`z_actor.cpp`,
