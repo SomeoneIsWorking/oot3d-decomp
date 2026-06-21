@@ -251,6 +251,34 @@ IDLE_ANIM_DEFAULT/NONE. New confirmed helpers/data from it:
 fidget roll + room behaviorType2) and its `LinkAnimation_Change(... -6.0f)` morph onto the SoH3D
 idle path. The yawn picking "wrong" = idleType/Rand/behaviorType2 mismatch or missing morph blend.
 
+#### ✅ #88 picker ALIGNED — `Player_ChooseNextIdleAnim` (2026-06-21, static, 0x4ba538 mid-block)
+The big middle block of 0x4ba538 (the `FUN_0049f28c`/`FUN_003759d0` selection) IS N64
+`Player_ChooseNextIdleAnim` (z_player.c:8347) inlined. Aligned statement-for-statement — **largely
+FAITHFUL** with ONE Grezzo-added override (the prime #88 suspect). New confirmations:
+- **`FUN_0049f28c` = `HealthMeter_IsCritical`** (`heathIsCritical`).
+- **+0x1748 = `idleType` (s8)** — toggled `(idleType+1)&1`; `<0` ⇒ `PLAYER_IDLE_CRIT_HEALTH`(-1).
+- **0x10000000 = `PLAYER_STATE2_IDLE_FIDGET`** — CONFIRMED `(1<<28)` matches N64 `z64player.h:731`.
+  (Plain-idle branch `&= ~0x10000000` + `GetIdleAnim`; fidget branch `|= 0x10000000`.)
+- Default `fidgetType = roomCtx.curRoom.behaviorType2` (read as `play+0x4c32` byte).
+- crit-health → `FIDGET_CRIT_HEALTH_START`(7)/`LOOP`(8) per `idleType`; matches N64.
+- `commonType = Rand_ZeroOne()*5`; `if(<4)` accept w/ sword/shield model-type gating →
+  `fidgetType = FIDGET_SWORD_SWING(9) + commonType`; matches N64 (the N64 `GameInteractor_Should`
+  hook is `true` in vanilla, so the equipment predicate is the real gate).
+- The chosen anim is `sFidgetAnimations[fidgetType][modelAnimType!=1 ? 1 : 0]`, played via
+  `FUN_00360190(...)` with the **−6.0f morph** (= N64 `LinkAnimation_Change(... ANIMMODE_ONCE, -6.0f)`).
+- **⚠ GREZZO DIVERGENCE (likely the "weird yawn" cause): added override**
+  `if (*(s8*)(play + 0x4c37) != 0) fidgetType = 3 (FIDGET_HOT);` — applied right after the
+  `behaviorType2` default, BEFORE the crit/common logic. N64 has **no** such field/override. `+0x4c37`
+  is a 3DS-only play/room field (weather/region?). If it is nonzero in a given scene it FORCES the
+  `wait_typeB` (HOT/warm) fidget — which would make Link play a "wrong"/unexpected idle fidget there.
+  **Port #88 faithfully = replicate this `+0x4c37→FIDGET_HOT` override** (resolve what +0x4c37 is) OR,
+  if SoH3D should match N64 not 3DS here, omit it — but first confirm whether scene 52's +0x4c37 is
+  what selected the live yawn anim 0x50.
+- **Open:** OoT3D's `Player_CheckForIdleAnim` loop bound is `0x1e` (30 = **15** table entries) vs N64's
+  28 (**14** entries) — OoT3D may have ONE extra `sFidgetAnimations` entry. Verify against `DAT_004ba948`.
+- Unresolved: `FUN_00334c44` (called just before the picker — fidget-SFX or timer setup?), `+0x4c37`
+  (the override field), `+0x4c32` (confirm = behaviorType2).
+
 ### Boot-to-gameplay recipe (oracle, no savestate mod)
 Title → `tap('start')`×3 → `tap('a')` (select save file 1 "Link") → `tap('a')`×2. Lands in scene 52
 (Link's House), Link controllable, playerInstance 0x098f4010. (Savestate RPC mod is NOT loaded —
