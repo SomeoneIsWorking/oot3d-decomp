@@ -21,8 +21,21 @@ copies + unreliable headless navigation.
   is 52/64 (expected — writable data mutated at runtime; the image holds boot-time values).
 - `build/` is gitignored (`*.bin`) — never commit the ROM-derived image.
 
-## Disassembly
+## Disassembly & xref tools
 - `tools/disasm.py <vaddr> [len] [--thumb]` — capstone ARM/Thumb dump of a VA range.
+  **CAVEAT: `--thumb` linear-decodes and DESYNCS on Thumb-2 (32-bit) instructions** — it will emit
+  garbage after the first 32-bit op. Trust only the first instruction at a known-aligned VA.
+- `tools/xref.py <va>` — literal-pool xref (4-byte word == va). Finds globals/asserts. Misses
+  PC-relative call targets (BL) and ADR-relative `__FILE__` strings.
+- `tools/callers.py <va>` — **call-graph xref**: decodes ARM AND Thumb BL/BLX encodings at every
+  alignment to find call sites targeting a function. Use this (not xref.py) to find who CALLS a fn.
+  Verified: found the sole caller of the scene-flags getter `0x44e7a0` at `0x448c50`.
+- `tools/find_consumer.py <global> [--off N]` — narrow xref: among literal-pool loads of a global
+  base, find sites that deref it at a small field offset / use it as an index. ARM+Thumb passes, but
+  the Thumb pass has FALSE POSITIVES (ARM/data mis-decoded as Thumb ldr-literal) — verify each hit.
+- **Bulk static RE of this mixed ARM/Thumb image needs a real function map.** Linear capstone sweeps
+  desync. NEXT: load `build/code.bin` at base `0x00100000` into Ghidra/radare2 (ARM Cortex, auto
+  ARM+Thumb) for reliable function boundaries — required to find `Play_Init`/the warp transition fn.
 - crt0 at entry: `0x00100000` is a table of `bl` to init routines; `0x00100028` zeroes BSS using
   a pointer-literal pair at `0x00100044/48` (bss_start/bss_end). Confirms VA mapping + decode.
 - Code is ARM (A32) at least at entry; expect Thumb in places (CTR libs). objdump/radare2/capstone

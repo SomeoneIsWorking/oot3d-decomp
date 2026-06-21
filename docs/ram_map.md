@@ -84,6 +84,55 @@ Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor 
 - The `>>7` id trick (accessor 0x3C06BC reads `(u16@+0x1C)>>7` as an id) does NOT apply to Actors:
   on a real Actor +0x1C is `params`. That accessor walks a different struct. Read id as s16 @ +0x00.
 
+## CONTROL PRIMITIVES (live, via the actor chain — durable across boots)
+- **TELEPORT (`tools/link_ctl.py tp <x> <z> [y]`) — WORKS.** Writing Link's canonical
+  `Actor.world.pos` @ `head+0x08` (Vec3f, reached via the actor chain) reliably teleports him.
+  Collision then resolves the final spot and will NOT cross walls (conservative — a teleport to a
+  point behind a wall snaps back to the nearest reachable floor). **This resolves the old RAM-scan
+  dead-end**: the prior poke-test (above) failed only because it wrote a *copy* (`0x0821e638`); the
+  actor-chain pos IS the canonical world.pos. Verified live 2026-06-21 at Link's House.
+- Link `world.rot.y` @ `head+0x16` reads a constant `-32767` regardless of facing — it is NOT his
+  heading. The facing used for movement is elsewhere (shape.rot, not yet located). Don't steer on it.
+- **Closed-loop walk is feasible but the camera fights it**: the circle pad is camera-relative and
+  the camera swings behind Link as he runs, so a constant stick curves him in circles. Reading his
+  real pos each tick (scratch: `nav_probe.py`/`nav_goto.py`/`exit_walk.py`) lets you drive him, but
+  precise nav is unreliable — prefer TELEPORT for in-scene positioning.
+
+## WARP / scene-transition — investigation (UNSOLVED; concrete dead-ends, do not re-walk)
+Goal: deterministic nav to another scene (Kokiri Forest, for #87 En_Ko). Status: blocked on finding
+the transition *trigger*. What's PROVEN:
+- **Entrance indices == N64** (OoT3D reuses the Shipwright `entrance_table.h` values). Confirmed:
+  `gSaveContext+0x00 entranceIndex = 0xBB = ENTR_LINKS_HOUSE_CHILD_SPAWN` (live). Kokiri Forest =
+  `ENTR_KOKIRI_FOREST_0 = 0xEE`. So a warp = set entrance + trigger a (re)load.
+- **`gSaveContext` health: `+0x42`=cap, `+0x44`=current** (both 48 = 3 hearts). Writing `+0x44=0`
+  does NOT kill Link / trigger death — death fires only on a damage *event*, not a static 0. So
+  **no static death-warp.** (restored after test.)
+- **entranceIndex is consumed only at scene-init**, not polled: setting `+0x00=0xEE` while idle does
+  nothing (scene stays 52 indefinitely). A reload must be *triggered*.
+- **Walking triggers NO scene-52 exit anywhere in the walkable area.** Exhaustive teleport-anchored
+  walks (whole room, all 8 dirs, all X lanes) never flipped sceneNum. Link's House exit is not a
+  plain walk-into-wall load plane here (door-actor or a path/angle not yet hit). Confirmed not a
+  detection bug (sceneNum@+0x104 is correct). Walkable room: x∈[-78,126], z∈[28,135] straight, with
+  a southern section (z<28) reachable only by curving around at the far E/W edges.
+- The `+0x104` scene-flags getter `0x44e7a0` (1 caller, `0x448c50`, scene-init) computes
+  `gSaveContext + sceneNum*28 + 0xec` = **SavedSceneFlags**, NOT a scene-load table. The handoff's
+  "per-scene stride-28 table" lead was this (a red herring for warp).
+- Static scan for the entranceIndex consumer (`tools/find_consumer.py`, now ARM+Thumb) finds only
+  ~7 sites loading the bare `gSaveContext` base; the Thumb ones are likely false matches (ARM/data
+  mis-decoded as Thumb). **disasm.py desyncs on Thumb-2** — bulk static RE of the mixed ARM/Thumb
+  image needs a real function map (load `build/code.bin` @0x100000 into Ghidra/radare2 with ARM+Thumb
+  analysis) to reliably find `Play_Init`/the transition function. That's the next tool to stand up.
+
+### WARP — concrete NEXT approaches (pick one)
+1. **Ghidra/radare2 the code image** (function map) → find the fn that sets the PlayState transition
+   trigger / `nextEntranceIndex`, or `Play_Init` reading entranceIndex. Then write those fields live.
+2. **In-game save + reload savewarp**: if an in-game SAVE can be triggered headlessly (the fast-load
+   File 1 was made manually), set `entranceIndex=0xEE`, save → SRAM, restart Azahar + fast-load →
+   should savewarp into Kokiri (UNTESTED — save-remap behavior unknown; verify it doesn't overwrite
+   entranceIndex with a scene default).
+3. Find PlayState transition fields by diffing PlayState across a REAL transition (needs one working
+   exit first — chicken/egg; lower priority).
+
 ### NEXT (durable anchors still needed)
 - **Recover the OoT3D Actor struct layout from static code.** The port is C++ (`z_actor.cpp`,
   `ctr/actor_util.cpp`). Approach: the GameState/scene object is at `0x08000110` (static global
