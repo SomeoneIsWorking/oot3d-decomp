@@ -27,7 +27,46 @@ Recovered by temporal diff of an animating En_Ko @0990fba0:
   arena pointers (track/limb-channel objects: 0x0827e6b4, 0x0827ff28, …) then a count(1) + 1.0f.
 - +0x1bc, +0x1c0 = CODE pointers (0x002335b4, 0x00217230) — per-instance callbacks (anim/draw?).
 
-## NEXT (the actual #87 deliverable — not yet done)
+## En_Ko ground truth (soh3d #87) — VERIFIED live 2026-06-21, Kokiri Forest (scene 85)
+Tool: **`tools/enko_anim.py`** (walks the actor list, prints each En_Ko's ENKO_TYPE +
+anim-controller state). The 8 Kokiri carry 8 distinct ENKO_TYPEs and 8 distinct animLengths,
+so **OoT3D plays a DIFFERENT animation per type** — the kids are NOT all on one shared idle.
+soh3d collapsing them to a single idle CSAB (the #87 complaint) is therefore a soh3d bug.
+
+| type | sex  | endF | animLen | (the kid) |
+|------|------|------|---------|-----------|
+| 0    | boy  | 18   | 19      | (-292,0,-430) |
+| 1    | girl | 24   | 25      | (45,0,-272) |
+| 2    | boy  | 19   | 20      | (-608,120,1021) |
+| 3    | boy  | 13   | 14      | (-1471,-80,-294) |
+| 4    | boy  | 18   | 19      | (669,0,521) |
+| 5    | girl | 20   | 21      | (853,100,-311) |
+| 6    | girl | 24   | 25      | (-678,1,-179) |
+| 12=FADO | FADO | 39 | 40    | (-10,180,-22) (idle, next to spawn) |
+
+ENKO_TYPE = `actor.params & 0xFF` (verified vs z_en_ko.c `#define ENKO_TYPE`).
+
+**CRITICAL — live OoT3D selection DIVERGES from the N64 `sOsAnimeLookup` table.** N64
+`sOsAnimeLookup[CHILD_5]` = `ENKO_ANIM_STANDUP_2` (gKokiriStandUpAnim, end=2.0, ANIMMODE_ONCE —
+a ~2-frame one-shot). But the LIVE OoT3D CHILD_5 girl runs a **looping 21-frame** anim
+(endF=20, playSpeed=1.0, curFrame wraps). So soh3d must source each kid's anim/CSAB from
+**OoT3D ground truth (this oracle)**, not from the N64 sOsAnimeLookup table — they differ.
+(GREZZO re-authored the Kokiri anim set / selection; the N64 decomp is not authoritative here.)
+
+GOTCHA: curFrame only advances for kids near Link (others update-throttled) — animLength /
+endFrame / type are valid regardless, so SELECTION is fully readable without tp-ing around.
+Player-position writes (`link_ctl.py tp`) get clobbered by the per-frame player update, so
+framing a distant kid for a screenshot needs a frozen player or a free camera (not built yet).
+
+## NEXT (refine the #87 deliverable)
+- Name the exact CSAB per type. The anim binding chain is `actor+0x1cc (anim-player) -> +0x14
+  (binding obj, vtable 0x4ebd98) -> +0x10 (per-instance CSAB descriptor) -> +0x00 (shared
+  skeleton resource, e.g. 0x080a6e50)`. The LINEAR (0x14xxxxxx) ptrs inside the binding obj are
+  TRANSIENT per-frame pose buffers (they shift every frame) — NOT a stable CSAB id; do not use
+  them as a fingerprint. animLength+endFrame is the stable per-anim discriminator today.
+- Build a frozen-player / free-camera primitive so distant kids can be framed + screenshotted.
+
+## (historical) original NEXT — vtable RE, partially superseded by the table above
 1. **Identify which animation (CSAB) curFrame is playing.** The +0x1cc anim-player object (vtable
    0x4ec018) binds a CSAB. RE that class: dump the array entries, find the field that names the
    CSAB / animation id, and correlate to the CMB skeleton at +0x1ac. Goal: a stable "this actor is
