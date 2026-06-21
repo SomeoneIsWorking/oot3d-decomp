@@ -67,10 +67,24 @@ These are STATIC (.data/.bss) → **run-stable every boot**, unlike the heap add
   (51 files indexed). `__FILE__` strings are NOT referenced by absolute literals (PC-relative `ADR`),
   so absolute-literal xref misses them — find actor fns by structure / vtables, not by string xref.
 
+### DEAD ENDS (don't repeat — 2026-06-21)
+- Heap signature-scan for `actorLists[12]` as {head, s32 length} pairs with the N64 invariant
+  `Actor.category == list index` at **Actor+0x02** → **0 valid hits** (tried stride 8 & 12, both
+  pair orders, strict head⟺length, ≥3 populated categories, over 0x08000000–0x08c00000).
+  **Conclusion: the GREZZO C++ Actor struct is NOT laid out like N64 OoT** — `id`@+0/`category`@+2
+  is wrong here. Must recover the real Actor layout from the **static code** (disassemble an actor
+  function), not by assuming N64 offsets.
+- Loose {small count, 0x08-ptr}×12 scan found `0x08134b70` (shape cat0=0,cat1=1,cat2=2,rest 0) but
+  its "heads" deref to indexed tables, not Actors → not the actor list.
+
 ### NEXT (durable anchors still needed)
-- **Confirm the PlayState root** (likely reachable from `0x0055a1f8 → 0x08000110`) and find
-  `actorCtx.actorLists[12]` ({s32 length; Actor* head}) inside it → walk actors every boot.
-- **Actor struct offsets** (id, category, params, world.pos, `next`, SkelAnime → CSAB/curFrame).
+- **Recover the OoT3D Actor struct layout from static code.** The port is C++ (`z_actor.cpp`,
+  `ctr/actor_util.cpp`). Approach: the GameState/scene object is at `0x08000110` (static global
+  `0x0055a1f8`), vtable @ `0x004eca6c` (rodata). Disassemble its vtable Update/Draw to find the
+  actor-iteration loop → that reveals `actorCtx` offset, the list-entry layout, and `Actor.next`
+  / `id` / `category` / `world.pos` offsets. Then re-run the validated heap scan with real offsets.
+  (xref-by-absolute-literal does NOT find `__FILE__` strings — ADR-relative; use vtables/structure.)
+- Cross-check every recovered offset by reading a known actor (Player/Link) live.
 - **Warp**: find the transition trigger that consumes `gSaveContext+0x00` entranceIndex (set entrance
   + trigger → deterministic nav to open Kokiri, which UNBLOCKS the dynamic actor scan + #87).
 - **En_Ko (Kokiri kids)**: per-instance type/variant + the CSAB it plays — the #87 driver.
