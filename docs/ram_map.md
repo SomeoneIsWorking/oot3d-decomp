@@ -98,9 +98,30 @@ Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor 
   real pos each tick (scratch: `nav_probe.py`/`nav_goto.py`/`exit_walk.py`) lets you drive him, but
   precise nav is unreliable — prefer TELEPORT for in-scene positioning.
 
-## WARP / scene-transition — investigation (UNSOLVED; concrete dead-ends, do not re-walk)
-Goal: deterministic nav to another scene (Kokiri Forest, for #87 En_Ko). Status: blocked on finding
-the transition *trigger*. What's PROVEN:
+## WARP / scene-transition — **SOLVED** 2026-06-21 (deterministic warp to any scene)
+**The transition trigger is `PlayState.transitionTrigger @ play+0x5c2d` (s8), polled every frame
+by Play_Update.** To warp: set `PlayState.nextEntranceIndex @ play+0x5c32` (s16) to an entrance
+index, then write `play+0x5c2d = 20` (TRANS_TRIGGER_START). Play_Update runs the fade-out and
+(re)loads the scene at that entrance. Entrance indices == N64 OoT (e.g. 0xEE = Kokiri Forest).
+
+- **Tool:** `tools/link_ctl.py warp <entrance>` (e.g. `warp 0xEE`). Verified live: Link's House
+  (scene 52) → Kokiri Forest (scene 85), and back (0xBB), repeatedly. Lands in the populated scene
+  (98 actors incl. 8× En_Ko id=355). This UNBLOCKS #87.
+- **How it was found:** GameState header @ gPlayState holds `main` fn ptr @ +0x04 = `Play_Main`
+  (0x0045238c, ARM). Play_Main tail-calls the transition driver `0x2e2e60`. There:
+  `ldrsb r0,[play+0x5c2d]` (trigger) drives a `transitionMode` jump table (`cmp r0,0x14;
+  ldrlo pc,[pc,r0,lsl 2]` @ 0x2e314c); transition fade callbacks are stored at `play+0x1e0..0x204`;
+  `ldrsh r0,[play+0x5c32]` indexes the **entrance table @ 0x543bb8** (4-byte entries). `cmn r0,0x14`
+  sites check trigger == -20 (TRANS_TRIGGER_END).
+- **Side note (how the trigger was first reproduced):** Game Over → "Continue" performs a savewarp
+  reload, but the savewarp respawn entrance for Link's House is Link's House itself (scene stays 52),
+  so it does NOT reach Kokiri — the direct transitionTrigger write is the general solution.
+
+Tooling used: `r2 -a arm -b 32 -m 0x100000 build/code.bin` (load base 0x100000) for the static
+disassembly; `azahar_rpc` for live read/write. See `tools/link_ctl.py` for field offsets.
+
+### (historical) earlier investigation — concrete dead-ends, do not re-walk
+Goal: deterministic nav to another scene (Kokiri Forest, for #87 En_Ko). What was PROVEN:
 - **Entrance indices == N64** (OoT3D reuses the Shipwright `entrance_table.h` values). Confirmed:
   `gSaveContext+0x00 entranceIndex = 0xBB = ENTR_LINKS_HOUSE_CHILD_SPAWN` (live). Kokiri Forest =
   `ENTR_KOKIRI_FOREST_0 = 0xEE`. So a warp = set entrance + trigger a (re)load.

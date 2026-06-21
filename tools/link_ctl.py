@@ -10,12 +10,21 @@ live 2026-06-21 at Link's House.
 
   link_ctl.py                 # print Link pos/rot + scene
   link_ctl.py tp <x> <z> [y]  # teleport Link (collision-resolved)
+  link_ctl.py warp <entrance> # scene-transition warp (e.g. 0xEE = Kokiri Forest)
+
+WARP: PlayState.transitionTrigger @ play+0x5c2d (s8) is polled every frame by Play_Update
+(fn 0x2e2e60, reached via Play_Main @ 0x45238c). Setting it to 20 (TRANS_TRIGGER_START) with
+PlayState.nextEntranceIndex @ play+0x5c32 (s16) set to an entrance index kicks off the fade +
+scene (re)load. Entrance table @ 0x543bb8 (4-byte entries). Verified live 2026-06-21: warped
+Link's House (52) -> Kokiri Forest (85) with entrance 0xEE. Entrance indices match N64 OoT.
 """
 import sys, os, struct
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "soh3d", "tools"))
 from azahar_rpc import Rpc  # noqa: E402
 
 GPLAYSTATE = 0x0050AF34
+TRANS_TRIGGER = 0x5c2d   # play+offset, s8 (20 = TRANS_TRIGGER_START)
+NEXT_ENTRANCE = 0x5c32   # play+offset, s16
 
 def link_head(r):
     ps = r.read32(GPLAYSTATE)
@@ -34,6 +43,12 @@ def tp(r, x, z, y=0.0):
     r.write(h+0x0C, struct.pack("<f", y))
     r.write(h+0x10, struct.pack("<f", z))
 
+def warp(r, entrance):
+    """Scene-transition warp: set nextEntranceIndex then trigger the fade/load."""
+    ps = r.read32(GPLAYSTATE)
+    r.write(ps + NEXT_ENTRANCE, struct.pack("<h", entrance))
+    r.write(ps + TRANS_TRIGGER, bytes([20]))   # TRANS_TRIGGER_START
+
 if __name__ == "__main__":
     r = Rpc()
     if len(sys.argv) > 1 and sys.argv[1] == "tp":
@@ -41,5 +56,9 @@ if __name__ == "__main__":
         y = float(sys.argv[4]) if len(sys.argv) > 4 else 0.0
         tp(r, x, z, y)
         import time; time.sleep(0.3)
+    elif len(sys.argv) > 1 and sys.argv[1] == "warp":
+        ent = int(sys.argv[2], 0)
+        warp(r, ent)
+        import time; time.sleep(3.0)
     sc, pos, rot, h = state(r)
     print("scene=%d head=%08x pos=(%.1f,%.1f,%.1f) rot=(%d,%d,%d)" % (sc, h, *pos, *rot))
