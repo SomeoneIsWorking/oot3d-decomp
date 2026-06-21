@@ -112,6 +112,32 @@ the player physics/anim stepping is **delta-time / update-rate scaled**. This is
 the locomotion "feel" bugs (walk-stop snap, run-off-edge) where SoH3D's N64-rate stepping won't
 match. *Interpretation pending one live read of `[g+0x110]`; the consume-pattern is verified.*
 
+## Player_UpdateCommon special-cased action funcs — RESOLVED addresses (static)
+Player_UpdateCommon (`FUN_00250ad0`) gates several behaviors on `this->actionFunc` (+0x1708) ==/!=
+specific function pointers, exactly like N64 (`Player_Action_X != this->actionFunc`). Those pointers
+live in the literal pool; reading their u32 values from `code.bin` resolves the **exact OoT3D
+addresses** without any live run:
+
+| literal-pool DAT | actionFunc value | Common context (line in 00250ad0.c) | role |
+|---|---|---|---|
+| DAT_00251cf0 | **0x4b9920** | `==` @1166 | slope/slippery-floor velocity ×factor |
+| DAT_00251cd8 | **0x4ba378** | `==` @1201 | (paired w/ a speed threshold check) |
+| DAT_00251cd4 | **0x4ba538** | @767/770 | grouped w/ above in a floor/landing branch |
+| DAT_00252944 | **0x4bc22c** | `!=` @1140 | EXCLUDED from slope-slide (floorType 4/7/0xc) |
+| DAT_00252930 | **0x4bcccc** | `!=` @1120 | ⚠ Thumb/gap — needs TMode decode |
+| DAT_00253408 | **0x4bf18c** | `==` @1379 | in-air/land branch (see special funcs above) |
+| DAT_0025214c | **0x4bf3bc** | @920/960 | grouped near 0x4bf5cc |
+| DAT_00252150 | **0x4bf5cc** | `!=` @946 | tiny: floor-check + FUN_0034ad70(speed,yaw) |
+| DAT_0025211c | **0x183634** | `==` @1413 (+many) | ⚠ Thumb/gap — needs TMode decode; heavily special-cased |
+| DAT_00251ce4 | **0x488b40** | `!=` @585 | big (1604B) locomotion action (uses GetMovementSpeedAndYaw + step funcs) |
+| DAT_00251314 | **0x4886d4** | `!=` @112 | ⚠ Thumb/gap — needs TMode decode |
+
+**⚠ Dead-end noted:** 0x4bcccc / 0x4886d4 / 0x183634 sit in *unanalyzed gaps* and decode to garbage
+as ARM (`halt_baddata`, `coprocessor_store`) — they are almost certainly **Thumb** functions. They
+ARE real action funcs (compared against actionFunc), so to read them DecompDump.py must set the TMode
+register context before `CreateFunctionCmd` (TODO). The other 8 are clean ARM and decompiled.
+(DecompDump.py was extended this session to force-create a function at pointer-only targets.)
+
 ## Idle / yawn fidget machinery (#88) — N64 side mapped, OoT3D addr TBD
 The yawn is a **fidget idle anim**. N64 path (to find the OoT3D twin of, via call-graph from the
 idle action func):
@@ -180,3 +206,9 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   scaling** (`[g+0x110]` factor) — Grezzo change, suspect for locomotion bugs. Mapped the N64
   idle/yawn picker (Player_ChooseNextIdleAnim). 3 special funcs decompiled, twins narrowed.
   Decompiled .c are in build/decomp/ (gitignored). NEXT: live-read actionFunc per bug to pin addrs.
+- 2026-06-21 (cont.2): **RESOLVED the Player_UpdateCommon special-cased action funcs to exact
+  addresses** by reading their function-pointer values straight out of code.bin's literal pool
+  (no live run): 0x4b9920, 0x4ba378, 0x4ba538, 0x4bc22c, 0x4bf18c, 0x4bf3bc, 0x4bf5cc, 0x488b40
+  (clean ARM) + 0x4bcccc, 0x4886d4, 0x183634 (Thumb/gap — garbage as ARM, TODO TMode decode).
+  Extended tools/ghidra_scripts/DecompDump.py to force-create functions at pointer-only targets.
+  See the "special-cased action funcs — RESOLVED addresses" table.

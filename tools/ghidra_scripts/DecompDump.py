@@ -29,6 +29,12 @@ def decompile_at(vaddr):
     addr = af.getAddress(vaddr)
     fn = fm.getFunctionContaining(addr)
     if fn is None:
+        # Action funcs reached only via function pointers are often missed by analysis.
+        # Force-create one at the exact target so it can be decompiled.
+        from ghidra.app.cmd.function import CreateFunctionCmd
+        CreateFunctionCmd(addr).applyTo(currentProgram, mon)
+        fn = fm.getFunctionContaining(addr)
+    if fn is None:
         return None, None
     res = di.decompileFunction(fn, 60, mon)
     if res is None or not res.decompileCompleted():
