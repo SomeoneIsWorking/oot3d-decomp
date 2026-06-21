@@ -124,19 +124,21 @@ addresses** without any live run:
 | DAT_00251cd8 | **0x4ba378** | `==` @1201 | (paired w/ a speed threshold check) |
 | DAT_00251cd4 | **0x4ba538** | @767/770 | grouped w/ above in a floor/landing branch |
 | DAT_00252944 | **0x4bc22c** | `!=` @1140 | EXCLUDED from slope-slide (floorType 4/7/0xc) |
-| DAT_00252930 | **0x4bcccc** | `!=` @1120 | ⚠ Thumb/gap — needs TMode decode |
+| DAT_00252930 | **0x4bcccc** | `!=` @1120 | now decoded (ARM); gap func |
 | DAT_00253408 | **0x4bf18c** | `==` @1379 | in-air/land branch (see special funcs above) |
 | DAT_0025214c | **0x4bf3bc** | @920/960 | grouped near 0x4bf5cc |
 | DAT_00252150 | **0x4bf5cc** | `!=` @946 | tiny: floor-check + FUN_0034ad70(speed,yaw) |
-| DAT_0025211c | **0x183634** | `==` @1413 (+many) | ⚠ Thumb/gap — needs TMode decode; heavily special-cased |
+| DAT_0025211c | **0x183634** | `==` @1413 (+many) | now decoded (ARM); **climb/ledge candidate** (#79): anim-id-gated (+0x284 vs 0xe6/0x3a), height compare +0x2270, ledge timer +0x2238 |
 | DAT_00251ce4 | **0x488b40** | `!=` @585 | big (1604B) locomotion action (uses GetMovementSpeedAndYaw + step funcs) |
-| DAT_00251314 | **0x4886d4** | `!=` @112 | ⚠ Thumb/gap — needs TMode decode |
+| DAT_00251314 | **0x4886d4** | `!=` @112 | now decoded (ARM); gap func |
 
-**⚠ Dead-end noted:** 0x4bcccc / 0x4886d4 / 0x183634 sit in *unanalyzed gaps* and decode to garbage
-as ARM (`halt_baddata`, `coprocessor_store`) — they are almost certainly **Thumb** functions. They
-ARE real action funcs (compared against actionFunc), so to read them DecompDump.py must set the TMode
-register context before `CreateFunctionCmd` (TODO). The other 8 are clean ARM and decompiled.
-(DecompDump.py was extended this session to force-create a function at pointer-only targets.)
+**RESOLVED (was a tooling artifact, not Thumb):** 0x4bcccc / 0x4886d4 / 0x183634 sit in unanalyzed
+gaps; the first force-create attempts produced garbage (`halt_baddata`, `coprocessor_store`) because
+a wrong-mode disassembly context got persisted in the Ghidra project. Their raw bytes are clean ARM
+prologues (e.g. 0x183634 = `e92d47f0` = `push {r4-r10,lr}`). Fix: DecompDump.py now (a) force-creates
+a function at pointer-only targets, (b) pins the decode mode via the TMode register + an explicit
+`ArmDisassembleCommand` (env `DECOMP_THUMB=all|<hexlist>` for Thumb), and (c) with `DECOMP_RECREATE=1`
+removes+clears a stale function and rebuilds it cleanly. All 11 special-cased funcs now decompile.
 
 ## Idle / yawn fidget machinery (#88) — N64 side mapped, OoT3D addr TBD
 The yawn is a **fidget idle anim**. N64 path (to find the OoT3D twin of, via call-graph from the
@@ -212,3 +214,8 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   (clean ARM) + 0x4bcccc, 0x4886d4, 0x183634 (Thumb/gap — garbage as ARM, TODO TMode decode).
   Extended tools/ghidra_scripts/DecompDump.py to force-create functions at pointer-only targets.
   See the "special-cased action funcs — RESOLVED addresses" table.
+- 2026-06-21 (cont.3): made DecompDump.py robust (TMode/ARM-Thumb pinning + DECOMP_RECREATE) and
+  **decompiled all 3 remaining special-cased funcs cleanly** (they were ARM, not Thumb — earlier
+  garbage was a persisted wrong-mode context). 0x183634 looks like the **climb/ledge action (#79)**:
+  sets DISABLE_ROTATION_Z_TARGET, gates on anim id +0x284 (0xe6/0x3a), compares anim height to
+  +0x2270, sets ledge timer +0x2238. All 11 UpdateCommon special-cased funcs now in build/decomp/.

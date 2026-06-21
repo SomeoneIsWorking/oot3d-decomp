@@ -25,14 +25,53 @@ di.openProgram(currentProgram)
 mon = ConsoleTaskMonitor()
 
 
+# Targets (hex vaddr) that should be decoded as Thumb rather than ARM. The image is mixed
+# ARM/Thumb-2; pointer-only action funcs in unanalyzed gaps are sometimes Thumb and decode to
+# garbage (halt_baddata) as ARM. Set DECOMP_THUMB="all" to force Thumb on every force-created
+# target, or a comma list of hex vaddrs.
+_thumb_env = os.environ.get("DECOMP_THUMB", "").strip().lower()
+THUMB_ALL = _thumb_env == "all"
+THUMB_SET = set(int(x, 16) for x in _thumb_env.replace("0x", "").split(",") if x and x != "all")
+# Force remove+clear+recreate of an already-existing function at the target (use to redo a target
+# that a prior wrong-mode attempt left as garbage).
+RECREATE = os.environ.get("DECOMP_RECREATE", "").strip() not in ("", "0", "false")
+
+
+def _set_tmode(addr, thumb):
+    import java.math.BigInteger as BigInteger
+    tmode = currentProgram.getProgramContext().getRegister("TMode")
+    if tmode is not None:
+        try:
+            currentProgram.getProgramContext().setValue(
+                tmode, addr, addr, BigInteger.ONE if thumb else BigInteger.ZERO)
+        except Exception:
+            pass
+
+
+def _force_create(addr, thumb):
+    from ghidra.app.cmd.function import CreateFunctionCmd
+    from ghidra.app.cmd.disassemble import ArmDisassembleCommand
+    # Always pin the decode mode (TMode 1=Thumb, 0=ARM) before disassembling — a prior wrong-mode
+    # attempt can persist the opposite context and produce garbage.
+    _set_tmode(addr, thumb)
+    ArmDisassembleCommand(addr, None, thumb).applyTo(currentProgram, mon)
+    CreateFunctionCmd(addr).applyTo(currentProgram, mon)
+
+
 def decompile_at(vaddr):
     addr = af.getAddress(vaddr)
+    thumb = THUMB_ALL or (vaddr in THUMB_SET)
     fn = fm.getFunctionContaining(addr)
+    if (fn is not None) and RECREATE and (fn.getEntryPoint().getOffset() == vaddr):
+        # A prior wrong-mode force-create may have persisted. Wipe it so we can redo cleanly.
+        body_max = fn.getBody().getMaxAddress()
+        fm.removeFunction(addr)
+        currentProgram.getListing().clearCodeUnits(addr, body_max, False)
+        fn = None
     if fn is None:
         # Action funcs reached only via function pointers are often missed by analysis.
         # Force-create one at the exact target so it can be decompiled.
-        from ghidra.app.cmd.function import CreateFunctionCmd
-        CreateFunctionCmd(addr).applyTo(currentProgram, mon)
+        _force_create(addr, thumb)
         fn = fm.getFunctionContaining(addr)
     if fn is None:
         return None, None
@@ -50,7 +89,13 @@ if os.path.isfile(targets_file):
         if ln:
             addrs.append(int(ln, 16))
     for va in addrs:
-        fn, c = decompile_at(va)
+        try:
+            fn, c = decompile_at(va)
+        except Exception as e:
+            import traceback
+            print("DECOMP EXC %08x: %s" % (va, e))
+            traceback.print_exc()
+            continue
         if c is None:
             print("DECOMP FAIL %08x (fn=%s)" % (va, fn))
             continue
