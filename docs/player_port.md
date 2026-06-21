@@ -64,11 +64,85 @@ So we do NOT decompile blind ARM: for each OoT3D function we (1) Ghidra-decompil
   - **+0x1708 = `actionFunc`** (the action-state function pointer — every behavior is a function
     stored here; finding the per-behavior function = finding +0x1708's value in that state).
   - **+0x1710 = `stateFlags1`** (u32, flag-tested pervasively: 0x2000000, 0x20000000, 0x20000, ...).
-  - **+0x172a = stateFlags2-ish** (byte; bit 4 gates the action call; bit 0x80 used too).
+  - **+0x172a = sf2-call-gate byte** (byte; bit 4 gates the action call; bit 0x80 used too). NOTE:
+    the real `stateFlags2` is the **u32 @ +0x1714** — see VERIFIED Rosetta map below (this +0x172a
+    was mislabeled "stateFlags2" in the prior session).
   - pos/world @+0x08 (live-verified), morph controller @+0x288 (anim_system.md).
 - **Action funcs special-cased in Player_UpdateCommon** (compared against `this->actionFunc`), all
   confirmed function entry points in the action-func block ~0x4b9000–0x4bf000:
   `0x4b9920` (1176B), `0x4ba378` (420B), `0x4bf18c` (528B), and `0x183634`. Name via N64 twin.
+
+## VERIFIED Rosetta map — confirmed helpers + Player offsets (2026-06-21, static)
+Confirmed by decompiling each OoT3D fn and matching it 1:1 to its N64 twin in
+`Shipwright/.../z_player.c` (structure + flag bits + field offsets all agree). These are the
+**keys**: every action func is now readable because its called helpers are named.
+
+**Player struct offsets (this TU) — CONFIRMED via N64 twin, not guessed:**
+| OoT3D off | N64 field | proof |
+|---|---|---|
+| +0x90  | `actor.bgCheckFlags` | `&1`=on-ground, `&2`=wall — same bit tests as N64 |
+| +0xbe  | `actor.shape.rot.y`  | `Player_UpdateHostileLockOn` sets `yaw = shape.rot.y` |
+| +0x16f8| `focusActor`         | `Player_UpdateHostileLockOn`: `focusActor && (flags & (ATTENTION|HOSTILE=0x5))` |
+| +0x1708| `actionFunc`         | (prior session) dispatched in Player_UpdateCommon |
+| +0x1710| `stateFlags1` (u32)  | bit 0x10 = `PLAYER_STATE1_HOSTILE_LOCK_ON` (set/cleared in HostileLockOn) |
+| +0x1714| `stateFlags2` (u32)  | `|=0x20`=`DISABLE_ROTATION_Z_TARGET`(b5), `|=0x60`=+`DISABLE_ROTATION_ALWAYS`(b6) |
+| +0x221c| `linearVelocity` (f32, =N64 speedXZ) | stepped by Math_StepToF in every locomotion func; `==0` ⇒ idle |
+| +0x2220| `yaw` (s16, world move yaw) | distinct from shape.rot.y; angle-diff `>0x6000` decel-then-turn |
+
+NOTE the prior `+0x172a = stateFlags2` guess was WRONG — **stateFlags2 is the u32 at +0x1714**
+(proven by the `|= DISABLE_ROTATION_*` bits). +0x172a is a different byte flag (gates the action call
+in Player_UpdateCommon); leave it as "sf2-call-gate byte" until separately confirmed.
+
+**Confirmed helper functions (OoT3D addr → N64 name):**
+| OoT3D | N64 twin | signature / notes |
+|---|---|---|
+| `FUN_0036b3f4` | **Player_GetMovementSpeedAndYaw** | `(speedMode_f32, this, f32* outSpeed, s16* outYaw, play)` — ARM passes the f32 `speedMode` in VFP s0 so Ghidra lists it first |
+| `FUN_002c3d18` | **Player_TryActionHandlerList** | `(play, this, s8* list, flag)` → returns nonzero if a handler took over; guards every action body as `if(!...){ }` |
+| `FUN_00349574` | **Player_UpdateHostileLockOn** | `(this)` → sets/clears STATE1_HOSTILE_LOCK_ON; on release w/ speed 0, `yaw=shape.rot.y` |
+| `FUN_002dd714` | **Math step-to-f32** (frame-scaled) | `(target, step, decel/min, f32* val)` — steps linearVelocity |
+| `FUN_003705a0` | **Math_StepToF** (frame-scaled) | `(target, step, f32* val)` → returns reached |
+| `FUN_00370378` | **Math_ScaledStepToS** (frame-scaled) | `(s16* val, target, step)` → returns reached; for yaw |
+
+### ⚠ KEY GREZZO CHANGE — variable-framerate step scaling
+Every OoT3D step/lerp helper above multiplies its step by a **shared per-frame scalar**:
+`VectorSignedToFloat(*(s16*)(*g + 0x110))` (g = a global game-struct pointer; same `*g+0x110`
+short appears in GetMovementSpeedAndYaw and all three Math step funcs). N64 logic runs fixed-rate
+(20 Hz) with constant steps; Grezzo's 3DS port scales each step by this `[g+0x110]` factor — i.e.
+the player physics/anim stepping is **delta-time / update-rate scaled**. This is a prime suspect for
+the locomotion "feel" bugs (walk-stop snap, run-off-edge) where SoH3D's N64-rate stepping won't
+match. *Interpretation pending one live read of `[g+0x110]`; the consume-pattern is verified.*
+
+## Idle / yawn fidget machinery (#88) — N64 side mapped, OoT3D addr TBD
+The yawn is a **fidget idle anim**. N64 path (to find the OoT3D twin of, via call-graph from the
+idle action func):
+- **`Player_Action_Idle`** (z_player.c:8434) runs while standing; calls `Player_CheckForIdleAnim`
+  and, on a timer, **`Player_ChooseNextIdleAnim`** (z_player.c:8347) — the picker.
+- Picker logic: if `focusActor != NULL` OR (`!critHealth && ((idleType=(idleType+1)&1)!=0)`) → plain
+  idle (no fidget). Else set `PLAYER_STATE2_IDLE_FIDGET`; if carrying actor → plain idle anim; else
+  `fidgetType = play->roomCtx.curRoom.behaviorType2` by default, and `commonType = Rand_ZeroOne()*5`
+  gives a 4/5 chance to override with a common fidget (sword/shield/tunic/feet) subject to equipment
+  checks. The chosen `sFidgetAnimations[fidgetType][modelAnimType!=1?1:0]` is `LinkAnimation_Change`'d
+  with a **−6.0f morph** (so the fidget blends in, not hard-cut).
+- ⇒ The "weird yawn" is most likely (a) OoT3D picking a different `fidgetType` (room `behaviorType2`
+  differs / `idleType` toggle) or (b) the fidget anim played without the −6.0f morph blend on the
+  SoH3D side. To pin the OoT3D address: live-read `actionFunc` while standing idle, then align that
+  fn → Player_Action_Idle and its called picker.
+
+## Special-cased action funcs — decompiled behavior (twins narrowed; confirm via live read)
+All three guard their body with `if(!Player_TryActionHandlerList(...))` and use the confirmed
+helpers above. They are locomotion/physics action funcs in block 0x4b9000–0x4bf000:
+- **`FUN_004ba378`** (420B): `stateFlags2 |= DISABLE_ROTATION_Z_TARGET`; GetMovementSpeedAndYaw →
+  if `|yaw−target|>0x6000` step speed→0 first, else AsymStep speed + ScaledStep yaw; on stop
+  (`linearVelocity==0 && target==0` or sf2&4) → setup-idle pair `FUN_002c2658`+`FUN_002be4c4`.
+  ⇒ a **ground turn/run-to-idle locomotion** action (N64 Player_Action_Run/turn family).
+- **`FUN_004bf18c`** (528B): `stateFlags2 |= 0x60` (disable ALL rotation); clamps a per-frame char
+  counter from control input; restores stored yaw/speed from `+0x2291/+0x2292/+0x2294`; drives a
+  `+0x2238` countdown; tests `bgCheckFlags & 1/& 2`; plays floor/landing SFX; end-branch on wall
+  (`bgCheckFlags&2`). ⇒ an **in-air / land / stepping** action (suspect for run-off-edge jump #86);
+  NOT knockback (ruled out vs Player_Action_8084377C/80843954, which use knockbackType/down anims).
+- **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
+  GetMovementSpeedAndYaw + the `>0x6000` turn logic + StepToF on yaw/speed; a **complex ground
+  locomotion** (run/turn-in-place family).
 
 ## ⇒ Fastest next step: oracle-read `actionFunc` per behavior
 Now that **actionFunc is at Player+0x1708**, the exact OoT3D function for any behavior is one RAM
@@ -97,3 +171,12 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 
 ## Log
 - 2026-06-21: pipeline stood up; Ghidra headless analysis launched on code.bin. (this entry)
+- 2026-06-21 (cont.): decompiled the whole action-func block (0x4b9000–0x4bf500, 65 fns) + key
+  helpers. **VERIFIED via N64 Rosetta**: helpers (GetMovementSpeedAndYaw=FUN_0036b3f4,
+  TryActionHandlerList=FUN_002c3d18, UpdateHostileLockOn=FUN_00349574, frame-scaled Math step
+  funcs FUN_002dd714/003705a0/00370378) and Player offsets (focusActor+0x16f8, stateFlags1+0x1710
+  w/ HOSTILE_LOCK_ON=0x10, **stateFlags2 = u32 @ +0x1714** [corrected from +0x172a], linearVelocity
+  +0x221c, yaw+0x2220, shape.rot.y+0xbe, bgCheckFlags+0x90). Found the **variable-framerate step
+  scaling** (`[g+0x110]` factor) — Grezzo change, suspect for locomotion bugs. Mapped the N64
+  idle/yawn picker (Player_ChooseNextIdleAnim). 3 special funcs decompiled, twins narrowed.
+  Decompiled .c are in build/decomp/ (gitignored). NEXT: live-read actionFunc per bug to pin addrs.
