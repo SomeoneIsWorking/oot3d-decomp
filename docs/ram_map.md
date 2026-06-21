@@ -45,14 +45,32 @@ alternation is what isolates it.) Implemented in `soh3d:tools/azahar_scan.py` `f
 - NOTE: heap addresses above are this-boot only. There is now an in-game SAVE at Link's house (File 1);
   fast-load skips the intro (see oracle.md).
 
-### NEXT (durable anchors needed)
-- **Find the static global context / actor-list head** (OoT N64: `gPlayState`/`gGlobalContext` with
-  `actorCtx.actorLists[12]`). It lives in static BSS → **run-stable address**, the proper anchor: from
-  it, walk each category's actor list every boot. Find it by: locate Link's Actor (clean world.pos
-  Vec3f, with `id`/category header just before it — search a contiguous moved x,y? ,z and read back for
-  a small actor-id), then find the list node/pointer that references it; the list head pointer sits in
-  the static context.
-- **Actor struct offsets** (id, category, params, world.pos, `next` ptr, SkelAnime ptr → CSAB/curFrame).
-- **gSaveContext + nextEntranceIndex** for warp injection (write entrance, trigger load).
-- **En_Ko (Kokiri kids)**: per-instance type/variant + the CSAB it plays — the #87 driver and the model
-  for a full per-NPC variant/anim sweep.
+## STATIC anchors from the code image (durable; via static decomp — see `static_decomp.md`)
+The in-house dynamic scan kept landing on camera-focus copies + render matrices and could NOT
+isolate the canonical `Actor.world.pos` (every poke reverted within a frame; even spam-write didn't
+visibly teleport — the master is recomputed each frame from a value the copies don't expose, and
+headless navigation out of the house was unreliable). 2026-06-21 we pivoted to **static decomp**:
+extract+disassemble `.code`, find globals by reference-frequency, and cross-check vs live RAM.
+These are STATIC (.data/.bss) → **run-stable every boot**, unlike the heap addresses above.
+
+- **gSaveContext @ `0x00587958`** (CONFIRMED by content; .bss). 670 code refs (2nd-most-referenced
+  global). Cross-checked live: player name "Link" (UTF-16) at `+0x1C` (`0x00587974`), save magic
+  **"ZELDAZ"** at `+0x2C` (`0x00587984`), health/cap `0x30` near `+0x44`.
+  - `+0x00` = **entranceIndex = `0x00BB`** (= entrance "Link's House, child" — matches where Link is).
+    This is the warp lever (write entrance + trigger a scene reload). Trigger mechanism not yet found.
+  - Other `0xBB` copies live at static `0x00588e58` (182 refs) — likely a play-state/next-entrance copy.
+- **Top-referenced globals** (refcount): `0x0051b2f4` (749) holds heap ptr `0x08080010` (a near-empty
+  arena); `0x0055a1f8` (114) holds heap ptr **`0x08000110`** — a C++ object whose `[0]` is a vtable
+  ptr into rodata (`0x004eca6c`), near an **"EXPH"** (CTR EXPHeap) header — a major game/scene object,
+  candidate for the GameState/PlayState root. Not yet confirmed to contain `actorCtx`.
+- **The port is C++** (GREZZO): source paths like `z_actor.cpp`, `z_player.cpp`, `ctr/actor_util.cpp`
+  (51 files indexed). `__FILE__` strings are NOT referenced by absolute literals (PC-relative `ADR`),
+  so absolute-literal xref misses them — find actor fns by structure / vtables, not by string xref.
+
+### NEXT (durable anchors still needed)
+- **Confirm the PlayState root** (likely reachable from `0x0055a1f8 → 0x08000110`) and find
+  `actorCtx.actorLists[12]` ({s32 length; Actor* head}) inside it → walk actors every boot.
+- **Actor struct offsets** (id, category, params, world.pos, `next`, SkelAnime → CSAB/curFrame).
+- **Warp**: find the transition trigger that consumes `gSaveContext+0x00` entranceIndex (set entrance
+  + trigger → deterministic nav to open Kokiri, which UNBLOCKS the dynamic actor scan + #87).
+- **En_Ko (Kokiri kids)**: per-instance type/variant + the CSAB it plays — the #87 driver.
