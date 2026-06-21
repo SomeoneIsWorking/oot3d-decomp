@@ -80,14 +80,22 @@ Confirmed by decompiling each OoT3D fn and matching it 1:1 to its N64 twin in
 **Player struct offsets (this TU) — CONFIRMED via N64 twin, not guessed:**
 | OoT3D off | N64 field | proof |
 |---|---|---|
+| +0x64  | `actor.velocity.y`   | knockback land (0x4bf18c): `if(velocity.y<0){gravity=0;velocity.y=0}` matches N64 8084377C |
+| +0x70  | `actor.gravity`      | same clamp (zeroed with velocity.y) |
 | +0x90  | `actor.bgCheckFlags` | `&1`=on-ground, `&2`=wall — same bit tests as N64 |
 | +0xbe  | `actor.shape.rot.y`  | `Player_UpdateHostileLockOn` sets `yaw = shape.rot.y` |
+| +0x1321| `cylinder.base.acFlags` | `&2`=`AC_HIT` (knockback land gates wake on `!AC_HIT && knockbackType==0`) |
 | +0x16f8| `focusActor`         | `Player_UpdateHostileLockOn`: `focusActor && (flags & (ATTENTION|HOSTILE=0x5))` |
+| +0x170c| `ageProperties*`     | knockback land reads `+0xf4` for per-age landing SFX |
 | +0x1708| `actionFunc`         | (prior session) dispatched in Player_UpdateCommon |
-| +0x1710| `stateFlags1` (u32)  | bit 0x10 = `PLAYER_STATE1_HOSTILE_LOCK_ON` (set/cleared in HostileLockOn) |
+| +0x1710| `stateFlags1` (u32)  | bit 0x10=`HOSTILE_LOCK_ON`; **0x4000000=`DAMAGED`**, **0x20000000=`IN_CUTSCENE`** (knockback land) |
 | +0x1714| `stateFlags2` (u32)  | `|=0x20`=`DISABLE_ROTATION_Z_TARGET`(b5), `|=0x60`=+`DISABLE_ROTATION_ALWAYS`(b6) |
 | +0x221c| `linearVelocity` (f32, =N64 speedXZ) | stepped by Math_StepToF in every locomotion func; `==0` ⇒ idle |
 | +0x2220| `yaw` (s16, world move yaw) | distinct from shape.rot.y; angle-diff `>0x6000` decel-then-turn |
+| +0x2238| `av2.actionVar2` (s16) | generic per-action counter (knockback down-countdown; climb 0x183634 ledge timer) |
+| +0x228c| `floorSfxOffset`     | added to base SFX id for floor/landing SFX |
+| +0x2291| `knockbackType` (u8) | knockback land (8084377C): `+0x2292`=`knockbackRot`(s16), `+0x2294`=`knockbackSpeed`(f32) — byte-exact N64 layout |
+| +0x2488| `invincibilityTimer` (s8) | clamped to ~20 frames at top of knockback land |
 
 NOTE the prior `+0x172a = stateFlags2` guess was WRONG — **stateFlags2 is the u32 at +0x1714**
 (proven by the `|= DISABLE_ROTATION_*` bits). +0x172a is a different byte flag (gates the action call
@@ -99,9 +107,19 @@ in Player_UpdateCommon); leave it as "sf2-call-gate byte" until separately confi
 | `FUN_0036b3f4` | **Player_GetMovementSpeedAndYaw** | `(speedMode_f32, this, f32* outSpeed, s16* outYaw, play)` — ARM passes the f32 `speedMode` in VFP s0 so Ghidra lists it first |
 | `FUN_002c3d18` | **Player_TryActionHandlerList** | `(play, this, s8* list, flag)` → returns nonzero if a handler took over; guards every action body as `if(!...){ }` |
 | `FUN_00349574` | **Player_UpdateHostileLockOn** | `(this)` → sets/clears STATE1_HOSTILE_LOCK_ON; on release w/ speed 0, `yaw=shape.rot.y` |
-| `FUN_002dd714` | **Math step-to-f32** (frame-scaled) | `(target, step, decel/min, f32* val)` — steps linearVelocity |
+| `FUN_002dd714` | **Math_AsymStepToF** (frame-scaled) | `(target, step, decel/min, f32* val)` — steps linearVelocity |
 | `FUN_003705a0` | **Math_StepToF** (frame-scaled) | `(target, step, f32* val)` → returns reached |
 | `FUN_00370378` | **Math_ScaledStepToS** (frame-scaled) | `(s16* val, target, step)` → returns reached; for yaw |
+| `FUN_0036b4ec` | **LinkAnimation_Update** | `(skelAnime=this+0x254, play)` → returns anim-done flag |
+| `FUN_0036055c` | **Player_SetupAction** | `(play, this, actionFunc, flag)` — sets +0x1708 + plays anim once |
+| `FUN_003604f0` | **Player_AnimPlayOnce** (AnimChangeOnceMorph) | `(skelAnime, play, animHeader)` |
+| `FUN_0034d628` | **Player_GetIdleAnim** | `(this)` |
+| `FUN_0035d260` | **Player_HoldsTwoHandedWeapon** | `(this)` — gates upper-body idle-copy in TurnInPlace |
+| `FUN_002bdd54` | **idle LinkAnimationHeader resolver** | `(skelAnime, idleId)` → anim ptr for SetLoadFrame |
+| `FUN_004ba304` | **AnimationContext_SetLoadFrame** | `(play, anim, frame, limbCount, morphTable)` |
+| `FUN_0035e9fc` | **AnimationContext_SetCopyTrue** | `(play, vecCount, jointTable, morphTable, sUpperBodyLimbCopyMap)` |
+| `FUN_0036f59c` | **Player_PlaySfx** | `(this, sfxId)` |
+| `FUN_002c2658`+`FUN_002be4c4` | **setup-idle pair** (`func_80839FFC`+`func_8083BF50`) | run→idle transition |
 
 ### ⚠ KEY GREZZO CHANGE — variable-framerate step scaling
 Every OoT3D step/lerp helper above multiplies its step by a **shared per-frame scalar**:
@@ -125,7 +143,7 @@ addresses** without any live run:
 | DAT_00251cd4 | **0x4ba538** | @767/770 | **= Player_Action_Idle (LIVE-confirmed #88)**; floor/landing branch |
 | DAT_00252944 | **0x4bc22c** | `!=` @1140 | EXCLUDED from slope-slide (floorType 4/7/0xc) |
 | DAT_00252930 | **0x4bcccc** | `!=` @1120 | now decoded (ARM); gap func |
-| DAT_00253408 | **0x4bf18c** | `==` @1379 | in-air/land branch (see special funcs above) |
+| DAT_00253408 | **0x4bf18c** | `==` @1379 | **= N64 `Player_Action_8084377C`** (knockback/damage bounce-LAND) — NOT plain in-air. **FALSE suspect for #86** (see correction below). The UpdateCommon `==` gate here is the knockback-airborne physics branch |
 | DAT_0025214c | **0x4bf3bc** | @920/960 | grouped near 0x4bf5cc |
 | DAT_00252150 | **0x4bf5cc** | `!=` @946 | tiny: floor-check + FUN_0034ad70(speed,yaw) |
 | DAT_0025211c | **0x183634** | `==` @1413 (+many) | now decoded (ARM); **climb/ledge candidate** (#79): anim-id-gated (+0x284 vs 0xe6/0x3a), height compare +0x2270, ledge timer +0x2238 |
@@ -156,18 +174,50 @@ idle action func):
   SoH3D side. To pin the OoT3D address: live-read `actionFunc` while standing idle, then align that
   fn → Player_Action_Idle and its called picker.
 
-## Special-cased action funcs — decompiled behavior (twins narrowed; confirm via live read)
-All three guard their body with `if(!Player_TryActionHandlerList(...))` and use the confirmed
-helpers above. They are locomotion/physics action funcs in block 0x4b9000–0x4bf000:
-- **`FUN_004ba378`** (420B): `stateFlags2 |= DISABLE_ROTATION_Z_TARGET`; GetMovementSpeedAndYaw →
-  if `|yaw−target|>0x6000` step speed→0 first, else AsymStep speed + ScaledStep yaw; on stop
-  (`linearVelocity==0 && target==0` or sf2&4) → setup-idle pair `FUN_002c2658`+`FUN_002be4c4`.
-  ⇒ a **ground turn/run-to-idle locomotion** action (N64 Player_Action_Run/turn family).
-- **`FUN_004bf18c`** (528B): `stateFlags2 |= 0x60` (disable ALL rotation); clamps a per-frame char
-  counter from control input; restores stored yaw/speed from `+0x2291/+0x2292/+0x2294`; drives a
-  `+0x2238` countdown; tests `bgCheckFlags & 1/& 2`; plays floor/landing SFX; end-branch on wall
-  (`bgCheckFlags&2`). ⇒ an **in-air / land / stepping** action (suspect for run-off-edge jump #86);
-  NOT knockback (ruled out vs Player_Action_8084377C/80843954, which use knockbackType/down anims).
+## ✅ N64-TWIN ALIGNMENTS (2026-06-21, full statement-level diff; notes in scratch/align/<addr>.md)
+Each OoT3D action func aligned 1:1 to its N64 twin in `Shipwright/.../z_player.c`, diffed for
+Grezzo's changes. The divergences ARE the port payload. Full per-func notes: `scratch/align/`.
+
+### `FUN_004ba378` (run) == N64 **`Player_Action_80842180`** — free-movement walk/run (non-Z-target)
+- Pinned by: `stateFlags2|=0x20` only; `func_80841EE4` pre-update; `sActionHandlerList8`; Z-target
+  handoff via `Player_IsZTargetingWithHostileUpdate`; **SPEED_MODE_CURVED**; `func_8083C484` (the
+  `>0x6000` turn block) inlined verbatim; step pair `func_8083DF68` = `AsymStepToF(&linearVelocity)`
+  + `ScaledStepToS(&yaw)`; stop→idle `func_8083C0B8` = the setup-idle pair. (Sibling 8084227C ruled
+  out: LINEAR + inverse handoff sense + no setup-idle.)
+- **Grezzo divergences (port these):**
+  1. **Added stop trigger `(this+0x29b8 & 4)`** OR'd with `speed==0` to force run→idle. No N64
+     counterpart — an OoT3D-only "force-idle" flag/bit (field unresolved). Port as an extra OR'd
+     idle-stop condition.
+  2. **Decel uses `Math_StepToF(0, <step>, &linearVelocity)`** (step from settings field `+0x6a`)
+     instead of N64 `Player_DecelerateToZero` (REG(43)/100). Same shape, tunable-driven.
+  3. **Accel/turn-rate are data-driven**: AsymStepToF step from settings `+0x3a`, ScaledStepToS step
+     from `+0x4a`, replacing N64 `REG(19)`/`REG(27)`.
+
+### `FUN_004a34d0` (turn-in-place) == N64 **`Player_Action_TurnInPlace`** (ESS) — FAITHFUL
+- Pinned by: `LinkAnimation_Update` → `if(Player_HoldsTwoHandedWeapon)` upper-body idle-copy preamble
+  (`SetLoadFrame`+`SetCopyTrue` w/ `sUpperBodyLimbCopyMap`) → `GetMovementSpeedAndYaw(CURVED)` →
+  `sActionHandlerListTurnInPlace`(HANDLER_7) → speed==0: `ScaledStepToS(&shape.rot.y, turnRate)`
+  reach→Idle; else snap rot.y + walk handoff (`func_8083C858`). Anim 0xe4. **No behavioral
+  divergence** — only if/else order swap (compiler) + inlined `func_8083C0E8` idle-entry. SoH3D's
+  existing `Player_Action_TurnInPlace` is already correct modulo engine frame-rate scaling.
+
+### ⚠ CORRECTION: `FUN_004bf18c` == N64 **`Player_Action_8084377C`** — knockback/damage bounce-LAND
+**The prior note ("in-air/land, suspect for #86, NOT knockback") was BACKWARDS — it IS the knockback
+action.** Verified statement-for-statement against N64 8084377C (z_player.c:9491):
+- `stateFlags2|=0x60`; `func_808382BC` invincibilityTimer clamp; knockback restore (`+0x2291`
+  knockbackType / `+0x2292` knockbackRot / `+0x2294` knockbackSpeed, byte-exact N64 layout); the
+  `ABS(temp)>0x4000 → rot.y=knockbackRot+0x8000` yaw flip; `velocity.y<0 → gravity=0,velocity.y=0`;
+  on land (`LinkAnimation_Update && bgCheckFlags&1`) the `av2.actionVar2`(+0x2238) countdown → wake
+  action + `STATE1_DAMAGED` + down-anim + voice SFX; `bgCheckFlags&2 → PlayFloorSfx(NA_SE_PL_BOUND)`.
+- **FALSE suspect for #86** (run-off-edge jump): reachable only via `knockbackType != NONE` (enemy
+  hit / bomb), not a plain ledge run-off. Floor/edge geometry test (`bgCheckFlags&1/&2`) is unchanged
+  from N64. The real run-off-edge in-air/freefall action is a DIFFERENT, still-unidentified func.
+- Grezzo divergences worth a harness check if a knockback-off-edge repro exists: (1) landing/down-anim
+  collapsed to a single fixed anim `DAT_004bf3b4` (N64 picks front/back by facing) — resolve the DAT;
+  (2) wake-action handoff moved onto the `+0x2238` countdown (1-per-frame, NOT dt-scaled → expires at
+  a different wall-clock duration on variable 3DS framerate).
+- **The original FUN_004ba378/FUN_004bf18c characterizations below are superseded by these alignments.**
+- **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
 - **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
   GetMovementSpeedAndYaw + the `>0x6000` turn logic + StepToF on yaw/speed; a **complex ground
   locomotion** (run/turn-in-place family).
@@ -217,7 +267,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 | reported bug | N64 function family (start here) |
 |---|---|
 | walk-stop torso snap (#86) | **CONFIRMED**: run 0x4ba378 → idle 0x4ba538 applies morphWeight 1→0 blend (~5 frames); soh3d hard-cuts. Fix = apply the morph |
-| run-off-edge jump (#86) | in-air/land 0x4bf18c family (see special-case table) |
+| run-off-edge jump (#86) | **in-air/freefall action — NOT yet identified** (0x4bf18c was disproved: it's the knockback land = N64 8084377C). Next: live-read actionFunc while running off a ledge, or find OoT3D twin of N64 freefall/jump action via UpdateCommon in-air dispatch |
 | weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
@@ -261,3 +311,16 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   Documented the boot-to-gameplay tap recipe (no savestate mod). NEXT (live): carry/pickup
   (#6/#85/#9 — needs a liftable pot/Cucco scene), climb (#79 — confirm 0x183634 on a ladder),
   door-exit slide. Then decompile 0x4a34d0 + align 0x4ba538/0x4ba378 to N64 Idle/run twins.
+- 2026-06-21 (cont.5): **Full N64-twin ALIGNMENTS** (static, 3 parallel subagents, statement-level
+  diff; per-func notes in `scratch/align/<addr>.md`). Pinned: run `0x4ba378` = **Player_Action_80842180**
+  (free-move walk/run; divergences: added `+0x29b8&4` force-idle trigger, tunable-driven decel/accel/
+  turn-rate from settings `+0x6a/+0x3a/+0x4a` vs N64 REGs); turn `0x4a34d0` = **Player_Action_TurnInPlace**
+  (FAITHFUL, no behavioral divergence). **⚠ CORRECTED a prior error**: `0x4bf18c` is **Player_Action_8084377C**
+  (knockback/damage bounce-LAND), NOT in-air — the cont.3 "in-air, NOT knockback" note was backwards
+  (verified vs N64: knockbackType/Rot/Speed restore at +0x2291/+0x2292/+0x2294, gravity clamp, BOUND
+  SFX). So `0x4bf18c` is a **FALSE suspect for #86** — the real run-off-edge in-air/freefall action is
+  unidentified. Named ~12 new helpers (LinkAnimation_Update=0x36b4ec, Player_SetupAction=0x36055c,
+  AnimationContext_SetLoadFrame/SetCopyTrue, Player_HoldsTwoHandedWeapon, ...) and new offsets
+  (+0x64 velocity.y, +0x70 gravity, +0x1321 acFlags, +0x2238 actionVar2, +0x2291.. knockback fields).
+  NEXT: identify the freefall/in-air action for #86 (live-read while running off a ledge); carry/pickup
+  cluster (#6/#85/#9) live; align idle 0x4ba538's inlined picker + 0x488b40 (wait/fidget) statically.
