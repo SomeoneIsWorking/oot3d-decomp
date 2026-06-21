@@ -84,6 +84,7 @@ Confirmed by decompiling each OoT3D fn and matching it 1:1 to its N64 twin in
 | +0x70  | `actor.gravity`      | same clamp (zeroed with velocity.y) |
 | +0x90  | `actor.bgCheckFlags` | `&1`=on-ground, `&2`=wall — same bit tests as N64 |
 | +0xbe  | `actor.shape.rot.y`  | `Player_UpdateHostileLockOn` sets `yaw = shape.rot.y` |
+| +0xc4  | `actor.shape.yOffset` | climb step-up (0x183634): `Math_StepToF(&yOffset, 0, 150)` settle lerp |
 | +0x1321| `cylinder.base.acFlags` | `&2`=`AC_HIT` (knockback land gates wake on `!AC_HIT && knockbackType==0`) |
 | +0x16f8| `focusActor`         | `Player_UpdateHostileLockOn`: `focusActor && (flags & (ATTENTION|HOSTILE=0x5))` |
 | +0x170c| `ageProperties*`     | knockback land reads `+0xf4` for per-age landing SFX |
@@ -93,6 +94,7 @@ Confirmed by decompiling each OoT3D fn and matching it 1:1 to its N64 twin in
 | +0x221c| `linearVelocity` (f32, =N64 speedXZ) | stepped by Math_StepToF in every locomotion func; `==0` ⇒ idle |
 | +0x2220| `yaw` (s16, world move yaw) | distinct from shape.rot.y; angle-diff `>0x6000` decel-then-turn |
 | +0x2238| `av2.actionVar2` (s16) | generic per-action counter (knockback down-countdown; climb 0x183634 ledge timer) |
+| +0x2270| `yDistToLedge` (f32) | climb step-up clamps mount launch to `min(yDistToLedge, ageProperties->unk_0C)` |
 | +0x228c| `floorSfxOffset`     | added to base SFX id for floor/landing SFX |
 | +0x2291| `knockbackType` (u8) | knockback land (8084377C): `+0x2292`=`knockbackRot`(s16), `+0x2294`=`knockbackSpeed`(f32) — byte-exact N64 layout |
 | +0x2488| `invincibilityTimer` (s8) | clamped to ~20 frames at top of knockback land |
@@ -146,7 +148,7 @@ addresses** without any live run:
 | DAT_00253408 | **0x4bf18c** | `==` @1379 | **= N64 `Player_Action_8084377C`** (knockback/damage bounce-LAND) — NOT plain in-air. **FALSE suspect for #86** (see correction below). The UpdateCommon `==` gate here is the knockback-airborne physics branch |
 | DAT_0025214c | **0x4bf3bc** | @920/960 | grouped near 0x4bf5cc |
 | DAT_00252150 | **0x4bf5cc** | `!=` @946 | tiny: floor-check + FUN_0034ad70(speed,yaw) |
-| DAT_0025211c | **0x183634** | `==` @1413 (+many) | now decoded (ARM); **climb/ledge candidate** (#79): anim-id-gated (+0x284 vs 0xe6/0x3a), height compare +0x2270, ledge timer +0x2238 |
+| DAT_0025211c | **0x183634** | `==` @1413 (+many) | **= N64 `Player_Action_80845668`** (ledge step-up / vault-onto-higher-surface) — CONFIRMED, FAITHFUL (see #79 below). anim gate +0x284 ∈ {0xe6 high-ledge, 0x3a water-exit, 0xe7 150-step, 0xe8 100-step}; mount launch clamped to `min(+0x2270 yDistToLedge, ageProps+0xc)` |
 | DAT_00251ce4 | **0x488b40** | `!=` @585 | big (1604B) locomotion action (uses GetMovementSpeedAndYaw + step funcs) |
 | DAT_00251314 | **0x4886d4** | `!=` @112 | now decoded (ARM); gap func |
 
@@ -217,7 +219,23 @@ action.** Verified statement-for-statement against N64 8084377C (z_player.c:9491
   (2) wake-action handoff moved onto the `+0x2238` countdown (1-per-frame, NOT dt-scaled → expires at
   a different wall-clock duration on variable 3DS framerate).
 - **The original FUN_004ba378/FUN_004bf18c characterizations below are superseded by these alignments.**
-- **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
+
+### `FUN_00183634` (climb step-up) == N64 **`Player_Action_80845668`** (ledge vault) — FAITHFUL (#79)
+- Pinned by: `stateFlags2|=0x20`; anim gate `+0x284==0xe6` = `250jump_start` (high-ledge mount); the
+  height clamp `min(+0x2270 yDistToLedge, ageProperties->unk_0C(+0xc))` byte-exact; IN_WATER
+  (`stateFlags1 & 0x8000000`) 0.085/0.072 multiplier split; child `+1.0`; mount launch via
+  `FUN_0034b3dc` = `func_80838940` (= the #86 jump-setter, 0x34b3dc); `av2 = -1`. Else-branch anims:
+  `0x3a`=swim_15step_up (water-exit, inlines `func_8083D0A8`), `0xe7`=150step_up, `0xe8`=100step_up.
+  Final `stateFlags1 &= 0xfffbbfff` clears JUMPING(0x40000)+CLIMBING_LEDGE(0x4000).
+- **#79 vertical handling is FAITHFUL — NO teleport inside this function.** The high-ledge mount is a
+  **clamped velocity launch** (not `pos.y = target`), with the `ageProperties->unk_0C` clamp + water/
+  land multipliers + child offset all matching N64. The step-up settle `+0xc4` is
+  `Math_StepToF(&actor.shape.yOffset, 0.0f, 150.0f)` — a real lerp+snap, not an instant set. Only the
+  documented framerate step-scaling touches the yOffset settle *speed* (not position).
+- **⇒ Real #79 lead:** the actual `world.pos.y += yDistToLedge` / `shape.yOffset` pre-offset
+  compensation lives in the **CALLER `Player_ActionHandler_12`** (N64 z_player.c:4975-4978), which
+  hands off into this action on a ledge-grab. A dropped yOffset compensation THERE would read as the
+  one-frame climb teleport. **Its OoT3D address is not yet identified — next alignment target for #79.**
 - **`FUN_004b9920`** (1176B): heavy control-stick driven (many VectorSignedToFloat of control reads),
   GetMovementSpeedAndYaw + the `>0x6000` turn logic + StepToF on yaw/speed; a **complex ground
   locomotion** (run/turn-in-place family).
@@ -300,7 +318,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
 | door-exit slide | door action func (sDoorAction / Player door state) |
-| higher-surface climb teleport | wall-climb action func (climb mount/advance) |
+| higher-surface climb teleport (#79) | **step-up action 0x183634 = N64 `Player_Action_80845668` is FAITHFUL** (mount = clamped velocity launch + yOffset lerp, NOT a teleport). Real lead: the pos.y compensation in the CALLER **`Player_ActionHandler_12`** (N64 z_player.c:4975-4978) — OoT3D addr NOT yet identified; next target |
 
 ## Phased plan
 0. **Pipeline up** (this session): Ghidra analyzed; DecompDump.py; function inventory; decompile
@@ -367,3 +385,13 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   FUN_0034b3dc, FUN_003518cc (CheckHostileLockOn), FUN_002bc618 (func_8083DFE0 in-air locomotion),
   0x0021e4e8 (Player_Action_80844A44 water-fall sibling). Decomp .c: build/decomp/{001cf9ac,0034b3dc,
   004bba4c}.c.
+- 2026-06-21 (cont.7): **#79 higher-surface climb teleport — step-up action ALIGNED & FAITHFUL.**
+  `FUN_00183634` = N64 `Player_Action_80845668` (ledge step-up / vault onto higher surface), entered
+  from a ledge-grab by `Player_ActionHandler_12`. Mount onto a high ledge is a **clamped velocity
+  launch** (`min(+0x2270 yDistToLedge, ageProperties->unk_0C)` × water/land mult + child offset, via
+  jump-setter 0x34b3dc) and the settle is a `Math_StepToF(&shape.yOffset(+0xc4), 0, 150)` lerp — NOT a
+  teleport, and faithful to N64. ⇒ #79's actual pos.y compensation lives in the **caller
+  `Player_ActionHandler_12`** (N64 z_player.c:4975-4978), OoT3D addr unidentified = next target. New
+  offsets: +0xc4 actor.shape.yOffset, +0x2270 yDistToLedge. Note: 86/79 alignments done read-only (no
+  Ghidra) by a parallel subagent while the #86 freefall agent held the Ghidra project. Note:
+  scratch/align/{4ba378,4a34d0,4bf18c,86_freefall,79_climb}.md hold the full per-func diffs (gitignored).
