@@ -1,0 +1,8 @@
+scratch/
+*.3ds
+*.cci
+*.cxi
+*.bin
+__pycache__/
+*.pyc
+.env
