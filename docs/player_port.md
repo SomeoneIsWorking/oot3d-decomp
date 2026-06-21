@@ -49,6 +49,34 @@ So we do NOT decompile blind ARM: for each OoT3D function we (1) Ghidra-decompil
 - **The MORPH** (already RE'd): OoT3D cross-fades transitions linearly via morphWeight 1.0→0 over
   morphFrames — same model as N64 SkelAnime; the SoH3D 3d3 path just never applies it.
 
+## Player update chain + action-func dispatch (DECOMPILED, verified vs N64 structure)
+- **Player_Update = `FUN_001e1b54`** (0x1e1b54, 628B). Nulls a despawned held/interact actor
+  (heldActor-ish @+0x12b0; interactRangeActor-ish @+0x1224 → `FUN_0036b02c` cleanup @0x36b02c),
+  copies controller input from `play+0x14`, calls Player_UpdateCommon, writes player world pos to a
+  global (camera/audio listener) at the end.
+- **Player_UpdateCommon = `FUN_00250ad0`** (0x250ad0, 10020B / 59KB C). Decrements the player timers
+  (the `if(x)x--` block at top), then **dispatches the action function**:
+  ```
+  if ((*(byte*)(this + 0x172a) & 4) == 0)        // i.e. !(stateFlags2 & ...)
+      (**(code**)(this + 0x1708))(this, play);   // this->actionFunc(this, play)
+  ```
+- **KEY Player struct offsets (this TU):**
+  - **+0x1708 = `actionFunc`** (the action-state function pointer — every behavior is a function
+    stored here; finding the per-behavior function = finding +0x1708's value in that state).
+  - **+0x1710 = `stateFlags1`** (u32, flag-tested pervasively: 0x2000000, 0x20000000, 0x20000, ...).
+  - **+0x172a = stateFlags2-ish** (byte; bit 4 gates the action call; bit 0x80 used too).
+  - pos/world @+0x08 (live-verified), morph controller @+0x288 (anim_system.md).
+- **Action funcs special-cased in Player_UpdateCommon** (compared against `this->actionFunc`), all
+  confirmed function entry points in the action-func block ~0x4b9000–0x4bf000:
+  `0x4b9920` (1176B), `0x4ba378` (420B), `0x4bf18c` (528B), and `0x183634`. Name via N64 twin.
+
+## ⇒ Fastest next step: oracle-read `actionFunc` per behavior
+Now that **actionFunc is at Player+0x1708**, the exact OoT3D function for any behavior is one RAM
+read away: in the live oracle (Azahar), drive Link into state X (idle/yawn, carrying an object,
+wall-climbing, in a door, walk-stop) and read `read32(playerInstance + 0x1708)` — that value IS the
+action function to decompile + align to N64 + port. (playerInstance via gPlayState→actorCtx→PLAYER
+head, see link_skel_live.py.) Do this for each bug below to get its precise target address.
+
 ## Bug → behavior → N64 function (decompile these OoT3D twins first)
 | reported bug | N64 function family (start here) |
 |---|---|
