@@ -6,6 +6,19 @@ assets is what produces the long tail of Link bugs (walk-stop torso snap, run-of
 yawn, sword-on-back before owning it, pickup snapping to torso then above head, door-exit slide,
 higher-surface climb teleport). User chose **literal decompile of `z_player.cpp`** as the approach.
 
+## Two parallel tracks (decoupled — work them independently)
+The global **`decomp-port`** skill (`<decomp-port-skill>`, reusable for any game) is the
+"porting machine." The work splits into two tracks that share only an artifact contract, so they
+run in parallel without stepping on each other:
+- **Track A — decomp/RE OoT3D** (this repo, `oot3d-decomp`): Ghidra-decompile player functions →
+  align to N64 twin → diff → commit the decompiled C (`build/decomp/<vaddr>.c`, gitignored) and the
+  durable **addr ↔ N64-name behavior map** + per-behavior notes here. No SoH3D build needed.
+- **Track B — integrate into SoH3D** (`soh3d`/Shipwright): consume Track A's behavior maps to port
+  each behavior into the Player path; build + live-verify in real gameplay.
+The **contract** between them is this doc's bug→function map + the behavior notes (which OoT3D fn,
+its N64 twin, what Grezzo changed, the ported pseudo-C). Keep that current and committed so either
+track can advance alone.
+
 ## The accelerator: N64 `z_player.c` is the Rosetta stone
 OoT3D `z_player.cpp` (source path `z_player.cpp`) is
 Grezzo's 3DS port of the SAME player code SoH already has fully decompiled and readable at
