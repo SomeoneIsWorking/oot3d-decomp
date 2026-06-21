@@ -31,6 +31,20 @@ alternation is what isolates it.) Implemented in `soh3d:tools/azahar_scan.py` `f
 - These are NOT the clean `Actor.world.pos` Vec3f (which is x,y,z contiguous). The matrices are
   downstream of it. **Heap addresses differ every boot — do not hardcode.**
 
+### Scan #2 (7-pass still/move, in Link's HOUSE) + poke test — partial
+- 7-pass still/move/still gave 33 candidates in 3 clusters: `081a57xx/5bxx/8axx/0871ecxx` (limb/render
+  matrices, Link's translation duplicated per limb), `0821exxx/0821fxxx` (Vec3f-like triples, z≈-340 —
+  position COPIES: camera target / Navi-follow), `08779xxx` (~10000-range, map/screen space).
+- **Poke test** (write a candidate, see if Link teleports): wrote `0x0821e638` x 124→524; it PERSISTED
+  (not a per-frame matrix) but Link did NOT move → it's a position copy, not the canonical world.pos.
+- **KEY GOTCHA:** scanning in Link's tiny HOUSE filters OUT the real `Actor.world.pos` — several "move"
+  passes hit walls, so world.pos was UNCHANGED during a "move" and failed the changed-while-moving test.
+  **Redo the scan in OPEN Kokiri Forest** (walk out the door first), where every move actually displaces
+  Link. Then poke-confirm the world.pos (the one that teleports Link), read back for the actor `id`
+  header → actor base → list.
+- NOTE: heap addresses above are this-boot only. There is now an in-game SAVE at Link's house (File 1);
+  fast-load skips the intro (see oracle.md).
+
 ### NEXT (durable anchors needed)
 - **Find the static global context / actor-list head** (OoT N64: `gPlayState`/`gGlobalContext` with
   `actorCtx.actorLists[12]`). It lives in static BSS → **run-stable address**, the proper anchor: from
