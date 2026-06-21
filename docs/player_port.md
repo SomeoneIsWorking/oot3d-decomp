@@ -190,6 +190,17 @@ MORPH the SoH3D 3d3 path hard-cuts. **Fix for #86 = apply this morphWeight 1→0
 ≈0.33/frame, ~3–5 frames) on Player action/anim transitions**, per docs/anim_system.md. Verified by
 live frame sampling, not inference.
 
+### #88 idle/yawn — STATIC + LIVE both confirm 0x4ba538 = Player_Action_Idle
+0x4ba538 inlines N64 `Player_CheckForIdleAnim` verbatim: `if (Player_GetIdleAnim(this) != curAnim)`
+then a loop over the **30-entry fidget table** (`do{...}while(i<0x1e)`) returning index+1, else
+IDLE_ANIM_DEFAULT/NONE. New confirmed helpers/data from it:
+- `FUN_0034d628` = **Player_GetIdleAnim**
+- `FUN_003759d0` = **Rand_ZeroOne** (the `commonType = Rand_ZeroOne()*5` fidget roll)
+- `DAT_004ba948` = **sFidgetAnimations** (30 entries) — the yawn (live anim 0x50) is one of these
+⇒ Port #88 = port 0x4ba538's inlined `Player_ChooseNextIdleAnim` (idleType toggle + Rand_ZeroOne
+fidget roll + room behaviorType2) and its `LinkAnimation_Change(... -6.0f)` morph onto the SoH3D
+idle path. The yawn picking "wrong" = idleType/Rand/behaviorType2 mismatch or missing morph blend.
+
 ### Boot-to-gameplay recipe (oracle, no savestate mod)
 Title → `tap('start')`×3 → `tap('a')` (select save file 1 "Link") → `tap('a')`×2. Lands in scene 52
 (Link's House), Link controllable, playerInstance 0x098f4010. (Savestate RPC mod is NOT loaded —
