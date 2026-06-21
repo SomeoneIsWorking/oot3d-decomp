@@ -26,6 +26,14 @@ tools/azahar_repl.py             # interactive; or -c "cmd; cmd; ..." for batch
 Verified: drove a New Game from title → name entry → intro → **Link's house, Kokiri Forest**, fully
 headless (buttons + touch), then RAM-scanned Link's position. RPC reads ~12 MB/s.
 
+### Fast re-entry (skip the intro)
+An **in-game save** was made at Link's house (File 1). After any emulator restart, reload to Kokiri
+Forest WITHOUT the ~3-minute intro grind:
+`tap start; tap start` (title→file select) → `tap a` (File 1) → `tap a` (Start) → in Kokiri Forest.
+(The Savestate RPC packet exists but does NOT work headless — Azahar's savestate file I/O is driven by
+the Qt GMainWindow frontend, absent in headless; the signal is set but nothing writes it. Use the
+in-game save instead.)
+
 ## Limits (why a full sweep needs warp, not walking)
 Driving input doesn't scale to every level/NPC. The plan is **warp injection**: write the entrance
 index + trigger a scene load via `WriteMemory` (OoT3D mirrors OoT's entrance system), then dump the
