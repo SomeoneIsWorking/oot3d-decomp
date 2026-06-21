@@ -295,7 +295,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 | reported bug | N64 function family (start here) |
 |---|---|
 | walk-stop torso snap (#86) | **CONFIRMED**: run 0x4ba378 → idle 0x4ba538 applies morphWeight 1→0 blend (~5 frames); soh3d hard-cuts. Fix = apply the morph |
-| run-off-edge jump (#86) | **in-air/freefall action — NOT yet identified** (0x4bf18c was disproved: it's the knockback land = N64 8084377C). Next: live-read actionFunc while running off a ledge, or find OoT3D twin of N64 freefall/jump action via UpdateCommon in-air dispatch |
+| run-off-edge jump (#86) | **RESOLVED & FAITHFUL** (scratch/align/86_freefall.md): freefall action `Player_Action_8084411C` = **0x004bba4c**; "left-ground" handler `func_8083AA10` = **0x001cf9ac** (inlines auto-jump `func_8083A4A8` + ledge-on-runoff `func_8083A6AC`); jump-setter `func_80838940` = **0x0034b3dc**. Auto-jump trigger/anim/height/gravity are **bit-identical to N64** (3.0/4.0/20.0/0x2000/0x1000/6.0, IREG 66-69, gravity -1.2/0). ⇒ #86 run-off jump is a SoH3D **integration** bug (framerate of the gating reads `linearVelocity`/`sYDistToFloor`/`bgCheckFlags&4`), NOT a Grezzo change — nothing to port here. (0x4bf18c remains the knockback land = N64 8084377C, false suspect.) |
 | weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
@@ -352,3 +352,18 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   (+0x64 velocity.y, +0x70 gravity, +0x1321 acFlags, +0x2238 actionVar2, +0x2291.. knockback fields).
   NEXT: identify the freefall/in-air action for #86 (live-read while running off a ledge); carry/pickup
   cluster (#6/#85/#9) live; align idle 0x4ba538's inlined picker + 0x488b40 (wait/fidget) statically.
+- 2026-06-21 (cont.6): **#86 run-off-edge FREEFALL/auto-jump RESOLVED & verdict = FAITHFUL.**
+  Pinned the OoT3D twins of the N64 left-ground/auto-jump/freefall chain (static, evidence in
+  scratch/align/86_freefall.md): freefall action `Player_Action_8084411C` = **0x004bba4c** (tells:
+  gravity DAT=-1.2f/0.0f, `gSaveContext.respawn[TOP].data>40` via `<')'`, SPEED_MODE_LINEAR=0.0f
+  sentinel, FUN_003518cc=Player_CheckHostileLockOn); left-ground handler `func_8083AA10` =
+  **0x001cf9ac** (2344B, INLINES auto-jump func_8083A4A8 + ledge-on-runoff func_8083A6AC);
+  jump-setter `func_80838940` = **0x0034b3dc** (sets velocity.y, STATE1_JUMPING=0x40000, jump+voice
+  SFX). **All auto-jump constants bit-identical to N64**: 3.0/4.0/20.0 thresholds, 0x2000/0x1000 yaw
+  gates, run_jump(0x6b)/jump(0x95) anims, IREG 66-69 height (/100,/1000), water-fall 6.0, AUTO_JUMP
+  voice. ⇒ **#86 run-off jump is a SoH3D integration bug (framerate of the gating reads), NOT a
+  Grezzo behavior change — there is no divergence to port.** New offsets: +0x64 velocity.y,
+  +0x227f hoverBootsTimer, +0x2280 fallStartHeight, +0x2282 fallDistance. New helpers: FUN_001cf9ac,
+  FUN_0034b3dc, FUN_003518cc (CheckHostileLockOn), FUN_002bc618 (func_8083DFE0 in-air locomotion),
+  0x0021e4e8 (Player_Action_80844A44 water-fall sibling). Decomp .c: build/decomp/{001cf9ac,0034b3dc,
+  004bba4c}.c.
