@@ -77,3 +77,38 @@ framing a distant kid for a screenshot needs a frozen player or a free camera (n
 3. Cross-check vs Link (id=0): Link's anim state is partly IN-instance (183 changed words idle) —
    different path; compare to generalize the controller layout.
 4. Feed the curFrame/CSAB readout back to soh3d so replacement anims track the real OoT3D playhead.
+
+## Link (PLAYER id 0) base-animation controller + MORPH — VERIFIED live 2026-06-21
+
+Ground truth for soh3d #70/#83/#86 ("3d3 morph-blindness"). Unlike En_Ko (controller at
+actor+0x1e0), Link's base-animation GREZZO controller is IN the PLAYER actor instance at:
+
+| off | field | notes |
+|-----|-------|-------|
+| **+0x288** f32 | **morphWeight** | 1.0 on a transition, decrements by morphRate each frame to 0.0 |
+| **+0x28c** f32 | **morphRate**   | = 1.0/morphFrames (0.1667 = 1/6 observed for walk-stop) |
+| **+0x290** f32 | **curFrame**    | animation playhead; RESETS to 0.0 when a new anim starts |
+| **+0x294** f32 | **playSpeed**   | (0.667 observed) |
+| +0x29c/+0x2a0 s32 | anim selectors / bounds | jump on transition (28/29 -> 10/11 -> 88/89) |
+
+Tool: `tools/link_morph_probe.py` (`trace [secs]` to capture a transition).
+
+**THE MORPH (what soh3d 3d3 is missing).** OoT3D Link cross-fades every animation transition
+exactly like N64 SkelAnime: on a transition the OUTGOING pose is frozen, the incoming CSAB
+starts at curFrame 0, and `morphWeight` ramps **linearly 1.0 -> 0.0** over `morphFrames`; each
+rendered frame the pose = `lerp(incoming_CSAB_pose, frozen_outgoing_pose, morphWeight)`.
+
+Reproduced live (walk -> stop), morphWeight per frame:
+```
+1.00  0.83  0.67  0.50  0.33  0.17  0.00     (exact k/6 steps => morphFrames = 6, LINEAR)
+```
+curFrame simultaneously: 72 (old anim) -> 0 -> 0.7 -> 1.3 -> 2.0 ... (new anim from frame 0).
+
+CONSEQUENCE for soh3d: OoT3D's morph model is the SAME decrementing-weight linear lerp the SoH
+engine already computes (N64 `SkelAnime.morphWeight`, set per `Animation_Change` morphFrames).
+The 3d3 named-CSAB path is missing only the APPLICATION: it binds the incoming CSAB and renders
+it at full weight on frame 0 (hard cut) instead of lerping from the frozen outgoing pose by the
+live morphWeight. Fix = in the 3d3 draw path, when engine morphWeight > 0, blend per-bone LOCAL
+rotations from the previous (outgoing) pose toward the incoming CSAB by morphWeight. No new
+OoT3D data needed — the durations already live in the N64 anim calls; the oracle just confirms
+the blend is faithful (linear, same model). Gate on `soh3d/tools/soh3d_anim_qa.py` before/after.
