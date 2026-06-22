@@ -122,6 +122,11 @@ in Player_UpdateCommon); leave it as "sf2-call-gate byte" until separately confi
 | `FUN_0035e9fc` | **AnimationContext_SetCopyTrue** | `(play, vecCount, jointTable, morphTable, sUpperBodyLimbCopyMap)` |
 | `FUN_0036f59c` | **Player_PlaySfx** | `(this, sfxId)` |
 | `FUN_002c2658`+`FUN_002be4c4` | **setup-idle pair** (`func_80839FFC`+`func_8083BF50`) | run→idle transition |
+| `FUN_002bcd38` | **func_8083FD78** (movement-direction tri-state classifier) | back-walk/side-walk |
+| `FUN_0033100c` | **Player_GetMeleeWeaponHeld** | `(this)` |
+| `FUN_0032c408` | **LinkAnimation_BlendToJoint** | aim/blend (standing-aim 0x488b40) |
+| `FUN_0034ad70` | **func_8084AEEC** (swim velocity/yaw setter) | surfacing 0x4bf5cc |
+| `FUN_0036b02c` | **Player_DetachHeldActor** | cleanup (cont.0; refined by cutscene 0x4bcccc) |
 
 ### ⚠ KEY GREZZO CHANGE — variable-framerate step scaling
 Every OoT3D step/lerp helper above multiplies its step by a **shared per-frame scalar**:
@@ -138,19 +143,61 @@ specific function pointers, exactly like N64 (`Player_Action_X != this->actionFu
 live in the literal pool; reading their u32 values from `code.bin` resolves the **exact OoT3D
 addresses** without any live run:
 
-| literal-pool DAT | actionFunc value | Common context (line in 00250ad0.c) | role |
+**ALL 11 now aligned to N64 twins (2026-06-22).** Twin column is CONFIRMED (structural evidence in
+`scratch/align/<addr>.md`). ⚠ The old "Common context role" guesses were several times WRONG — trust
+the twin, not the prior role label.
+
+| literal-pool DAT | actionFunc | N64 twin (CONFIRMED) | what it is / status |
 |---|---|---|---|
-| DAT_00251cf0 | **0x4b9920** | `==` @1166 | slope/slippery-floor velocity ×factor |
-| DAT_00251cd8 | **0x4ba378** | `==` @1201 | **= run/locomotion (LIVE-confirmed #86)**; paired w/ speed threshold |
-| DAT_00251cd4 | **0x4ba538** | @767/770 | **= Player_Action_Idle (LIVE-confirmed #88)**; floor/landing branch |
-| DAT_00252944 | **0x4bc22c** | `!=` @1140 | EXCLUDED from slope-slide (floorType 4/7/0xc) |
-| DAT_00252930 | **0x4bcccc** | `!=` @1120 | now decoded (ARM); gap func |
-| DAT_00253408 | **0x4bf18c** | `==` @1379 | **= N64 `Player_Action_8084377C`** (knockback/damage bounce-LAND) — NOT plain in-air. **FALSE suspect for #86** (see correction below). The UpdateCommon `==` gate here is the knockback-airborne physics branch |
-| DAT_0025214c | **0x4bf3bc** | @920/960 | grouped near 0x4bf5cc |
-| DAT_00252150 | **0x4bf5cc** | `!=` @946 | tiny: floor-check + FUN_0034ad70(speed,yaw) |
-| DAT_0025211c | **0x183634** | `==` @1413 (+many) | **= N64 `Player_Action_80845668`** (ledge step-up / vault-onto-higher-surface) — CONFIRMED, FAITHFUL (see #79 below). anim gate +0x284 ∈ {0xe6 high-ledge, 0x3a water-exit, 0xe7 150-step, 0xe8 100-step}; mount launch clamped to `min(+0x2270 yDistToLedge, ageProps+0xc)` |
-| DAT_00251ce4 | **0x488b40** | `!=` @585 | big (1604B) locomotion action (uses GetMovementSpeedAndYaw + step funcs) |
-| DAT_00251314 | **0x4886d4** | `!=` @112 | now decoded (ARM); gap func |
+| DAT_00251cf0 | **0x4b9920** | `Player_Action_808414F8` | Z-target **back-walk** locomotion. ⚠ prior "slope/slippery-floor" role label was WRONG — recheck what the `==`@1166 gate actually does |
+| DAT_00251cd8 | **0x4ba378** | `Player_Action_80842180` | **run/free-move walk** (LIVE #86). Grezzo: +0x29b8&4 force-idle; tunable decel/accel/turn |
+| DAT_00251cd4 | **0x4ba538** | `Player_Action_Idle` | **idle/yawn** (LIVE #88). Grezzo: +0x4c37→FIDGET_HOT override |
+| DAT_00252944 | **0x4bc22c** | `Player_Action_8084E6D4` | **get-item** receive/presentation (Player_StartTalking inlined) — correctly excluded from slope-slide. Grezzo: ICE_TRAP arm removed; get-item dispatch → data tables |
+| DAT_00252930 | **0x4bcccc** | `Player_Action_CsAction` | **cutscene-action dispatcher** (DEMO MODE) — FAITHFUL; one morph-table data-layout restructure |
+| DAT_00253408 | **0x4bf18c** | `Player_Action_8084377C` | **knockback/damage bounce-LAND** — NOT in-air. **FALSE suspect for #86** (correction below) |
+| DAT_0025214c | **0x4bf3bc** | `Player_Action_8084193C` | Z-target **side-walk/strafe**. Grezzo: anim layer reimplemented (5 discrete ids vs continuous blend); decel-turn threshold 0x4000→0x6000; added pre-check |
+| DAT_00252150 | **0x4bf5cc** | `Player_Action_8084E30C` | **surfacing → swim-wait** transition — FAITHFUL |
+| DAT_0025211c | **0x183634** | `Player_Action_80845668` | **ledge step-up / vault** (#79) — FAITHFUL. anim +0x284 ∈ {0xe6 high,0x3a water,0xe7 150,0xe8 100}; mount clamped `min(+0x2270 yDistToLedge, ageProps+0xc)` |
+| DAT_00251ce4 | **0x488b40** | `Player_Action_80840450` | Z-target **standing-aim** locomotion — NOT idle/wait. Grezzo: ADDED 90-frame look-around fidget timer (+0x24ba) + region anim variants (same 3DS field family as #88) |
+| DAT_00251314 | **0x4886d4** | `Player_Action_8084E3C4` | **ocarina-playing** incl warp-song teleport — FAITHFUL; MODE_02 cleanup guarded by Player_TryCsAction |
+
+### Batch-2 alignment notes (2026-06-22) — the 7 remaining special-cased funcs
+Per-func full diffs in `scratch/align/{4b9920,488b40,4bc22c,4886d4,4bf3bc,4bf5cc,4bcccc}.md`. Highlights:
+- **0x4b9920 `Player_Action_808414F8` (back-walk):** Z-target back-pedal. Grezzo divergences: the
+  shared `+0x29b8 & 4` force-idle branch (same unknown bit as run 0x4ba378); directional side_walkR/L
+  start by target-yaw sign (N64 always side_walkR); DAT/settings-driven brake/step gates. New helper:
+  `FUN_002bcd38 = func_8083FD78` (movement-direction tri-state classifier). ⚠ **the old "slope" role
+  label for the `==`@1166 gate is wrong — separate task: find what Player_UpdateCommon actually does at
+  @1166 (the real slope/slippery-slide func is still unmapped).**
+- **0x488b40 `Player_Action_80840450` (standing-aim, Z-target/hold-item):** NOT idle. Grezzo divergences:
+  **ADDED a 90-frame look-around fidget** (new field +0x24ba, Rand_ZeroOne coin-flip gaze offset) and
+  **ADDED region/environment anim variants** (4 slots, gated on 3DS-only +0x174e / +0x29b8 bits /
+  `DAT>='Q'` — SAME field family as the #88 `+0x4c37→FIDGET_HOT` override). Helpers:
+  `FUN_0033100c=Player_GetMeleeWeaponHeld`, `FUN_0032c408=LinkAnimation_BlendToJoint`. Offsets:
+  +0x2254/+0x225c/+0x2260 = aim blend state (unk_868/870/874), +0x24ba = the added 90-timer,
+  +0x172a bit 8 ≈ STATE3_FINISHED_ATTACKING *(tentative)*.
+- **0x4bc22c `Player_Action_8084E6D4` (get-item receive):** Player_StartTalking inlined; correctly
+  excluded from slope-slide. Grezzo: **GI_ICE_TRAP arm removed**; get-item/gesture dispatch refactored
+  into per-anim data tables. Offsets: +0x116=textId, +0x1724=naviActor, +0x172c=talkActor, +0x2238=av2.
+- **0x4886d4 `Player_Action_8084E3C4` (ocarina):** FAITHFUL incl the warp-song branch (respawn[RETURN]
+  params=0x5FF + sWarpSongEntrances[lastPlayedSong], spawn DEMO_KANKYO). The `!=`@112 special-case is
+  corroborated by N64 source (UpdateCommon tests this twin at z_player.c:3305/11102). Only divergence:
+  MODE_02 cleanup guarded behind `Player_TryCsAction(...,8)==0`.
+- **0x4bf3bc `Player_Action_8084193C` (side-walk/strafe):** Grezzo **reimplemented the anim layer** —
+  stays in-action picking 5 discrete anim ids (0x3b/0x3c/0x3d/0x3f, 0x34 turn-around) via
+  LinkAnimation_Change, vs N64's continuous L↔R blend + handoff; decel-turn threshold widened
+  0x4000→0x6000; added pre-check FUN_00358bf4; force-idle via +0x1a7==1.
+- **0x4bf5cc `Player_Action_8084E30C` (surfacing→swim-wait):** FAITHFUL (no divergence beyond dt-scaling).
+  `FUN_0034ad70 = func_8084AEEC` (swim velocity/yaw setter), DAT_004bf614=0.0f.
+- **0x4bcccc `Player_Action_CsAction` (cutscene/DEMO dispatcher):** FAITHFUL; the two N64 callees
+  (func_80852C0C + func_80852B4C) are inlined. Offsets: +0x12bc=csAction(s8), +0x12bd=prevCsAction(s8),
+  +0x2a6=skelAnime.movementFlags. ONE data-layout change: morphTable restructured to a pointer-to-0x34B
+  -float-Vec3 (`*(this+0x2d0)` indexed by +0x2c9) vs N64 embedded Vec3s[0].
+
+⚠ **Inter-agent CONFLICTS to resolve (sub-helper N64 names only — twins are solid):** `FUN_0034b17c`
+(swim pre-update `func_8084B000`? vs part of side-walk `func_80841860`?) and `FUN_002c3c7c`
+(`func_8083C858` vs `func_8083C8DC` — adjacent run-setup variants) got different names from different
+agents. Left OUT of the confirmed helper map until disambiguated by reading the actual call targets.
 
 **RESOLVED (was a tooling artifact, not Thumb):** 0x4bcccc / 0x4886d4 / 0x183634 sit in unanalyzed
 gaps; the first force-create attempts produced garbage (`halt_baddata`, `coprocessor_store`) because
@@ -423,3 +470,16 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 - **#86 walk-stop torso snap** = apply the morphWeight 1→0 blend (prior session, confirmed live).
 - Action-func map COMPLETE for: run/turn/idle/knockback-land/freefall/climb-stepup + their key callers.
 - NOT yet done (LIVE, needs oracle): carry/pickup (#6/#85/#9), door-exit slide, sword-on-back (equipment draw).
+- 2026-06-22: **ALL 11 Player_UpdateCommon special-cased action funcs aligned to N64 twins** (batch-2:
+  4 parallel read-only agents, no Ghidra). Pinned: 0x4b9920=Player_Action_808414F8 (back-walk),
+  0x488b40=Player_Action_80840450 (standing-aim; Grezzo ADDED a 90-frame look-around fidget +0x24ba +
+  region anim variants — same 3DS field family as the #88 +0x4c37 override), 0x4bc22c=
+  Player_Action_8084E6D4 (get-item; ICE_TRAP arm removed), 0x4886d4=Player_Action_8084E3C4 (ocarina/
+  warp-song, FAITHFUL), 0x4bf3bc=Player_Action_8084193C (side-walk; anim layer reimplemented w/ 5
+  discrete ids), 0x4bf5cc=Player_Action_8084E30C (surfacing→swim-wait, FAITHFUL), 0x4bcccc=
+  Player_Action_CsAction (cutscene dispatcher, FAITHFUL + morphTable layout change). ⚠ Found the prior
+  "slope/slippery-floor" role guess for the 0x4b9920/@1166 gate was WRONG (it's back-walk) — the real
+  slope-slide func is still unmapped; and noted two unresolved inter-agent sub-helper name conflicts
+  (FUN_0034b17c, FUN_002c3c7c). Full per-func diffs in scratch/align/. New helpers: FUN_002bcd38=
+  func_8083FD78, FUN_0033100c=Player_GetMeleeWeaponHeld, FUN_0032c408=LinkAnimation_BlendToJoint,
+  FUN_0034ad70=func_8084AEEC, FUN_0036b02c=Player_DetachHeldActor.
