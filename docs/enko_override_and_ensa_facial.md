@@ -289,3 +289,28 @@ wiring facial (keystone #3); the rotation/track port below does not depend on it
 - **Mido, both Malons**: drop-in single rows, same helper/axis as En_Ko/En_Sa (no Y negation, no pivot).
 - **En_Hy**: needs a per-EnHyType bone lookup (8 distinct head/torso bone pairs across body archetypes);
   the rest of the mechanism (shared helper, N64 interactOff 0x1E8, facial slot API) is identical.
+
+## RESOLVED facial wiring (2026-06-22) — Mido / Malon / En_Hy (live-confirmed)
+
+Dump pass (`tools/face_cmb_dump.py` + cmab `strt` frame-name probe) for the CMB **material slot** + the
+sibling eye/mouth **.cmab** filename, cross-checked against the OoT3D Draw decomp for the slot index and
+**remap** (decompiled `build/decomp/001b72b4.c`=En_Md, `001d9d50.c`=En_Ma1, `001da000.c`=En_Ma2). N64
+index offsets from SoH `z_*.h`. **Key finding: Mido & both Malons pass eye/mouth DIRECTLY (no remap)** —
+unlike En_Sa's `{0,3,4,1,2}` mouth remap. (OoT3D `FUN_0035e3a4(matAnimBase, slot, N64Index)` verbatim.)
+
+| actor (zar) | N64 eye off | N64 mouth off | CMB eyeMat | CMB mouthMat | eye cmab | mouth cmab | remap |
+|---|---|---|---|---|---|---|---|
+| zelda_md  | 0x20E (eyeIdx)      | — | 1 | — | mido_eye.cmab (4f)        | — | direct |
+| zelda_ma1 | 0x1E4 | 0x1E6 | 3 | 4 | childmalon_eye.cmab (3f)  | childmalon_mouth.cmab (3f) | direct |
+| zelda_ma2 | 0x20E | 0x210 | 4 | 5 | malon_eye.cmab (3f)       | malon_mouth.cmab (3f)      | direct |
+| zelda_boj | 0x218 (curEyeIndex) | — | 3 | — | hyliaman1_eye.cmab (3f)   | — | direct |
+| zelda_ahg | 0x218 | — | 3 | — | hyliaman2_eye.cmab (3f)   | — | direct |
+| zelda_bji | 0x218 | — | 3 | — | hyliaoldman_eye.cmab (3f) | — | direct |
+| zelda_aob | 0x218 | — | 1 | — | hyliawoman1_eye.cmab (3f) | — | direct |
+| zelda_bob | 0x218 | — | 1 | — | hyliawoman3_eye.cmab (3f) | — | direct |
+
+- En_Hy types **cne / cob / bba** have NO eye animation (no N64 `sEyeTextures<TYPE>` array, no eye cmab) —
+  omitted. En_Hy is eye-only (no mouth). All eye arrays are `{Open,Half,Closed}` == cmab `*_eye01/02/03`.
+- Wired into SoH3D `kFacialActors` (soh3d_anim_override.cpp) + `kFacialAssets` (soh3d_model.cpp).
+- LIVE-CONFIRMED: Mido eye open↔closed (Kokiri Forest); child Malon eye open↔closed + mouth (Market).
+  All 8 cmabs load with the exact (mat, frame-count) above and zero "bad cmab layout" errors.
