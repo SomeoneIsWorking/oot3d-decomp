@@ -50,7 +50,7 @@ vibe check.
 
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
-- Decompiled to `build/decomp/<addr>.c` (gitignored): **318** (as of ring-1 sweep, 2026-06-22).
+- Decompiled to `build/decomp/<addr>.c` (gitignored): **828** (after rings 1–4, 2026-06-22).
 - Inventory: `build/decomp/functions.csv` (8,265 rows: addr,name,size).
 
 ## The systematic ownership pipeline (call-graph BFS from anchors)
@@ -216,3 +216,55 @@ fresh in SoH3D" list, distinct from the (b) port-the-delta funcs above.
   1-arg stub; the resolver label was on the wrong address. Unpinned pending re-find.
 - `FUN_0034ad70 = func_8084AEEC` (swim velocity/yaw setter) — the prior inter-agent conflict is RESOLVED
   (FAITHFUL swim setter).
+
+## Rings 2–4 sweep (Workflow `oot3d-ownership-sweep`, 2026-06-22) — 510 funcs, coverage 318→828
+Automated BFS (one Ghidra agent/ring + parallel alignment). Per-batch maps: `scratch/sweep/divmap_ring{2,3,4}_b*.md`.
+**Tally: 216 FAITHFUL · 18 DIVERGENT · 264 UNMATCHED.** (ring2 108F/15D/75U, ring3 86F/3D/99U, ring4 22F/0D/90U.)
+
+### ★ MILESTONE: the player-LOGIC layer is owned; the frontier is now the 3DS ENGINE FRAMEWORK
+DIVERGENT collapses as the BFS leaves player code (ring4 = **0** divergent) while UNMATCHED dominates —
+the call-graph frontier has crossed from gameplay logic into Grezzo's 3DS engine. The remaining player
+divergences cluster entirely in the **item/do-action/HUD/UI layer**. Meaning: aligning *more* player
+functions yields diminishing divergences; the next real work is (a) the do-action/UI delta and (b)
+**reimplementing the 3DS engine subsystems** (bucket c) — which is where the lighting + title-screen +
+indistinguishable goals live. The "decompile-and-diff the player" phase is essentially complete.
+
+### DIVERGENT (the remaining port payload, rings 2–4) — item/UI/draw-centric
+| addr | what | the change |
+|---|---|---|
+| 0x00354894 | Player_TryItemUseAction / ProcessItemButtons | CMB held-object DMA-load, renumbered item ids, region/variant gates (+0x1710&0x800, +0x1714&0x400, +0x29b8&0x1000000) |
+| 0x00354f70 | Player_StartTalking dispatcher | talk-actor acquisition gated on focusActor flags + 3DS context |
+| 0x0034c998 | Player_SetModelGroup / equipment-data | ADDED 3DS branch: group==2 && room-flag && +0x1a6==2 → force group 1 (boots/equip-variant model remap) |
+| 0x003523dc | first-person / gyro-aim cam toggle | 3DS FP-cam enter/exit SM (focus-rot snapshot ±0x40, audio restore) |
+| 0x00352dbc | health/magic bar add-with-clamp | ADDED damage-scaling gates (+0xe doubles, +0x51 halves negative delta) |
+| 0x002c3970 | Player_GetSwordHeld / equipped-weapon picker | +0x5c75 minigame override, per-slot equip-mask gate, 0x55→0x3d Biggoron remap |
+| 0x002b9a88 | EffectBlure_AddVertex (sword trail) | per-vertex blur-type + held-sword trail-color selection (sword ids 0x18–0x1b) |
+| 0x0036c494 / 0x0036f4f0 | Player draw-shadow / motion-blur trail recorder | per-frame pos/rot/vel trail snapshot (3DS extra fields) |
+| 0x0035da3c | footstep variant index | packed-byte variant pick (3DS table) |
+| 0x002c2700 / 0x002c41c4 / 0x00377a50 / 0x0033228c / 0x0033b548 / 0x0034913c / 0x003341e4 | **3DS do-action / HUD UI** + look-at-aim | the rewritten 3DS do-action/label subsystem (region-aware label promotion, button-press SFX by behaviorType1) + the aim-flag/auto-aim hook |
+| 0x00376a78 | Audio_ProcessSeqCmd | 3DS reworked seq-command opcode ranges + flag words |
+| 0x004c08c0 / 0x004c0ab0 | Message_Decode (narrow/wide) | table-driven control-code parser, UTF-8-aware + wide (u16) multi-language path |
+
+### ★ Bucket (c) reimplement-3DS-only — engine-subsystem inventory (the 264 UNMATCHED)
+This is the scoping map for the graphics/audio/UI reimplementation (feeds the lighting + title goals):
+- **MoLive C++ engine framework** (~70: object lifecycle, vtable dispatch, containers, allocators,
+  resource handles) — Grezzo's engine runtime. Plumbing under everything; reimplement/stub as a shim.
+- **3DS audio engine** (~46: SfxSource pools `0x2bfdb0/0x2bff8c`, Audio_SetSequenceMode, channel mgmt,
+  seq-cmd) — no `z_sfx`/`z_audio` twins in the Shipwright tree; map onto SoH3D's audio backend.
+- **3DS GPU draw path** (draw-request queues, **stereo L/R** double-draw `0x30f900/0x2dd7b8/0x2c371c`,
+  CSAB→3×4 MtxF anim eval `0x3204a4`, MtxF blend `0x30f6b0`, frame flush/double-buffer) — the renderer.
+- **CMB/CSAB model+anim pipeline** (`0x2f70c4` resource dtor, `0x3204a4` matrix eval, limb material/cull
+  `0x32c2c0`) — replaces N64 SkelAnime + display lists; the 3DS model format runtime.
+- **3DS lighting** (`0x36ec40` per-room light-env apply: per-channel 0x50-stride color blocks + 16-ch
+  light enable; `0x33c950` light/env tick) — **directly the [[goal-3ds-lighting]] target**; RE these +
+  capture the live PICA state.
+- **do-action / HUD / interface** (~26: the touch/do-action subsystem, label resolvers, HUD color init)
+  — the 3DS UI; pairs with the item/do-action DIVERGENT funcs above.
+- **z_message + UTF text** (~18: control-code parser, UTF-8↔UTF-16 transcode, multi-language) — the
+  3DS message engine.
+- **effect/particle** (~11: stereo effect emit, water-splash spawn) and misc engine plumbing (tasks,
+  queues, file/stream, time-of-day) round out the rest.
+
+⇒ **The remaining ownership work is no longer "align player funcs" — it's RE'ing these named 3DS
+subsystems for reimplementation.** A future workflow ring targeting *specifically* the lighting +
+CMB/CSAB + draw subsystems (not blind BFS) is the efficient next move for the visual-fidelity goals.
