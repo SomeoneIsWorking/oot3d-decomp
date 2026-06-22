@@ -48,6 +48,24 @@ exactly like 3DS — driven by this divergence map) and (2) the graphics-fidelit
 lighting, title scene, remade look). Verification is like-for-like oracle-vs-SoH3D comparison, not a
 vibe check.
 
+## ★ ARCHITECTURE DECISION (user, 2026-06-22): full OoT3D actor PORT, not N64-logic patching
+For actors as for Link: **port OoT3D's actual behavior into SoH3D** — do NOT make N64 actor logic drive
+3DS models via integration shims. Faithful by construction (run OoT3D's logic), and the only path that
+uniformly handles 3DS-divergent + 3DS-exclusive actors. Efficient form (NOT a blind from-scratch ARM
+rewrite of every actor):
+- **Scaffold from the N64 Rosetta source** (OoT3D actor ≈ N64 actor + a delta — proven by the sweep) and
+  **apply the OoT3D divergences this map catalogs.** This map IS the per-actor port spec.
+- **KEYSTONE — port OoT3D's shared SKELETAL-ACTOR DRAW/ANIM FRAMEWORK first** (the CSAB/CMB + MoLive
+  skeleton system). OoT3D applies the morph blend, `Npc_TrackPoint` head/torso rotation, and eye/mouth
+  facial anim in this ONE shared framework — not per actor. SoH3D currently shims it with N64 SkelAnime,
+  which drops those per-limb overrides → the walk-stop morph, Kokiri-don't-head-track, and Saria-facial
+  bugs are all ONE missing framework, not N actor bugs. Port it once → every skeletal actor animates the
+  3DS way and those bugs are fixed correctly (by running OoT3D's draw logic, not retrofitting N64 callbacks).
+- Then port each actor's UPDATE logic on top (N64 scaffold + deltas): Link (vertical slice) → Saria,
+  Kokiri → outward. 3DS-exclusive actors (no N64 twin) are reimplemented from the OoT3D decomp.
+This SUPERSEDES the earlier "Track B = port behaviors into the N64 Player path" framing: the target is
+OoT3D's behavior + OoT3D's draw framework, not the N64 engine's.
+
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
 - Decompiled to `build/decomp/<addr>.c` (gitignored): **828** (after rings 1–4, 2026-06-22).
@@ -255,9 +273,19 @@ This is the scoping map for the graphics/audio/UI reimplementation (feeds the li
   CSAB→3×4 MtxF anim eval `0x3204a4`, MtxF blend `0x30f6b0`, frame flush/double-buffer) — the renderer.
 - **CMB/CSAB model+anim pipeline** (`0x2f70c4` resource dtor, `0x3204a4` matrix eval, limb material/cull
   `0x32c2c0`) — replaces N64 SkelAnime + display lists; the 3DS model format runtime.
-- **3DS lighting** (`0x36ec40` per-room light-env apply: per-channel 0x50-stride color blocks + 16-ch
-  light enable; `0x33c950` light/env tick) — **directly the [[goal-3ds-lighting]] target**; RE these +
-  capture the live PICA state.
+- **3DS lighting** — **RE'd 2026-06-22** (scratch/align/render_lighting_subsystem.md). CPU light-state
+  is **fully tractable statically**: `0x5af460` = authoritative per-channel color-env state (0x50 stride,
+  5 sub-records of `[cur,target,step,framesRemaining]` f32 lerp = classic EnvLightColor crossfade);
+  `0x5af450` = live PICA light-object ptr table; `0x465514` = per-frame interp tick; `0x344410` =
+  time-of-day→sky/fog/light (square-curve gamma on ambient); `0x33c950` = ambient tick; `0x36ec40` =
+  per-room apply; **`FUN_0030ed80` (cmd 0x19) = the PICA GPU boundary** (16 light channels). Byte→float
+  norm = **1/127 = 0.007874f** (reproduction-critical). Per-room env color authored in ROM room headers.
+  **LIVE-capture-only piece:** the PICA200 **fragment-lighting LUTs** (Fresnel/specular/spotlight/dist-
+  atten) + resolved 16 light-object register state below cmd-0x19 — capture from the Azahar oracle.
+  This is the [[goal-3ds-lighting]] reimpl spec.
+- **Per-limb material system** (`0x32c2c0`): static 5-byte/limb descriptor table @0x53a558 → material-ptr
+  table @0x53c698; the `&0x400000` gate = player `stateFlags1` (+0x1710) → Link-only material override
+  (tunic/equip/damage tint, tied to equip-variant +0x1a6==2).
 - **do-action / HUD / interface** (~26: the touch/do-action subsystem, label resolvers, HUD color init)
   — the 3DS UI; pairs with the item/do-action DIVERGENT funcs above.
 - **z_message + UTF text** (~18: control-code parser, UTF-8↔UTF-16 transcode, multi-language) — the
