@@ -44,7 +44,10 @@ def _set_tmode(addr, thumb):
         try:
             currentProgram.getProgramContext().setValue(
                 tmode, addr, addr, BigInteger.ONE if thumb else BigInteger.ZERO)
-        except Exception:
+        except:
+            # Java ContextChangeException (instructions already decoded with a conflicting
+            # context) is not a Python Exception under Jython reflection — swallow it; the
+            # existing disassembly is fine to decompile as-is.
             pass
 
 
@@ -54,8 +57,14 @@ def _force_create(addr, thumb):
     # Always pin the decode mode (TMode 1=Thumb, 0=ARM) before disassembling — a prior wrong-mode
     # attempt can persist the opposite context and produce garbage.
     _set_tmode(addr, thumb)
-    ArmDisassembleCommand(addr, None, thumb).applyTo(currentProgram, mon)
-    CreateFunctionCmd(addr).applyTo(currentProgram, mon)
+    try:
+        ArmDisassembleCommand(addr, None, thumb).applyTo(currentProgram, mon)
+    except:
+        pass
+    try:
+        CreateFunctionCmd(addr).applyTo(currentProgram, mon)
+    except:
+        pass
 
 
 def decompile_at(vaddr):
