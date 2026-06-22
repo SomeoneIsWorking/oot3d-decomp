@@ -350,18 +350,20 @@ FAITHFUL** with ONE Grezzo-added override (the prime #88 suspect). New confirmat
   hook is `true` in vanilla, so the equipment predicate is the real gate).
 - The chosen anim is `sFidgetAnimations[fidgetType][modelAnimType!=1 ? 1 : 0]`, played via
   `FUN_00360190(...)` with the **−6.0f morph** (= N64 `LinkAnimation_Change(... ANIMMODE_ONCE, -6.0f)`).
-- **⚠ GREZZO DIVERGENCE (likely the "weird yawn" cause): added override**
-  `if (*(s8*)(play + 0x4c37) != 0) fidgetType = 3 (FIDGET_HOT);` — applied right after the
-  `behaviorType2` default, BEFORE the crit/common logic. N64 has **no** such field/override. `+0x4c37`
-  is a 3DS-only play/room field (weather/region?). If it is nonzero in a given scene it FORCES the
-  `wait_typeB` (HOT/warm) fidget — which would make Link play a "wrong"/unexpected idle fidget there.
-  **Port #88 faithfully = replicate this `+0x4c37→FIDGET_HOT` override** (resolve what +0x4c37 is) OR,
-  if SoH3D should match N64 not 3DS here, omit it — but first confirm whether scene 52's +0x4c37 is
-  what selected the live yawn anim 0x50.
+- **✅ #88 ROOT PINNED (2026-06-22, region-field deep-dive — scratch/align/region_field_system.md):**
+  the override `if (*(s8*)(play + 0x4c37) != 0) fidgetType = 3 (FIDGET_HOT);` is real, and `+0x4c37` =
+  **room-header behavior-command bit 9 ("HOT room")** — an AUTHORED-PER-ROOM flag set from the ROM room
+  header by `SCENE_CMD_ROOM_BEHAVIOR` (OoT3D 0x2344c4), Grezzo's replacement for N64
+  `behaviorType2 == TYPE2_3`. SEPARATELY, `Player_GetIdleAnim` (0x34d628) returns the **default idle
+  table @0x53a5f8 `{0x50=yawn,0x58,0x58,0x119}`** OR the **ALT table @+0x4f8 `{0x1f9,0x1f8,0x1f8,0x1fa}`**
+  depending on the **build-version gate** `(player+0x174e!=1 || *0x54ac55 < 'Q') || (player+0x29b8 &
+  0x400)` — where `0x54ac55` is the baked build region/version byte. So the "weird yawn" = the HOT-room
+  bit + which idle table the version gate selects. **Port #88 = (a) extract the room-header HOT bit per
+  room from the ROM, (b) capture `0x54ac55` from the oracle, (c) replicate the alt-table path per the
+  faithful-3DS decision (see docs/divergence_map.md OPEN DECISIONS).** `+0x4c32` = behaviorType2 (confirmed),
+  `+0x4c30` = curRoom.num (NOT a region index — prior guess corrected).
 - **Open:** OoT3D's `Player_CheckForIdleAnim` loop bound is `0x1e` (30 = **15** table entries) vs N64's
   28 (**14** entries) — OoT3D may have ONE extra `sFidgetAnimations` entry. Verify against `DAT_004ba948`.
-- Unresolved: `FUN_00334c44` (called just before the picker — fidget-SFX or timer setup?), `+0x4c37`
-  (the override field), `+0x4c32` (confirm = behaviorType2).
 
 ### Boot-to-gameplay recipe (oracle, no savestate mod)
 Title → `tap('start')`×3 → `tap('a')` (select save file 1 "Link") → `tap('a')`×2. Lands in scene 52
@@ -519,3 +521,11 @@ of 3DS-only feature flags, NOT a wholesale logic rewrite. This favors extending 
   3DS region/variant field system is **engine-wide** (PlayState +0x4c30/32/33/35/37 + Player +0x29b8/
   +0x174e) — the highest-priority deep-dive. ~60 new anchors pinned. Corrected two helper mislabels
   here (FUN_002bdd54, FUN_0032c408) and resolved FUN_0034ad70=func_8084AEEC.
+- 2026-06-22 (cont.4): **region/variant field system RE'd** (deep-dive; full in scratch/align/
+  region_field_system.md). It's THREE things, not one: (1) `play+0x4c30`=RoomContext.curRoom.num (NOT a
+  "region index" — corrected) + room-header behavior bits +0x4c33/4c35/4c37 set by SCENE_CMD_ROOM_BEHAVIOR
+  (0x2344c4) from the ROM; (2) a baked build-version gate on `0x54ac55` ('Q'/'P') that activates 3DS
+  alt paths; (3) the Grezzo Player variant word +0x29b8 (bits enumerated). #88 yawn ROOT PINNED (above):
+  room-header HOT bit (+0x4c37=bit9) + version-gated alt idle table {0x1f9,0x1f8,0x1f8,0x1fa} vs default
+  {0x50,...}. New anchors: 0x2344c4, +0x223c room-spawn mask, 0x54ac55 build-version byte. A port
+  DECISION (faithful-3DS vs faithful-N64 idle path) is logged in divergence_map.md OPEN DECISIONS.

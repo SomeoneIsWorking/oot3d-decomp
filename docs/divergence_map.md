@@ -75,22 +75,65 @@ Partitioned into 5 batches; per-batch maps in `scratch/sweep/divmap_batch0[0-4].
 helper layer is overwhelmingly faithful to N64; the divergences are narrow and almost all ride the
 3DS region/variant field family or are 3DS-only feature additions.
 
-### ★ STRUCTURAL FINDING: the engine-wide 3DS region/variant field system
-The single highest-value thing to nail down. Grezzo threads a **per-room region/zone field cluster on
-PlayState** through the WHOLE engine — not player-local:
-- `play+0x4c30` = region/zone index; `play+0x4c32` = behaviorType2; `play+0x4c33/+0x4c35/+0x4c37` =
-  region flags; gate via `DAT[play] & (1 << play[+0x4c30])`.
-- On the Player: `+0x29b8` = region/variant state word (bits 1/4/0x200/0x400/0x200000/0x800000/
-  0x1000000 select alt anims & force-idle; **reset in Player_SetupAction 0x36055c**); `+0x174e` =
-  region/env flag (`==1 && DAT<'Q'` gates alt anims).
-- Seen gating: idle-anim choice (#88 yawn, 0x34d628), aim/look-around, movement/wall-start anims,
-  per-region camera (`Player_UpdateCamAndSeqModes` 0x3c45f4, +0x4c33), spawn (0x3738d0), wall-collision
-  (`Actor_UpdateBgCheckInfo` 0x376340), SFX pitch (0x37547c), draw-matrix (0x4c55c0).
-⇒ **Understanding this one structure unlocks a whole class of "weird 3DS behavior" divergences at once.
-Highest-priority deep-dive: RE the PlayState region fields + the Player `+0x29b8`/`+0x174e` machine.**
+### ★ STRUCTURAL FINDING: the "region field system" — RE'd (2026-06-22). It's THREE things, not one.
+The deep-dive (scratch/align/region_field_system.md) dissolved the sweep's "region cluster" into three
+concrete, well-understood pieces. **Correction: `+0x4c30` is NOT a region index — it's `curRoom.num`.**
+
+**(1) `play+0x4c30` = `RoomContext.curRoom` base; `+0x4c30`=`num`, `+0x4c32`=`behaviorType2`,
+`+0x4c33`=`behaviorType1`, `+0x4c35`/`+0x4c37` = Grezzo-added ROOM-HEADER behavior-command bits**
+(bit8→+0x4c35, **bit9→+0x4c37 "HOT room"**, bit10→+0x2b9c). Source = the **ROM room header**, set by the
+`SCENE_CMD_ROOM_BEHAVIOR` handler at **OoT3D 0x2344c4** (twin of z_scene.c:270) at room load. So these
+are AUTHORED-PER-ROOM flags, not free-floating region state.
+- The spawn gate `*(u32*)(play+0x223c) & (1 << curRoom.num)` (in Actor_SpawnEntry 0x3738d0) is a
+  **per-room actor-spawn-enable / residency bitmask** (+ stamps `actor.room = curRoom.num`).
+
+**(2) The build-version gate.** The recurring `(player[+0x174e]!=1 || *0x54ac55 < 'Q') || (player[+0x29b8]
+& 0x400)` is gated on **`0x54ac55` = the baked-in build region/version code byte** (14 readers, ZERO
+writers — a per-build const, compared to ASCII 'Q'/'P'). `+0x174e` = a per-frame environment-state byte
+set in Player_UpdateCommon (0x250ad0:1505) from the audio/sequence block (=1 when a region ambience
+source is present). **When this gate opens, alt anim/behavior paths activate; otherwise the default
+(N64-like) path runs.** This is why some 3DS "variants" only appear in certain builds/regions.
+
+**(3) Player `+0x29b8` = a Grezzo-added Player variant/force state word** (NO N64 twin). Bits:
+`0x4`=force run/back-walk→idle (set 0x250ad0:603); `0x200`=select alt anim table; `0x400`=alt-anim
+veto/variant-2; `0x800000`=ledge-grab (set 0x33ebfc); `0x200000`=movement/weight arm (0x34b288);
+`0x1`=first-person aim; `0x100`=ledge-height arm; `0x1000000`=water/cam arm. **Player_SetupAction
+(0x36055c) clears bits 1/4/0x200000/0x800000 SELECTIVELY per-action** — the table-selector bits
+0x200/0x400 persist across actions.
+
+**#88 yawn root, now pinned:** `Player_GetIdleAnim` (0x34d628) returns the **default idle table @0x53a5f8
+`{0x50=yawn, 0x58, 0x58, 0x119}`** or, when the version gate opens, the **ALT table @+0x4f8
+`{0x1f9, 0x1f8, 0x1f8, 0x1fa}`** — plus the `+0x4c37 (room-header bit9 "HOT") → FIDGET_HOT` override in
+the picker (Grezzo's replacement for N64 `behaviorType2 == TYPE2_3`). The "weird yawn" is the authored
+per-room HOT flag + which idle table the version gate selects.
+
+⇒ **PORT BOTTOM LINE (decision needed):** to be faithful we (a) extract from ROM room headers: room
+num, behaviorType1/2, the Grezzo room-behavior bits (incl. bit9 HOT) + the `+0x223c` spawn mask;
+(b) live-capture the `0x54ac55` build-version byte from the Azahar oracle (it decides if the alt path is
+even active); (c) extract the alt anim-id tables from code.bin. **Then DECIDE: replicate the 3DS
+alt-anim path (faithful-3DS, idles match OoT3D) vs force the default table (faithful-N64).** Per the
+"indistinguishable" north star → **faithful-3DS** (replicate the alt path), gated on the captured
+version byte. (See `## OPEN DECISIONS`.)
 
 Also engine-wide: **3DS matrices are 3×4 (MtxF*, no w-row) with explicit args** vs N64's 4×4 global —
 a layout difference to handle throughout, not a math change.
+
+Also engine-wide: **3DS matrices are 3×4 (MtxF*, no w-row) with explicit args** vs N64's 4×4 global —
+a layout difference to handle throughout, not a math change.
+
+### Region-system new anchors (fold into player_port.md)
+0x2344c4 = SCENE_CMD_ROOM_BEHAVIOR handler; 0x3738d0 = Actor_SpawnEntry (room-residency gate);
+play+0x4c30 = RoomContext.curRoom.num, +0x4c32 = behaviorType2, +0x4c33 = behaviorType1,
++0x4c35/+0x4c37 = Grezzo room-header behavior bits (bit8/bit9-HOT), +0x223c = per-room spawn-enable
+mask (u32), play+0x2b9c = room-header bit10 target; **0x54ac55 = baked build region/version byte**
+(compared to 'Q'/'P'); player+0x174e = per-frame region-ambience-present byte; player+0x29b8 = Grezzo
+variant/force state word (bits enumerated above).
+
+## OPEN DECISIONS (need a user call)
+- **Idle/variant anim path (from #88):** replicate the 3DS alt-anim path (faithful-3DS — idles match
+  OoT3D, gated on the captured build-version byte) **[recommended, per "indistinguishable" north star]**
+  vs force the N64-default table (simpler, but idles won't match 3DS). Affects idle/aim/movement-start
+  anims wherever the `+0x29b8`/`+0x174e`/version gate selects an alt table.
 
 ### DIVERGENT functions (the port payload) — ring-1
 **3DS-only NEW features (no N64 twin — additions to replicate):**
