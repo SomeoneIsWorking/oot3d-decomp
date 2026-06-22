@@ -22,6 +22,21 @@ family** (`+0x4c37`, `+0x174e`, `+0x29b8` bits, `+0x4c32` behaviorType2) driving
 variants. ⇒ The port is mostly *integration correctness* + a small set of 3DS feature flags, not a
 wholesale rewrite — which is exactly why extending SoH3D beats a full re-decomp.
 
+## Port scope buckets (every OoT3D system lands in one)
+- **(a) reuse N64 decomp as-is** — faithful logic SoH3D already runs (most of the engine + gameplay).
+- **(b) port the OoT3D delta** — Grezzo logic changes (the DIVERGENT funcs below). The known cluster:
+  the engine-wide **3DS region/zone field family** (PlayState `+0x4c30`/`+0x4c32`/`+0x4c33`/`+0x4c35`/
+  `+0x4c37`) gating spawn/collision/camera/draw/idle, + the morphTable pointer→0x34-stride relayout.
+- **(c) reimplement 3DS-only** — no N64 twin; built fresh in SoH3D:
+  - **3DS LIGHTING** (user goal, 2026-06-22): replicate OoT3D's PICA200 **per-fragment lighting**
+    (Fresnel/specular/diffuse via fragment-lighting LUTs + per-material light env, per-room ambient)
+    in SoH3D's GL path. Renderer reimplementation, NOT a logic port — no N64 twin. Strategy: capture
+    the live PICA200 lighting state from the Azahar oracle to drive it; rides the same PICA surface as
+    the 3×4-matrix and region-field findings. Tracked here as a parallel graphics-fidelity workstream
+    separate from the gameplay-logic port.
+  - 3DS UI (dual-screen item/menu, touch), gyro aiming, Sheikah Stone hint movies, Boss Challenge,
+    Master Quest integration, the remade textures/models (already loaded as assets in SoH3D).
+
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
 - Decompiled to `build/decomp/<addr>.c` (gitignored): **318** (as of ring-1 sweep, 2026-06-22).
