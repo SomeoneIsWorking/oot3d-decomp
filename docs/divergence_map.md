@@ -85,9 +85,25 @@ override framework (`SoH3D_ApplyProcOverride` `soh3d.c:337`, `SoH3D_SetBoneRotDe
    `morphWeight>0` lerp per-bone local rotations between the new CSAB pose and the cached frozen outgoing
    pose (linear, per `docs/anim_system.md` THE MORPH). (Link's default N64-retarget path reads the
    pre-merged jointTable and morphs for free — soh3d_link.cpp:378 — which is why only the NPC CSAB path is morph-blind.)
+3. **Per-limb MATERIAL / texture / DL overrides (3rd category — from the Saria pass):** the limb-draw
+   callbacks also do `gSPSegment(0x08/0x09/0x0A)` eye/mouth texture swaps and per-limb DL swaps (e.g.
+   Saria's ocarina hand DL on limb 15, En_Sa_Draw z_en_sa.c:822-829). The CSAB path GL-draws the OoT3D
+   model and never executes these → static faces, missing held-item DLs. The framework finish must apply
+   per-limb material/segment overrides too, not just rotation deltas + morph.
+
 This IS the "port OoT3D's shared skeletal-draw framework" keystone, forward-compatible with full actor
-ports (it applies whatever head/torso deltas the actor produces, N64-scaffold or fully-ported). Precedent:
-the cucco wing-flap (#5) was already fixed through this exact channel.
+ports (it applies whatever deltas/material-overrides the actor produces, N64-scaffold or fully-ported).
+Precedent: the cucco wing-flap (#5) was already fixed through this exact channel.
+
+**★ Strategic confirmation (from En_Sa + En_Ko being byte-faithful to N64):** OoT3D's skeletal-actor
+*logic* matches N64, which SoH3D already runs. So finishing this ONE framework (rotation overrides +
+material overrides + morph) is expected to fix the VAST MAJORITY of skeletal-actor visual bugs
+(head-track, facial, morph, held-item DLs) across ALL actors **without per-actor logic porting**. Only
+3DS-*divergent* or 3DS-*exclusive* actors then need real per-actor work. The framework is ~the whole win.
+Per-actor comparison passes (e.g. Saria) are DEFERRED until the framework is finalized — they'd just be
+re-derived against the finished framework. (Saria's OoT3D addrs, if needed later:
+init 0x168504, draw 0x1b9358, update 0x1b9450, OverrideLimbDraw 0x23bca4, PostLimbDraw 0x21e968;
+gActorOverlayTable@0x50CD84, ACTOR_EN_SA=0x146. Full notes: scratch/align/saria_en_sa_compare.md.)
 
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
