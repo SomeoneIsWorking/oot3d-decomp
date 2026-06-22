@@ -119,14 +119,14 @@ in Player_UpdateCommon); leave it as "sf2-call-gate byte" until separately confi
 | `FUN_003604f0` | **Player_AnimPlayOnce** (AnimChangeOnceMorph) | `(skelAnime, play, animHeader)` |
 | `FUN_0034d628` | **Player_GetIdleAnim** | `(this)` |
 | `FUN_0035d260` | **Player_HoldsTwoHandedWeapon** | `(this)` — gates upper-body idle-copy in TurnInPlace |
-| `FUN_002bdd54` | **idle LinkAnimationHeader resolver** | `(skelAnime, idleId)` → anim ptr for SetLoadFrame |
+| `FUN_002bdd54` | ⚠ **MISLABEL** — 0x2bdd54 is a 12-line 1-arg stub, NOT the idle-anim resolver. Resolver is on a different (TBD) address | re-pin needed |
 | `FUN_004ba304` | **AnimationContext_SetLoadFrame** | `(play, anim, frame, limbCount, morphTable)` |
 | `FUN_0035e9fc` | **AnimationContext_SetCopyTrue** | `(play, vecCount, jointTable, morphTable, sUpperBodyLimbCopyMap)` |
 | `FUN_0036f59c` | **Player_PlaySfx** | `(this, sfxId)` |
 | `FUN_002c2658`+`FUN_002be4c4` | **setup-idle pair** (`func_80839FFC`+`func_8083BF50`) | run→idle transition |
 | `FUN_002bcd38` | **func_8083FD78** (movement-direction tri-state classifier) | back-walk/side-walk |
 | `FUN_0033100c` | **Player_GetMeleeWeaponHeld** | `(this)` |
-| `FUN_0032c408` | **LinkAnimation_BlendToJoint** | aim/blend (standing-aim 0x488b40) |
+| `FUN_0032c408` | ⚠ **MISLABEL** — NOT LinkAnimation_BlendToJoint; it's a **3DS stereo (L/R) limb-draw helper** (2 draw entries + FUN_0030f900) | re-pinned by ring-1 sweep |
 | `FUN_0034ad70` | **func_8084AEEC** (swim velocity/yaw setter) | surfacing 0x4bf5cc |
 | `FUN_0036b02c` | **Player_DetachHeldActor** | cleanup (cont.0; refined by cutscene 0x4bcccc) |
 
@@ -514,3 +514,8 @@ The genuine Grezzo *additions* are narrower and cluster around a **3DS-only fiel
 `+0x174e`, `+0x29b8` bits, `+0x4c32` behaviorType2) driving fidget/idle/aim variants (#88 yawn etc.).
 ⇒ Strategic implication: the OoT3D→PC delta on the player is mostly *integration correctness* + a small set
 of 3DS-only feature flags, NOT a wholesale logic rewrite. This favors extending SoH3D over a full re-decomp.
+- 2026-06-22 (cont.3): **ring-1 divergence sweep** (220 player-helper funcs, 5 parallel agents) →
+  full results in **docs/divergence_map.md** (144 FAITHFUL / 33 DIVERGENT / 41 UNMATCHED). Key: the
+  3DS region/variant field system is **engine-wide** (PlayState +0x4c30/32/33/35/37 + Player +0x29b8/
+  +0x174e) — the highest-priority deep-dive. ~60 new anchors pinned. Corrected two helper mislabels
+  here (FUN_002bdd54, FUN_0032c408) and resolved FUN_0034ad70=func_8084AEEC.

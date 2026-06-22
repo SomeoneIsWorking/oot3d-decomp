@@ -70,11 +70,106 @@ This loop is the unit of "gaining ownership." It is multi-agent-orchestration-sh
 hand in waves (current) or automated end-to-end with a Workflow over the whole binary.
 
 ## Ring-1 sweep (2026-06-22) — 220 funcs, the player-helper call-graph frontier
-Partitioned into 5 batches (scratch/sweep/batch0[0-4]); per-batch divergence maps in
-`scratch/sweep/divmap_batch0[0-4].md`. Consolidated results: _(populated as batches report below)_.
+Partitioned into 5 batches; per-batch maps in `scratch/sweep/divmap_batch0[0-4].md`.
+**Tally: 144 FAITHFUL · 33 DIVERGENT · 41 UNMATCHED.** Confirms the emergent finding hard: the player
+helper layer is overwhelmingly faithful to N64; the divergences are narrow and almost all ride the
+3DS region/variant field family or are 3DS-only feature additions.
 
-### DIVERGENT functions found (the port payload)
-_(to be filled from the batch divmaps)_
+### ★ STRUCTURAL FINDING: the engine-wide 3DS region/variant field system
+The single highest-value thing to nail down. Grezzo threads a **per-room region/zone field cluster on
+PlayState** through the WHOLE engine — not player-local:
+- `play+0x4c30` = region/zone index; `play+0x4c32` = behaviorType2; `play+0x4c33/+0x4c35/+0x4c37` =
+  region flags; gate via `DAT[play] & (1 << play[+0x4c30])`.
+- On the Player: `+0x29b8` = region/variant state word (bits 1/4/0x200/0x400/0x200000/0x800000/
+  0x1000000 select alt anims & force-idle; **reset in Player_SetupAction 0x36055c**); `+0x174e` =
+  region/env flag (`==1 && DAT<'Q'` gates alt anims).
+- Seen gating: idle-anim choice (#88 yawn, 0x34d628), aim/look-around, movement/wall-start anims,
+  per-region camera (`Player_UpdateCamAndSeqModes` 0x3c45f4, +0x4c33), spawn (0x3738d0), wall-collision
+  (`Actor_UpdateBgCheckInfo` 0x376340), SFX pitch (0x37547c), draw-matrix (0x4c55c0).
+⇒ **Understanding this one structure unlocks a whole class of "weird 3DS behavior" divergences at once.
+Highest-priority deep-dive: RE the PlayState region fields + the Player `+0x29b8`/`+0x174e` machine.**
 
-### New confirmed anchors (fold into player_port.md)
-_(to be filled)_
+Also engine-wide: **3DS matrices are 3×4 (MtxF*, no w-row) with explicit args** vs N64's 4×4 global —
+a layout difference to handle throughout, not a math change.
+
+### DIVERGENT functions (the port payload) — ring-1
+**3DS-only NEW features (no N64 twin — additions to replicate):**
+| addr | what | hooks |
+|---|---|---|
+| 0x2bf814 | auto-aim "head-track nearest actor" acquisition assist | +0x24bc state, +0x174a\|=0x200 |
+| 0x2c3e34 | standing-aim 90-frame look-around fidget (limb-anim half) | +0x24ba timer, +0x24b9 |
+| 0x2c3fac | animated boots-swap / force-idle settle action | +0x1b8 prevBoots, +0x29b8 |
+| 0x2ddba0 | `func_8083DC54` look-at aim — byte-exact + ADDED auto-aim dispatch branch | +0x174a\|=0x200 |
+
+**Region/variant-field-gated divergences (the field-system payload):**
+| addr | N64 twin | the change |
+|---|---|---|
+| 0x34d628 | Player_GetIdleAnim | +0x174e/'Q'/+0x29b8 idle override (= #88 yawn root) |
+| 0x35d304 | movement/wall-start dispatcher | alt start-anims by +0x29b8 0x200/0x400 + +0x174e |
+| 0x3589dc | per-boots/region camera settings | +0x4c33 per-region cam override block |
+| 0x34b288 | run/walk playspeed setter | adds 3DS flag arm |
+| 0x34b17c | `func_8083CF5C` floor/gravity arm `?` | gated on anim +0x284==0x34 + 3DS flag |
+| 0x3438a4 | Player_InitItemActionWithAnim | N64 fn-ptr table → inline switch, CMB DMA-load, renumbered item ids, +HUD restriction SM |
+| 0x355830 | Inventory_ChangeAmmo | same clamp, dispatch re-keyed to slot-id table |
+| 0x34cc78 | Player_UpdateUpperBody | inlines item-button scan + 3DS scratch state |
+| 0x3518dc | Player_ActionHandler_13 | fused grab/climb/door/get-item dispatch on +0x1749 + 3DS scratch |
+| 0x376340 | Actor_UpdateBgCheckInfo | adds region gate `DAT[play] & (1<<+0x4c30)` |
+| 0x3738d0 | spawn-from-segment | adds region gate (+ Grezzo build-path debug string) |
+| 0x37547c | Audio_PlaySfxGeneral builder | region-gated pitch + 3DS bank-table |
+| 0x3c45f4 | Player_UpdateCamAndSeqModes | ~3× N64 size, region gates +0x4c33/+0x4c35 + appended SEQ_MODE/audio-fade SM (+0x29e0..) |
+| 0x4c55c0 | Player draw-matrix/held-actor builder | 3×4 matrix relayout + region gates |
+
+**Genuine small logic tweaks:**
+| addr | N64 twin | the change |
+|---|---|---|
+| 0x330efc | func_8083BA90 (jump setter) | added snow/sand floortype jump-SFX (floorType {0x3b,0x3c,0x3d}) |
+| 0x33ebfc | func_8083A5C4 (ledge-grab setup) | added Vec3 pos-offset param + early-out line-test moved from caller; +0x29b8\|=0x800000 |
+| 0x3343ec | csAction-end swim/land restore | swim uses anim 0x34 morph; land adds anim-gated rot.y−=0x8000 |
+| 0x33ee60 | Math3D_UDistPlaneToPos | int-threshold zero-normal guard vs N64 float-epsilon+debug print |
+| 0x33eeb8 | WaterBox_GetSurfaceImpl | prepended scene-0x58 surface override |
+| 0x2bbbcc | Player_CalcSpeedAndYawFromControlStick | persists curved target speed in +0x29cc (N64 local) |
+| 0x2be2ec | Player_PlaySteppingSfx | footstep variant from discrete play+0x80 scene field vs continuous |
+| 0x3603f8 | cutscene morph-table commit | pointer→0x34-stride Vec3f morphTable relayout (= 0x4bcccc) |
+| 0x36055c | Player_SetupAction | faithful + it's where the +0x29b8 region/variant machine resets between actions |
+
+**DIVERGENT? — flagged, need a dedicated per-func align pass:** 0x132ad0 (2072B damage/void
+processor), 0x2bc420 (freefall land-impact), 0x3598c8 (wall/water step-up collision probe), 0x35150c
+(ledge-mount sub), 0x358bf4 (wall-grab attach/release).
+
+### UNMATCHED (41) → bucket (c) reimplement-3DS-only (no N64 twin)
+Genuine 3DS-only engine code, grouped: **audio** (0x32e780 Audio_SetSequenceMode, 0x32eadc/eb30/eb60/
+ebe8 channel/reverb, 0x355f54 light/color env); **3DS touch-screen do-action** (0x332284, 0x33885c —
+the rewritten do-action subsystem, replaces N64 Interface_SetDoAction); **GPU/stereo draw** (0x32c408
+stereo L/R limb-draw, 0x3240f8/0x324154 draw-request queue, 0x358778/0x3688a8/0x331094 CSAB/CMB
+anim-channel Vec4 ops that REPLACE N64 SkelAnime); **MoLive engine framework** (0x2bea70/0x2beafc/
+0x2bedd4 C++ containers/allocators); **z_message** text-box control-code parser (0x2df850/0x2e03e8);
+**z_kankyo/map-lights** (0x33c25c); region/env getters + small global setters. These are the "build
+fresh in SoH3D" list, distinct from the (b) port-the-delta funcs above.
+
+### Ring-1 new anchors (≈60 pinned; durable here, key ones folded into player_port.md)
+**Helpers:** 0x2cfca0=Math_SinS, 0x338f60=Math_CosS, 0x3758b0=Math_Atan2S, 0x3759d0=Rand_ZeroOne,
+0x371e50=Rand_ZeroFloat, 0x3738a8=Rand_CenteredFloat, 0x3702c8=Rand_S16Offset, 0x375a18=Math_SmoothStepToS,
+0x3624c8=Matrix_MtxFToYXZRotS, 0x36c174=Matrix_MtxFMtxFMult, 0x371234=Matrix_RotateZ, 0x371348=Matrix_Scale,
+0x3713fc=Matrix_Translate, 0x3735e8=Matrix_RotateY, 0x3735ac=Matrix_MultVec3f, 0x372224=Matrix_MtxFCopy,
+0x3721e0=Matrix_ToMtx, 0x36df4c=Math_Vec3f_Copy, 0x35fb94=Math_Vec3s_Copy, 0x360190=LinkAnimation_Change,
+0x36b4ec=SkelAnime update-mode dispatcher, 0x3603c0=LinkAnimation_GetEndFrame, 0x36b1e0=Player_CheckAnimFrameRange,
+0x360a1c=Player_ProcessAnimSfxList, 0x36b96c=SkelAnime root-motion apply, 0x330ed8=AnimationContext_DisableQueue,
+0x35d260=Player_HoldsTwoHandedWeapon, 0x33100c=Player_GetMeleeWeaponHeld, 0x3279dc=Player_GetExplosiveHeld,
+0x34d688=Player_UseItem, 0x336bbc=Player_StartTalking, 0x334c44=Player_FinishAnimMovement,
+0x32ec94=func_8083D36C(water-dive), 0x376340=Actor_UpdateBgCheckInfo, 0x376864=Actor_MoveXZGravity,
+0x376168/3761f0/3762a4=CollisionCheck_Set{AT,AC,OC}, 0x37547c=Audio_PlaySfxGeneral, 0x36f59c=Player_PlaySfx,
+0x49f28c=HealthMeter_IsCritical, 0x1ebe68=func_8002F0C8(lock-on range), 0x2bc618=func_8083DFE0(in-air step),
+0x2b949c=Player_UpdateShieldCollider, 0x2c036c=func_8084ABD8(C-up aim), 0x34ad70=func_8084AEEC(swim setter).
+**Offsets:** +0x1a9=heldItemAction, +0x48/4a/4c=actor.focus.rot, +0x71=SkelAnime anim-mode,
++0x3c/44/48/4c=SkelAnime frame quad, +0x34/38=morph cursor/rate, +0x174a=aim flag word,
++0x174e=region/env flag, +0x1750/52/56/58=upper/head limb rot, +0x29b8=region/variant state word,
++0x29cc=cached curved move-speed, +0x24b9/24ba=look-around fidget, +0x24bc..d8=auto-aim track state,
++0x4c30/32/33/35/37=PlayState region fields, +0x0d00=blendTable, +0x12e4=subCamId, +0xa54=cameraPtrs[0].
+
+### ⚠ Corrections to player_port.md (from the sweep)
+- `FUN_0032c408` was mislabeled **LinkAnimation_BlendToJoint** — it is actually a **3DS stereo (L/R)
+  limb-draw helper** (pushes 2 draw entries + FUN_0030f900). Re-pinned.
+- `FUN_002bdd54` was mislabeled the **5-arg idle-anim resolver** — the func at 0x2bdd54 is a 12-line
+  1-arg stub; the resolver label was on the wrong address. Unpinned pending re-find.
+- `FUN_0034ad70 = func_8084AEEC` (swim velocity/yaw setter) — the prior inter-agent conflict is RESOLVED
+  (FAITHFUL swim setter).
