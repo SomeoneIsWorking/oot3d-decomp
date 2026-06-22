@@ -382,7 +382,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
 | run-off-edge jump (#86) | **RESOLVED & FAITHFUL** (scratch/align/86_freefall.md): freefall action `Player_Action_8084411C` = **0x004bba4c**; "left-ground" handler `func_8083AA10` = **0x001cf9ac** (inlines auto-jump `func_8083A4A8` + ledge-on-runoff `func_8083A6AC`); jump-setter `func_80838940` = **0x0034b3dc**. Auto-jump trigger/anim/height/gravity are **bit-identical to N64** (3.0/4.0/20.0/0x2000/0x1000/6.0, IREG 66-69, gravity -1.2/0). ⇒ #86 run-off jump is a SoH3D **integration** bug (framerate of the gating reads `linearVelocity`/`sYDistToFloor`/`bgCheckFlags&4`), NOT a Grezzo change — nothing to port here. (0x4bf18c remains the knockback land = N64 8084377C, false suspect.) |
 | weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
-| pickup snaps to torso → above head | `Player_UpperAction_CarryActor` + carried-actor placement in `Player_DrawImpl` |
+| pickup snaps to torso → above head (#6/#85/#9) | **RESOLVED & FAITHFUL** — placement is `Player_PostLimbDrawGameplay` = **0x004c1c90**; held-actor offset vec `{100,1640,0}`, R_HAND anchor, get-item torso↔hand midpoint all byte-exact to N64. SoH3D **integration** bug: must (1) invoke this post-limb callback with the LIVE R_HAND bone matrix, (2) keep heldActor/unk_862/exchangeItemId/GETTING_ITEM state consistent, (3) populate leftHandPos(+0x1228) + bodyPartsPos[15](+0x23e8) per-frame BEFORE draw |
 | door-exit slide | door action func (sDoorAction / Player door state) |
 | higher-surface climb teleport (#79) | **RESOLVED & FAITHFUL** — step-up action 0x183634 (`Player_Action_80845668`) AND its caller `Player_ActionHandler_12` = **0x0023c7ac** both byte-exact to N64. #79 is a SoH3D **integration** bug: handler does `pos.y += yDistToLedge` hidden behind a negative `shape.yOffset(+0xc4)` that the action lerps to 0; SoH3D must replicate that yOffset set+decay, not change position math |
 
@@ -496,3 +496,21 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   func. `+0x1760`=unk_6C4 (slide accumulator, `gravity -= unk_6C4*0.004f`), `+0x1a7`=currentBoots. The
   `@1166` gate `if(actionFunc==0x4b9920 back-walk) slideSpeed*=factor` is a Grezzo addition; the
   `!=0x4bc22c get-item` guard correctly excludes get-item from sliding.
+- 2026-06-22 (cont.2): **carry/pickup #6/#85/#9 placement RESOLVED — FAITHFUL.** `Player_PostLimbDrawGameplay`
+  = OoT3D `FUN_004c1c90` (post-limb draw callback from the Player_DrawImpl twin; fn-ptr literal @0x4bff48).
+  Held-actor placement byte-exact to N64: offset vec D_80126190={100,1640,0} (1640.0 is a unique literal
+  @0x4c2574), R_HAND anchor (3DS limb id 0x14), two −π/2 rots, get-item torso↔hand midpoint. ⇒ SoH3D
+  INTEGRATION bug: must invoke the callback with the LIVE R_HAND bone matrix, keep heldActor/unk_862/
+  exchangeItemId/GETTING_ITEM consistent, and populate leftHandPos(+0x1228)+bodyPartsPos[15](+0x23e8)
+  before draw. New offsets: +0x1224=held-actor draw slot (NOTE: draw path uses +0x1224, not +0x12b0),
+  +0x1228=leftHandPos, +0x23e8=bodyPartsPos[15]. Decomp: build/decomp/004c1c90.c.
+
+## ⇒ EMERGENT PATTERN (2026-06-22): OoT3D player code is FAITHFUL — the bugs are SoH3D INTEGRATION bugs
+Every player behavior aligned so far whose bug we chased to ground — **#86 run-off-edge, #79 climb-teleport,
+#6/#85/#9 carry-placement** — turned out **byte-exact to N64**. The reported Link bugs are NOT Grezzo
+behavior changes; they are SoH3D feeding the (faithful) logic wrong inputs / not replicating state the
+3DS path relies on (live bone matrices, shape.yOffset decay, framerate of gating reads, held-actor state).
+The genuine Grezzo *additions* are narrower and cluster around a **3DS-only field family** (`+0x4c37`,
+`+0x174e`, `+0x29b8` bits, `+0x4c32` behaviorType2) driving fidget/idle/aim variants (#88 yawn etc.).
+⇒ Strategic implication: the OoT3D→PC delta on the player is mostly *integration correctness* + a small set
+of 3DS-only feature flags, NOT a wholesale logic rewrite. This favors extending SoH3D over a full re-decomp.
