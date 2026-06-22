@@ -86,11 +86,13 @@ Confirmed by decompiling each OoT3D fn and matching it 1:1 to its N64 twin in
 | +0xbe  | `actor.shape.rot.y`  | `Player_UpdateHostileLockOn` sets `yaw = shape.rot.y` |
 | +0xc4  | `actor.shape.yOffset` | climb step-up (0x183634): `Math_StepToF(&yOffset, 0, 150)` settle lerp |
 | +0x1321| `cylinder.base.acFlags` | `&2`=`AC_HIT` (knockback land gates wake on `!AC_HIT && knockbackType==0`) |
+| +0x1a7 | `currentBoots` (u8) | slope-slide HOVER/IRON branches |
 | +0x16f8| `focusActor`         | `Player_UpdateHostileLockOn`: `focusActor && (flags & (ATTENTION|HOSTILE=0x5))` |
 | +0x170c| `ageProperties*`     | knockback land reads `+0xf4` for per-age landing SFX |
 | +0x1708| `actionFunc`         | (prior session) dispatched in Player_UpdateCommon |
 | +0x1710| `stateFlags1` (u32)  | bit 0x10=`HOSTILE_LOCK_ON`; **0x4000000=`DAMAGED`**, **0x20000000=`IN_CUTSCENE`** (knockback land) |
 | +0x1714| `stateFlags2` (u32)  | `|=0x20`=`DISABLE_ROTATION_Z_TARGET`(b5), `|=0x60`=+`DISABLE_ROTATION_ALWAYS`(b6) |
+| +0x1760| `unk_6C4` (f32, slope-slide accumulator) | UpdateCommon-inlined `func_8083CF5C`: `gravity -= unk_6C4*0.004f` on floorType 4/7/0xc |
 | +0x221c| `linearVelocity` (f32, =N64 speedXZ) | stepped by Math_StepToF in every locomotion func; `==0` ⇒ idle |
 | +0x2220| `yaw` (s16, world move yaw) | distinct from shape.rot.y; angle-diff `>0x6000` decel-then-turn |
 | +0x2238| `av2.actionVar2` (s16) | generic per-action counter (knockback down-countdown; climb 0x183634 ledge timer) |
@@ -166,9 +168,14 @@ Per-func full diffs in `scratch/align/{4b9920,488b40,4bc22c,4886d4,4bf3bc,4bf5cc
 - **0x4b9920 `Player_Action_808414F8` (back-walk):** Z-target back-pedal. Grezzo divergences: the
   shared `+0x29b8 & 4` force-idle branch (same unknown bit as run 0x4ba378); directional side_walkR/L
   start by target-yaw sign (N64 always side_walkR); DAT/settings-driven brake/step gates. New helper:
-  `FUN_002bcd38 = func_8083FD78` (movement-direction tri-state classifier). ⚠ **the old "slope" role
-  label for the `==`@1166 gate is wrong — separate task: find what Player_UpdateCommon actually does at
-  @1166 (the real slope/slippery-slide func is still unmapped).**
+  `FUN_002bcd38 = func_8083FD78` (movement-direction tri-state classifier). ✅ **RESOLVED the `@1166`
+  gate** (read 00250ad0.c directly): there is **no separate slope action func** — the slope-slide is
+  the N64 floor-physics helper **`func_8083CF5C`** (z_player.c:6752, the `func_8083816C(sFloorType)`∈
+  {4,7,0xc} block) **inlined into OoT3D's Player_UpdateCommon**. `+0x1760` = `this->unk_6C4` (the
+  slide accumulator that subtracts from gravity, `gravity -= unk_6C4*0.004f`), `+0x1a7` =
+  `this->currentBoots` (HOVER/IRON branches). The `@1166` line `if(actionFunc==0x4b9920[back-walk])
+  slideSpeed *= factor` is a **Grezzo-added** back-walk-on-slope scaling (no N64 counterpart); the
+  `actionFunc != 0x4bc22c[get-item]` guard correctly excludes get-item from sliding.
 - **0x488b40 `Player_Action_80840450` (standing-aim, Z-target/hold-item):** NOT idle. Grezzo divergences:
   **ADDED a 90-frame look-around fidget** (new field +0x24ba, Rand_ZeroOne coin-flip gaze offset) and
   **ADDED region/environment anim variants** (4 slots, gated on 3DS-only +0x174e / +0x29b8 bits /
@@ -483,3 +490,9 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   (FUN_0034b17c, FUN_002c3c7c). Full per-func diffs in scratch/align/. New helpers: FUN_002bcd38=
   func_8083FD78, FUN_0033100c=Player_GetMeleeWeaponHeld, FUN_0032c408=LinkAnimation_BlendToJoint,
   FUN_0034ad70=func_8084AEEC, FUN_0036b02c=Player_DetachHeldActor.
+- 2026-06-22 (cont.): **CORRECTED the "@1166 slope func unmapped" flag** (was a misread). Read
+  00250ad0.c directly: the slope-slide is N64 `func_8083CF5C` (Player_UpdateCommon floor-physics helper,
+  the floorType∈{4,7,0xc} block) inlined into OoT3D's UpdateCommon — there is NO separate slope action
+  func. `+0x1760`=unk_6C4 (slide accumulator, `gravity -= unk_6C4*0.004f`), `+0x1a7`=currentBoots. The
+  `@1166` gate `if(actionFunc==0x4b9920 back-walk) slideSpeed*=factor` is a Grezzo addition; the
+  `!=0x4bc22c get-item` guard correctly excludes get-item from sliding.
