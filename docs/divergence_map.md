@@ -34,8 +34,19 @@ wholesale rewrite — which is exactly why extending SoH3D beats a full re-decom
     the live PICA200 lighting state from the Azahar oracle to drive it; rides the same PICA surface as
     the 3×4-matrix and region-field findings. Tracked here as a parallel graphics-fidelity workstream
     separate from the gameplay-logic port.
+  - **Title/attract scene** (user goal, 2026-06-22; SoH3D kanban **#92**): replicate OoT3D's title
+    presentation (3D Triforce intro, remade logo, 3DS camera moves + lighting/particles) to be
+    visually **indistinguishable**. Capture the reference live from the Azahar oracle; showcases the
+    3DS-lighting reimpl.
   - 3DS UI (dual-screen item/menu, touch), gyro aiming, Sheikah Stone hint movies, Boss Challenge,
     Master Quest integration, the remade textures/models (already loaded as assets in SoH3D).
+
+## ★ NORTH STAR (user, 2026-06-22): make SoH3D **indistinguishable** from OoT3D
+The bar is not "close enough" — the end goal is visual + behavioral parity with the 3DS game. That
+sets the standard for both workstreams: (1) the gameplay-logic port (Link/actors/scenes behave
+exactly like 3DS — driven by this divergence map) and (2) the graphics-fidelity reimpl (PICA200
+lighting, title scene, remade look). Verification is like-for-like oracle-vs-SoH3D comparison, not a
+vibe check.
 
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
