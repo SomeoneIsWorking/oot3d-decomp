@@ -66,6 +66,29 @@ rewrite of every actor):
 This SUPERSEDES the earlier "Track B = port behaviors into the N64 Player path" framing: the target is
 OoT3D's behavior + OoT3D's draw framework, not the N64 engine's.
 
+## KEYSTONE FIX SPEC (CSAB draw path drops per-limb overrides — RE'd 2026-06-22)
+Full analysis: `scratch/align/csab_limb_override_rootcause.md`. CONFIRMED: SoH3D's own-CSAB auto draw
+path (`SoH3D_DoRetarget` auto branch `soh3d.c:2136-2233` → `SoH3D_UpdateAnimAuto` `soh3d_model.cpp:2335`
+→ `SoH3D_UpdateAnim` :2297`) samples the OoT3D CSAB at a bare `(animName, frame)` and emits a RAW pose,
+dropping everything the N64 limb-draw walk layers on top. SoH3D already has a PARTIAL version of OoT3D's
+override framework (`SoH3D_ApplyProcOverride` `soh3d.c:337`, `SoH3D_SetBoneRotDelta` channel consumed at
+`soh3d_model.cpp:2308-2314`) — but it's hardcoded to ONLY the cucco wing-flap (`kSoH3dProcOverride`).
+**Finishing that framework = the keystone.** Two distinct additions, same path:
+1. **Head-track (Kokiri + Saria = ONE fix):** generalize `SoH3D_ApplyProcOverride` beyond the cucco
+   table — for tracking actors read `interactInfo.torsoRot`/`headRot` (N64 applies them as
+   `Matrix_RotateX/Z` on limb 8 torso / limb 15 head in `EnKo_OverrideLimbDraw` z_en_ko.c:1336-1347 —
+   NOT written to jointTable, so lost by every path) and feed them as OoT3D head/torso bone deltas via
+   the existing `SoH3D_SetBoneRotDelta`. En_Sa = same mechanism.
+2. **Morph (SEPARATE fix, same path):** N64 bakes morph into `skelAnime->jointTable` pre-draw
+   (`AnimationContext_SetInterp`); the CSAB path ignores jointTable entirely → morph-blind. Plumb
+   `skelAnime->morphWeight` from `SoH3D_SkelAnimeDraw` (`soh3d.c:2253`) into `SoH3D_UpdateAnim*` and when
+   `morphWeight>0` lerp per-bone local rotations between the new CSAB pose and the cached frozen outgoing
+   pose (linear, per `docs/anim_system.md` THE MORPH). (Link's default N64-retarget path reads the
+   pre-merged jointTable and morphs for free — soh3d_link.cpp:378 — which is why only the NPC CSAB path is morph-blind.)
+This IS the "port OoT3D's shared skeletal-draw framework" keystone, forward-compatible with full actor
+ports (it applies whatever head/torso deltas the actor produces, N64-scaffold or fully-ported). Precedent:
+the cucco wing-flap (#5) was already fixed through this exact channel.
+
 ## Coverage (live count)
 - OoT3D code.bin: **~8,265 functions** total (4.5 MB, whole game statically linked).
 - Decompiled to `build/decomp/<addr>.c` (gitignored): **828** (after rings 1–4, 2026-06-22).
