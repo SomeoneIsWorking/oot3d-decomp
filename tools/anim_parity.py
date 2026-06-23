@@ -146,8 +146,14 @@ def analyse(animmap: dict, overrides: dict, csab_by_name: dict, csab_by_zar: dic
                 catalog_rec       = csab_by_name.get(csab)
                 exists_in_catalog = catalog_rec is not None
                 if exists_in_catalog:
-                    csab_in_right_zar = catalog_rec["zarPath"] == zar
-                    csab_duration     = catalog_rec["duration"]
+                    # A CSAB name can appear in multiple ZARs (shared animations).
+                    # Check the target ZAR's own CSAB table first so shared CSABs
+                    # are not falsely flagged as CSAB_WRONG_ZAR.
+                    zar_rec           = zar_csabs.get(csab)
+                    csab_in_right_zar = zar_rec is not None
+                    # Use the duration from the target ZAR's entry when available
+                    # (shared CSABs can have the same duration, but be explicit).
+                    csab_duration     = (zar_rec or catalog_rec)["duration"]
                     dframe            = abs(n64_frames - csab_duration)
                 else:
                     csab_in_right_zar = False
