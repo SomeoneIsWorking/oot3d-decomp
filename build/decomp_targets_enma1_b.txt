@@ -1,0 +1,6 @@
+# EnMa1 action fn 1 (Idle/TeachSong?)
+0x003d2a14
+# EnMa1 action fn 2
+0x003c6128
+# FUN_0035c358 - CSAB player init (LoadCSAB-like)
+0x0035c358

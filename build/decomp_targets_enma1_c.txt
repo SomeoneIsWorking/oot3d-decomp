@@ -1,0 +1,4 @@
+# FUN_00348800 - CSAB slot switcher (called with slot index 1 or 3)
+0x00348800
+# FUN_003731e0 - CSAB update/step
+0x003731e0
