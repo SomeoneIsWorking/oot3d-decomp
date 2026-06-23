@@ -16,6 +16,14 @@ selects its animation (CSAB) per ENHY_TYPE. Serves soh3d (Market/Castle Town NPC
 | `0x001b4944` | `EnHy_Draw` — multi-slot CMB draw + head-obj draw    |
 | `0x003717ac` | `SetSkelAnimCSAB` — apply CSAB from pool             |
 | `0x0034c664` | `Npc_TrackPoint` — head/torso tracking               |
+| `0x001c4074` | `EnHy_Walk` action fn (type 3, BOJ_3)                |
+| `0x003c3840` | `EnHy_Fidget` action fn (most stationary types)      |
+| `0x003c378c` | `EnHy_DoNothing` action stub (types 5,9,10,11,12) — 4-byte no-op |
+| `0x00116870` | `EnHy_Pace` action fn (type 7, BJI_7) — calls SetSkelAnimCSAB pool 7 |
+| `0x003c4344` | `EnHy_WatchDog` action fn (type 0 in Market Day)     |
+| `0x003ac31c` | helper called from WatchDog — pool 3 transition      |
+| `0x003acd84` | helper — pool 2 transition                           |
+| `0x003ad354` | helper — pool 1 transition                           |
 
 ---
 
@@ -203,9 +211,118 @@ Per-type track distances (f32 pair at byte[4] and byte[8]):
    internally for the Hylian ZARs.
 
 4. **Walking CSABs also exist** — The param table has entries with yOffset=-8.0 or -10.0
-   which correspond to walk/path-follow anims (used in EnHy_Walk action state). The idle
-   CSAB (pool entry at draw-table[type*0x28+0x24]) is the main standing anim.
+   which correspond to walk/path-follow anims (used in EnHy_Walk/EnHy_Pace action states).
+   The idle CSAB (pool entry at draw-table[type*0x28+0x24]) is the main standing anim.
+   See the "Walk/Pace/WatchDog CSABs" section below for the full per-type resolved names.
 
 5. **Scene-gating in EnHy_Init** — Not all types appear in all scenes. The init checks
    `play.sceneNum` and per-type flags to despawn types that shouldn't be in a given scene
    (e.g., type 14 only appears in scene 0x35 = Castle Courtyard with specific conditions).
+
+---
+
+## Walk/Pace/WatchDog CSABs (static RE, 2026-06-23)
+
+### Action-state assignment per type (from EnHy_InitAction / N64 z_en_hy.c Rosetta)
+
+| type | ENHY_TYPE | action fn                 | motion          |
+|------|-----------|---------------------------|-----------------|
+|  0   | AOB       | `FUN_003c3840` + WatchDog | market: WatchDog; else: Fidget (no walk) |
+|  1   | COB       | `FUN_003c3840`            | Fidget (stationary) |
+|  2   | AHG_2     | `FUN_003c3840`            | Fidget (stationary) |
+|  3   | BOJ_3     | `FUN_001c4074`            | **Walk** (path-follow) |
+|  4   | AHG_4     | `FUN_003c3840`            | Fidget (stationary) |
+|  5   | BOJ_5     | `FUN_003c378c` (no-op)    | DoNothing |
+|  6   | BBA       | `FUN_003c3840`            | Fidget (stationary) |
+|  7   | BJI_7     | `FUN_00116870`            | **Pace** (back-and-forth walk) |
+|  8   | CNE_8     | `FUN_003c3840`            | Fidget (stationary) |
+| 9-12 | BOJ 9-12  | `FUN_003c378c` (no-op)    | DoNothing |
+|  13  | AHG_13    | `FUN_003c3840`            | Fidget (stationary) |
+|  14  | BOJ_14    | `FUN_003c3840`            | Fidget (stationary) |
+|  15  | BJI_15    | `FUN_003c3840`            | Fidget (stationary) |
+| 16-20| various   | `FUN_003c3840`            | Fidget (stationary) |
+
+`FUN_003c378c` is a **no-op stub** (4-byte body: just `return`).
+
+### Pool-index ↔ N64 ENHY_ANIM mapping
+
+The OoT3D param table pool index equals the N64 `ENHY_ANIM_*` index — a 1:1 mapping:
+
+| pool | N64 ENHY_ANIM | yOffset | used in              | ZAR (type)    | csab_zar_idx | CSAB name          | dur |
+|------|--------------|---------|----------------------|---------------|--------------|--------------------|-----|
+|  7   | ENHY_ANIM_7  | -10.0   | Pace walk (type 7)   | zelda_bji     | 1            | **Bji_aruku**      |  60 |
+|  8   | ENHY_ANIM_8  | -10.0   | Pace talking (type 7)| zelda_bji     | 0            | **Bji_matsu**      |  40 |
+| 17   | ENHY_ANIM_17 |  -8.0   | Beggar (type 9-ish)  | zelda_boj     | 2            | **Boj2_9**         |  11 |
+| 23   | ENHY_ANIM_23 |  -8.0   | Beggar give item     | zelda_aob     | 3            | **Aob_n_wait**     |  15 |
+| 24   | ENHY_ANIM_24 |  -8.0   | WatchDog (type 0)    | zelda_aob     | 2            | **Aob_te_wait**    |  15 |
+| 25   | ENHY_ANIM_25 |  -8.0   | WatchDog (type 0)    | zelda_aob     | 1            | **Aob_tataku_roop**|  15 |
+| 26   | ENHY_ANIM_26 |  -8.0   | WatchDog talking     | zelda_aob     | 3            | **Aob_n_wait**     |  15 |
+
+### EnHy_Pace (type 7 = BJI_7 old man) walk CSAB detail
+
+Type 7 is the only En_Hy type that actively walks (paces). Its per-frame action handler is
+`FUN_00116870` (`DAT_003ac980`), set in the InitAction switch `case 7`:
+
+```c
+// FUN_00116870 (per-frame pace handler for type 7):
+if (*(int*)(actor + 0x98) <= THRESHOLD && *(int*)(actor + 0xe18) != 0) {
+    SetSkelAnimCSAB(actor + 0x1a4, CSAB_PARAM_TABLE, 7);  // pool 7 = Bji_aruku
+    ...
+    *(int*)(actor + 0xd88) = NEXT_ACTION_FN;  // transition to walk action
+}
+// then drive path movement
+```
+
+- **Walk CSAB:** pool 7 → `Bji_aruku` (60f) — the Bji old man's actual walk cycle
+- **Pace-talking CSAB:** pool 8 → `Bji_matsu` (40f, yOffset=-10) — standing with yOffset=-10,
+  played when Link talks to BJI_7 while he's pacing
+
+### EnHy_Walk (type 3 = BOJ_3) walk detail
+
+Type 3 uses `FUN_001c4074` as its per-frame action handler. This function drives path-following
+(`Path_OrientAndGetDistSq`-equivalent, `Math_SmoothStepToS` for yaw) but does **NOT** swap the
+CSAB — the NPC keeps its initial CSAB set during `EnHy_InitAction` (pool 15 = `Boj2_5`, 16f).
+There is no separate "walk" CSAB for type 3: the idle anim is played while walking.
+
+### EnHy_WatchDog (type 0 = AOB in Market Day) detail
+
+WatchDog uses three CSAB pools from zelda_aob.zar (all with yOffset=-8):
+- Pool 26 (Aob_n_wait, 15f): playing while NPC is talking to Link
+- Pool 25 (Aob_tataku_roop, 15f): special event state (item-event saveCtx flag set)  
+- Pool 24 (Aob_te_wait, 15f): default idle-in-market state
+
+These are triggered by `EnHy_WatchDog` (a special market-day variant of AOB's action state).
+Pool 23 (Aob_n_wait via ENHY_ANIM_23) is used in the beggar-give-item talk sequence for a
+different NPC context; it shares the same ZAR-internal CSAB (Aob_n_wait = zelda_aob[3]).
+
+---
+
+## Summary: complete En_Hy CSAB chain (idle + walk/pace/watchdog)
+
+| type | action        | idle pool | idle CSAB          | walk pool | walk CSAB            |
+|------|---------------|-----------|--------------------|-----------|----------------------|
+|  0   | WatchDog(mkt) |  0        | Aob_mastu (20f)    | 24/25/26  | Aob_te_wait/tataku/n_wait |
+|  1   | Fidget        | 22        | Cob_matsu (20f)    | —         | —                    |
+|  2   | Fidget        |  1        | Ahg_matsu (20f)    | —         | —                    |
+|  3   | Walk          | 15        | Boj2_5 (16f)       | —         | (keeps idle Boj2_5)  |
+|  4   | Fidget        | 11        | Ahg2_8 (20f)       | —         | —                    |
+|  5   | DoNothing     | 16        | Boj2_9 (11f)       | —         | —                    |
+|  6   | Fidget        | 10        | Bba_n_wait (40f)   | —         | —                    |
+|  7   | Pace          |  4        | Bji_matsu (40f)    | 7 / 8     | Bji_aruku (60f) / Bji_matsu-yoff |
+|  8   | Fidget        |  9        | Cne_n_wait (40f)   | —         | —                    |
+|  9   | DoNothing     | 13        | Boj_13 (30f)       | —         | —                    |
+| 10   | DoNothing     | 14        | Boj_14 (23f)       | —         | —                    |
+| 11   | DoNothing     | 20        | Cne2_15 (12f)      | —         | —                    |
+| 12   | DoNothing     | 18        | Boj2_17 (30f)      | —         | —                    |
+| 13   | Fidget        | 12        | Ahg2_18 (20f)      | —         | —                    |
+| 14   | Fidget        | 19        | Boj2_19 (30f)      | —         | —                    |
+| 15   | Fidget        | 21        | Bji2_20 (40f)      | —         | —                    |
+| 16   | Fidget        |  5        | Boj_matsu (30f)    | —         | —                    |
+| 17   | Fidget        | 11        | Ahg2_8 (20f)       | —         | —                    |
+| 18   | Fidget        |  6        | Bob_matsu (20f)    | —         | —                    |
+| 19   | Fidget        | 21        | Bji2_20 (40f)      | —         | —                    |
+| 20   | Fidget        | 12        | Ahg2_18 (20f)      | —         | —                    |
+
+**Key result:** Only types 0 (AOB, market-day only), 3 (BOJ_3, path-walk), and 7 (BJI_7, pace)
+have non-idle walk CSABs. Types 5/9/10/11/12 are DoNothing (frozen). All others are Fidget
+(standing, eye-blink only). The OoT3D pool index == N64 ENHY_ANIM index (1:1 mapping).
