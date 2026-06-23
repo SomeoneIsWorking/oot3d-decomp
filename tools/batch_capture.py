@@ -19,6 +19,7 @@ Stream 4 (PARITY CHECK + PATCH) consumes these directly without re-driving the o
   flock scratch/.oraclelock python3 ../oot3d-decomp/tools/batch_capture.py --scenes kokiri links_house
   flock scratch/.oraclelock python3 ../oot3d-decomp/tools/batch_capture.py --force  # re-capture all
   flock scratch/.oraclelock python3 ../oot3d-decomp/tools/batch_capture.py --dry-run
+  python3 ../oot3d-decomp/tools/batch_capture.py --status          # no oracle needed
 
 ## Adding scenes
   Add a SceneSpec to SCENE_LIST.  Fields:
@@ -299,6 +300,8 @@ def main():
                     help="Re-capture even if actors.json + scene.png already exist")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print what would be captured without driving the oracle")
+    ap.add_argument("--status", action="store_true",
+                    help="Print capture status of all scenes (no oracle needed) then exit")
     ap.add_argument("--out", metavar="DIR", default=None,
                     help="Output root dir (default: <soh3d>/scratch/oracle_batch/)")
     args = ap.parse_args()
@@ -310,6 +313,27 @@ def main():
         out_root = _SOH3D / "scratch" / "oracle_batch"
     out_root.mkdir(parents=True, exist_ok=True)
     print(f"Output root: {out_root}")
+
+    # --status: print capture status for all scenes without oracle, then exit
+    if args.status:
+        ok_n = skip_n = miss_n = 0
+        for spec in SCENE_LIST:
+            json_path = out_root / spec.name / "actors.json"
+            png_path  = out_root / spec.name / "scene.png"
+            j = json_path.exists()
+            p = png_path.exists()
+            if j:
+                count = len(json.load(open(json_path)).get("actors", []))
+                status = "ok" if p else "ok(no-png)"
+                ok_n += 1
+            else:
+                count = None
+                status = "MISSING"
+                miss_n += 1
+            actors_str = f"{count:>3} actors" if count is not None else "       "
+            print(f"  {spec.name:<28} {status:<12} {actors_str}")
+        print(f"\nTotal: {ok_n} captured, {miss_n} missing")
+        return
 
     # Filter scene list
     scene_filter = set(args.scenes) if args.scenes else None
@@ -355,22 +379,69 @@ def main():
         else:
             fail_count += 1
 
-    # Write summary
+    # Write summary — merge new results into full summary so partial runs don't lose old data.
+    # The summary always covers ALL scenes in SCENE_LIST.
     summary_path = out_root / "batch_summary.json"
+    # Load existing summary keyed by scene_name
+    existing: dict = {}
+    if summary_path.exists():
+        try:
+            old = json.load(open(summary_path))
+            for entry in old.get("scenes", []):
+                existing[entry["scene_name"]] = entry
+        except Exception:
+            pass
+    # Merge: new results overwrite old for the scenes we just ran.
+    # "skipped" = already on disk; treat as "ok" in the summary by reading disk.
+    for r2 in results:
+        if r2["status"] == "skipped":
+            json_path = out_root / r2["scene_name"] / "actors.json"
+            png_path  = out_root / r2["scene_name"] / "scene.png"
+            if json_path.exists():
+                r2 = dict(r2)
+                r2["status"] = "ok"
+                r2["actors"] = len(json.load(open(json_path)).get("actors", []))
+                r2["screenshot"] = "ok" if png_path.exists() else "failed"
+        existing[r2["scene_name"]] = r2
+    # Rebuild full list in SCENE_LIST order; fill gaps from disk for scenes not run this time
+    full_results = []
+    for spec in SCENE_LIST:
+        if spec.name in existing:
+            full_results.append(existing[spec.name])
+        else:
+            # Check disk directly
+            json_path = out_root / spec.name / "actors.json"
+            png_path  = out_root / spec.name / "scene.png"
+            if json_path.exists():
+                count = len(json.load(open(json_path)).get("actors", []))
+                full_results.append({
+                    "scene_name": spec.name, "entrance": hex(spec.entrance),
+                    "scene_num": spec.scene_num, "status": "ok",
+                    "actors": count, "screenshot": "ok" if png_path.exists() else "failed",
+                })
+            else:
+                full_results.append({
+                    "scene_name": spec.name, "entrance": hex(spec.entrance),
+                    "scene_num": spec.scene_num, "status": "missing",
+                    "actors": None, "screenshot": None,
+                })
+    full_ok   = sum(1 for r2 in full_results if r2["status"] == "ok")
+    full_skip = sum(1 for r2 in full_results if r2["status"] == "skipped")
+    full_fail = sum(1 for r2 in full_results if r2["status"] not in ("ok", "skipped"))
     summary = {
-        "captured": ok_count,
-        "skipped":  skip_count,
-        "failed":   fail_count,
-        "scenes":   results,
+        "captured": full_ok,
+        "skipped":  full_skip,
+        "failed":   full_fail,
+        "scenes":   full_results,
     }
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
-    print(f"\n=== Batch complete: {ok_count} captured, {skip_count} skipped, {fail_count} failed ===")
-    print(f"Summary: {summary_path}")
+    print(f"\n=== Run complete: {ok_count} captured, {skip_count} skipped, {fail_count} failed ===")
+    print(f"Full summary ({full_ok}/{len(SCENE_LIST)} scenes captured): {summary_path}")
     if fail_count:
         failed = [r2 for r2 in results if r2["status"] not in ("ok", "skipped")]
-        print("Failed scenes:")
+        print("Failed scenes (this run):")
         for r2 in failed:
             print(f"  {r2['scene_name']}: {r2['status']}")
 
