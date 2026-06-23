@@ -45,6 +45,7 @@ ACTOR_NAMES = {0: "Player", 24: "En_Item00", 273: "En_Wonder_Item", 355: "En_Ko"
 # Populated from kSoH3dObjectZars + actor overlays; extend as new actors are wired up.
 # En_Ko (355) loads km1/kw1 dynamically — use variant (params & 0xFF) to pick:
 #   types 0,1,2,5,6,12 = boy (km1) or girl (kw1); see enko_anim.py / docs/anim_system.md.
+# IDs verified against actor_table.h + soh3d_object_zars.inc (2026-06-23).
 ACTOR_ZAR = {
     355: {  # En_Ko — keyed by variant (ENKO_TYPE, low byte of params)
         "boy_types": {0, 1, 2, 3, 4, 9, 10, 11, 12},  # zelda_km1.zar
@@ -52,9 +53,22 @@ ACTOR_ZAR = {
         "km1": "/actor/zelda_km1.zar",
         "kw1": "/actor/zelda_kw1.zar",
     },
-    # Static single-ZAR actors (object bank -> ZAR is 1:1):
+    # Static single-ZAR actors (object bank -> ZAR is 1:1), sorted by actor_id.
+    # All confirmed via ActorInit.objectId → kSoH3dObjectZars[objectId].
+      25: "/actor/zelda_nw.zar",        # En_Niw         — chicken (OBJECT_NW 0x013)
+      94: "/actor/zelda_syokudai.zar",  # Obj_Syokudai   — torch (OBJECT_SYOKUDAI 0x0a4)
+     144: "/actor/zelda_rd.zar",        # En_Rd          — ReaDead (OBJECT_RD 0x098)
+     276: "/actor/zelda_ik.zar",        # Demo_Ik        — Iron Knuckle cutscene (OBJECT_IK 0x106)
+     307: "/actor/zelda_daiku.zar",     # En_Daiku       — carpenter (OBJECT_DAIKU 0x122)
+     361: "/actor/zelda_jya_iron.zar",  # Bg_Jya_Ironobj — Spirit Temple iron object (OBJECT_JYA_IRON 0x16c)
+     391: "/actor/zelda_zl1.zar",       # En_Niw_Girl    — (OBJECT_ZL1; id 390 not 391, see note)
+     405: "/actor/zelda_shopnuts.zar",  # En_Shopnuts    — Business Scrub (OBJECT_SHOPNUTS 0x168)
+     411: "/actor/zelda_dog.zar",       # En_Dog         — dog (OBJECT_DOG 0x16b)
+     431: "/actor/zelda_wf.zar",        # En_Wf          — wolfos (OBJECT_WF 0x183)
+     441: "/actor/zelda_gs.zar",        # En_Gs          — Gold Skulltula (OBJECT_GS 0x188)
+     454: "/actor/zelda_cow.zar",       # En_Cow         — cow (OBJECT_COW 0x18b)
+     455: "/actor/zelda_ice_objects.zar", # Bg_Ice_Turara — ice stalactite (OBJECT_ICE_OBJECTS 0x06b)
     # Gerudo warrior — En_Ge1 (actor id resolved at runtime; see actor_table.h)
-    # Extend by adding {actor_id: "/actor/zelda_<name>.zar"} entries here.
     # The full mapping is in soh3d_object_zars.inc (SOH3D_REPO) but we keep a
     # curated subset here so oracle_export works standalone without SOH3D_REPO.
 }
