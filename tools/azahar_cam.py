@@ -25,6 +25,10 @@ screenshots without the auto-camera fighting back. Companion to link_ctl.py, ora
     azahar_cam.py status              # print current eye/at/link positions
     azahar_cam.py set_eye x y z       # override camera eye (one frame — use with screenshot)
     azahar_cam.py set_at  x y z       # override camera at (one frame)
+    azahar_cam.py cam_freeze [--secs N] [ex ey ez ax ay az]
+                              # spam-write eye+at at 100 Hz to hold view frozen.
+                              # With no coords, reads current eye+at and freezes those.
+                              # Ctrl-C or --secs N to stop.
     azahar_cam.py frame_actor <addr>  # teleport Link adjacent to actor, freeze Link, screenshot
     azahar_cam.py freeze_link x z [y] # spam-write Link pos to prevent player-update drift
     azahar_cam.py scan                # re-derive eye/at offsets (run after boot, in-game, link moving)
@@ -33,6 +37,10 @@ The "freeze_link" approach is: write Link's canonical Actor.world.pos in a tight
 The player update runs at 30 fps and reads the canonical pos for physics, so writing it at 3× the
 frame rate keeps him approximately stationary (he may drift 0-3 units between writes). Combine with
 a shot immediately after teleport for reliable actor framing.
+
+The "cam_freeze" approach is analogous: spam-write BOTH eye and at at ~100 Hz so the camera update
+(30 fps) cannot override the view. For screenshot use: freeze the view, then take the screenshot
+immediately — the freeze holds while it runs. Add --secs 2 to auto-stop.
 """
 import argparse, math, struct, sys, os, time, threading
 
@@ -196,6 +204,37 @@ def cmd_frame_actor(r, actor_addr, shot_path=None, freeze_secs=1.5):
     return shot_path if ok else None
 
 
+def cmd_cam_freeze(r, eye_xyz=None, at_xyz=None, duration_secs=0.0):
+    """Spam-write camera eye+at at ~100 Hz to hold the viewpoint frozen.
+
+    If eye_xyz / at_xyz are None, reads the current live values and freezes those.
+    duration_secs=0 → run until Ctrl-C.  duration_secs>0 → auto-stop after N secs.
+    """
+    ps, _ = _r(r, None)
+    if eye_xyz is None:
+        eye_xyz = read_eye(r, ps)
+    if at_xyz is None:
+        at_xyz = read_at(r, ps)
+    ex, ey, ez = eye_xyz
+    ax, ay, az = at_xyz
+    print(f"cam_freeze: eye=({ex:.1f},{ey:.1f},{ez:.1f}) at=({ax:.1f},{ay:.1f},{az:.1f})")
+    print("  Holding at 100 Hz — " + (f"auto-stop after {duration_secs:.1f}s" if duration_secs > 0 else "Ctrl-C to stop"))
+    end = (time.time() + duration_secs) if duration_secs > 0 else None
+    n = 0
+    try:
+        while True:
+            ps2 = r.read32(GPLAYSTATE)
+            write_eye(r, ps2, ex, ey, ez)
+            write_at(r, ps2, ax, ay, az)
+            n += 1
+            time.sleep(0.008)  # ~125 Hz >> 30 fps game update
+            if end is not None and time.time() >= end:
+                break
+    except KeyboardInterrupt:
+        pass
+    print(f"  cam_freeze stopped ({n} writes).")
+
+
 def cmd_freeze_link(r, x, y, z, duration_secs=5.0):
     """Spam-write Link pos for `duration_secs` seconds to prevent player drift."""
     ps, h = _r(r, None)
@@ -279,6 +318,15 @@ def main():
     p.add_argument("--freeze-secs", type=float, default=1.5,
                    help="Seconds to hold Link frozen while camera settles (default 1.5)")
 
+    p = sub.add_parser("cam_freeze", help="Spam-write camera eye+at at 100 Hz to hold view frozen")
+    p.add_argument("ex", type=float, nargs="?", default=None, help="Eye X (omit to use current)")
+    p.add_argument("ey", type=float, nargs="?", default=None)
+    p.add_argument("ez", type=float, nargs="?", default=None)
+    p.add_argument("ax", type=float, nargs="?", default=None, help="At X (omit to use current)")
+    p.add_argument("ay", type=float, nargs="?", default=None)
+    p.add_argument("az", type=float, nargs="?", default=None)
+    p.add_argument("--secs", type=float, default=0.0, help="Auto-stop after N seconds (0=until Ctrl-C)")
+
     p = sub.add_parser("freeze_link", help="Spam-write Link pos for N seconds")
     p.add_argument("x", type=float); p.add_argument("z", type=float)
     p.add_argument("y", type=float, nargs="?", default=0.0)
@@ -302,6 +350,10 @@ def main():
         cmd_set_at(r, args.x, args.y, args.z)
     elif args.cmd == "frame_actor":
         cmd_frame_actor(r, args.actor_addr, args.shot, args.freeze_secs)
+    elif args.cmd == "cam_freeze":
+        eye = (args.ex, args.ey, args.ez) if args.ex is not None else None
+        at  = (args.ax, args.ay, args.az) if args.ax is not None else None
+        cmd_cam_freeze(r, eye, at, args.secs)
     elif args.cmd == "freeze_link":
         cmd_freeze_link(r, args.x, args.y, args.z, args.secs)
     elif args.cmd == "scan":
