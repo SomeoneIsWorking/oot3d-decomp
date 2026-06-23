@@ -75,6 +75,7 @@ ACTOR_TABLE_H = os.path.join(SOH3D_REPO, "Shipwright", "soh", "include", "tables
 OBJECT_TABLE_H = os.path.join(SOH3D_REPO, "Shipwright", "soh", "include", "tables",
                                "object_table.h")
 ACTORS_DIR = os.path.join(SOH3D_REPO, "Shipwright", "soh", "src", "overlays", "actors")
+CODE_DIR = os.path.join(SOH3D_REPO, "Shipwright", "soh", "src", "code")
 
 # ---------------------------------------------------------------------------
 # Hard-coded SoH3D coverage constants (from soh3d.c, updated manually)
@@ -106,6 +107,13 @@ SPECIAL_COVERED = {
 # Actor IDs that are purely engine/control (no visual model to replace):
 # En_Door, En_Box trigger, En_Scene_Change, En_Holl, etc.
 # These are expected to be N64 — don't flag them as gaps.
+#
+# Also included: "keep-draw" actors that draw N64 display lists from the shared
+# OBJECT_GAMEPLAY_KEEP / OBJECT_GAMEPLAY_DANGEON_KEEP / OBJECT_GAMEPLAY_FIELD_KEEP
+# banks.  These actors have NO dedicated per-actor OoT3D ZAR; their geometry
+# lives in the OoT3D keep bank (zelda_keep.zar / zelda_dangeon_keep.zar /
+# zelda_field_keep.zar) and can only be addressed by replacing the whole keep
+# bank, not per-actor.  They are NOT actionable as individual parity gaps.
 NO_MODEL_ACTORS = {
     # Door actors
     9,    # En_Door
@@ -126,6 +134,26 @@ NO_MODEL_ACTORS = {
     24,   # En_Item00 (dropped item)
     273,  # En_Wonder_Item (spawned wonder drop)
     274,  # En_Wonder_Item (same family, params-variant)
+    # Unset / null actor slot
+    6,    # ACTOR_UNSET_6 — reserved/unused actor table slot
+    # Non-visual spawner / timer actors (Draw=NULL or no persistent geometry)
+    139,  # Demo_Effect (Bg_Dy_Yoseizo) — OBJECT_GAMEPLAY_KEEP, Draw=NULL; effect trigger
+    385,  # En_Torch — OBJECT_GAMEPLAY_KEEP, Draw=NULL; spawns a grotto chest then unloads
+    391,  # Obj_Roomtimer — OBJECT_GAMEPLAY_KEEP, Draw=NULL; starts timer for escape rooms
+    148,  # Obj_Mure (Obj_Mure2) — OBJECT_GAMEPLAY_KEEP, no persistent draw; spawns actor groups
+    427,  # Obj_Mure3 — OBJECT_GAMEPLAY_KEEP, no persistent draw; spawns item drops (rupees)
+    # Keep-draw actors: draw N64 DLs from the shared keep banks; no dedicated OoT3D ZAR.
+    # Their OoT3D equivalents live inside zelda_keep.zar / zelda_dangeon_keep.zar /
+    # zelda_field_keep.zar — not patchable per-actor without replacing the whole keep bank.
+    174,  # Bg_Haka_Megane — OBJECT_GAMEPLAY_KEEP; draws illusion-floor DLs (Shadow Temple)
+    73,   # Bg_Hidan_Curtain — OBJECT_GAMEPLAY_KEEP; draws gEffFireCircleDL (fire curtain effect)
+    128,  # En_Trap — OBJECT_GAMEPLAY_DANGEON_KEEP; draws gSlidingBladeTrapDL (blade trap)
+    285,  # En_Tubo_Trap — OBJECT_GAMEPLAY_DANGEON_KEEP; draws gPotDL (flying pot trap)
+    298,  # Obj_Switch (Obj_Oshihiki) — OBJECT_GAMEPLAY_DANGEON_KEEP; draws gPushBlockDL
+    414,  # Obj_Comb — OBJECT_GAMEPLAY_FIELD_KEEP; draws gFieldBeehiveDL (beehive); OoT3D
+          #   equivalent is hatisu_model.cmb in zelda_field_keep.zar
+    # Scene-geometry actors (geometry baked into scene-specific object bank; no standalone ZAR)
+    62,   # Bg_Treemouth — OBJECT_SPOT04_OBJECTS; Deku Tree mouth; geometry in scene ZAR
 }
 
 
@@ -199,14 +227,21 @@ def load_csab_catalog(path: str) -> dict:
 
 
 def load_actor_object_map(actors_dir: str, actor_table_path: str,
-                          object_names: dict) -> dict:
-    """Parse ActorInit structs in ovl_*/z_*.c → {actorId: declared_objectId}.
+                          object_names: dict,
+                          code_dir: str | None = None) -> dict:
+    """Parse ActorInit structs in ovl_*/z_*.c AND src/code/*.c → {actorId: declared_objectId}.
 
     SoH3D_TryAuto uses actor->objBankIndex (the actor's OWN declared object from
     ActorInit.objectId, loaded at spawn) to resolve the ZAR — NOT the room's preloaded
     objects list.  This map lets parity_report correctly mark actors as covered when
     their declared object maps to a ZAR, even when that object is absent from the
     static room-objects list in our scene data.
+
+    Also scans src/code/ for non-overlay actors (En_Item00, En_A_Obj, Player, etc.) that
+    live outside the ovl_* directories but still declare ActorInit with an objectId.
+    Note: these code-resident actors typically declare OBJECT_GAMEPLAY_KEEP, which maps to
+    NULL in soh3d_object_zars.inc (no per-actor ZAR) — they should be in NO_MODEL_ACTORS.
+    The scan is done for completeness so actor_obj_map reflects ground truth.
     """
     if not os.path.isdir(actors_dir) or not os.path.exists(actor_table_path):
         return {}
@@ -225,37 +260,45 @@ def load_actor_object_map(actors_dir: str, actor_table_path: str,
     # object_names is {objectId: OBJECT_ENUM_NAME}; invert for name→id lookup
     obj_name_to_id = {v: k for k, v in object_names.items()}
 
-    result: dict = {}
-    for dirname in os.listdir(actors_dir):
-        actor_dir = os.path.join(actors_dir, dirname)
-        if not os.path.isdir(actor_dir):
-            continue
-        for fname in os.listdir(actor_dir):
-            if not fname.endswith(".c"):
-                continue
-            try:
-                content = open(os.path.join(actor_dir, fname)).read()
-            except OSError:
-                continue
-            # Match:  const ActorInit <Var> = {
-            #             ACTOR_FOO,
-            #             ACTORCAT_BAR,
-            #             FLAGS,
-            #             OBJECT_BAZ,      <- we want this
-            m = re.search(
-                r"const\s+ActorInit\s+\w+\s*=\s*\{[^{]*?"
-                r"(ACTOR_[A-Z0-9_]+)\s*,\s*ACTORCAT_\w+\s*,\s*[^\n]*\n"
-                r"[^\n]*\n\s*(OBJECT_\w+)",
-                content,
-            )
-            if not m:
-                continue
+    def _scan_c_file(path: str, out: dict) -> None:
+        try:
+            content = open(path).read()
+        except OSError:
+            return
+        # Match:  const ActorInit <Var> = {
+        #             ACTOR_FOO,
+        #             ACTORCAT_BAR,
+        #             FLAGS,
+        #             OBJECT_BAZ,      <- we want this
+        for m in re.finditer(
+            r"const\s+ActorInit\s+\w+\s*=\s*\{[^{]*?"
+            r"(ACTOR_[A-Z0-9_]+)\s*,\s*ACTORCAT_\w+\s*,\s*[^\n]*\n"
+            r"[^\n]*\n\s*(OBJECT_\w+)",
+            content,
+        ):
             actor_macro = m.group(1)
             obj_macro = m.group(2)
             actor_id = macro_to_id.get(actor_macro)
             obj_id = obj_name_to_id.get(obj_macro)
             if actor_id is not None and obj_id is not None:
-                result[actor_id] = obj_id
+                out[actor_id] = obj_id
+
+    result: dict = {}
+
+    # 1. Overlay actors (ovl_*/z_*.c)
+    for dirname in os.listdir(actors_dir):
+        actor_dir = os.path.join(actors_dir, dirname)
+        if not os.path.isdir(actor_dir):
+            continue
+        for fname in os.listdir(actor_dir):
+            if fname.endswith(".c"):
+                _scan_c_file(os.path.join(actor_dir, fname), result)
+
+    # 2. Non-overlay actors in src/code/ (En_Item00, En_A_Obj, Player, etc.)
+    if code_dir and os.path.isdir(code_dir):
+        for fname in os.listdir(code_dir):
+            if fname.endswith(".c"):
+                _scan_c_file(os.path.join(code_dir, fname), result)
 
     return result
 
@@ -614,8 +657,9 @@ def main():
         if aid is not None:
             no_model_ids.add(aid)
 
-    # Build actor -> declared objectId map (fixes false-positive gaps in SOH3D_AUTO path)
-    actor_obj_map = load_actor_object_map(ACTORS_DIR, ACTOR_TABLE_H, obj_names)
+    # Build actor -> declared objectId map (fixes false-positive gaps in SOH3D_AUTO path).
+    # Also scans src/code/ for non-overlay actors (En_Item00, Player, En_A_Obj, etc.)
+    actor_obj_map = load_actor_object_map(ACTORS_DIR, ACTOR_TABLE_H, obj_names, CODE_DIR)
 
     scenes = load_scene_files(DATA_DIR)
     if not scenes:
