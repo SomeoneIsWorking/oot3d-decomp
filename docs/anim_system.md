@@ -135,8 +135,13 @@ turn, dump the CSAB name via the binding chain `actor+0x1cc → vtable 0x4ebd98 
 discriminator (e.g., walk the ZAR name table after the ZAR is mapped into RAM).
 
 ## NEXT (refine the #87 deliverable)
-- Resolve the 5 ambiguous CSAB types using the live oracle (oracle session, hold
-  .oraclelock). Probe `actor+0x1cc` chain while each type is animating.
+- All 13 En_Ko CSAB types FULLY RESOLVED via pool-index technique (see enko_csab_binding.md,
+  2026-06-23). The animLength-ambiguous cases (types 0/2/4/7/8 etc.) were resolved by reading
+  the live pool-index from the global CSAB param table @ 0x0052b8dc.
+- **Generic live CSAB-name readout BUILT** (2026-06-23): `tools/zar_ram_csab.py`
+  (`LiveCsabResolver`) resolves any skeletal actor's current CSAB by reading the ZAR directory
+  from RAM (ObjectCtx slot scan → ZAR base → file directory → CSAB duration match). Wired into
+  `oracle_export.py` as Tier-2 (activate with `--live-zar`).
 - Build a frozen-player / free-camera primitive so distant kids can be framed + screenshotted.
 
 ## (historical) original NEXT — vtable RE, partially superseded by the table above

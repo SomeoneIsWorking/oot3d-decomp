@@ -18,18 +18,30 @@ pointer field:
     animLength  @ actor + S + 0x2C   (f32, per-CSAB frame count = stable anim discriminator)
 (En_Ko: S=0x1C4 -> curFrame@0x1E0, matching enko_anim.py. animLength is valid even for distant
 update-throttled actors; only curFrame freezes when far from Link — see docs/anim_system.md.)
-Exact CSAB *naming* is still open (the linear pose-buffer ptrs are transient); animLength+endFrame
-is the stable discriminator that proves two actors play different animations.
+
+## CSAB naming pipeline (two tiers, 2026-06-23)
+Tier 1 — static catalog lookup (csab_lookup.py / csab_catalog.json): match animLength against
+  known ZAR CSABs using the ACTOR_ZAR table below. Unambiguous for most actors (unique duration).
+  Needs the curated actor_id → ZAR path mapping.
+Tier 2 — live ZAR RAM parsing (zar_ram_csab.py LiveCsabResolver): for actors NOT in ACTOR_ZAR
+  (or where Tier 1 is ambiguous), scan the ObjectCtx slot array in live RAM to find the ZAR base
+  address, parse the ZAR directory from RAM, read each candidate CSAB's duration header, and
+  match against animLength. Falls back to anim-player pointer scan for residual ambiguity.
+  Requires no static actor→ZAR mapping; works generically for any skeletal actor.
+Use --live-zar to enable Tier 2 (adds per-actor RAM reads; slower but resolves unknowns).
 
 Usage:
   oracle_export.py                 # human table of every live actor + variant + anim
   oracle_export.py --json [path]   # structured JSON (stdout or file) for diffing vs SoH3D
+  oracle_export.py --live-zar      # enable live ZAR RAM CSAB resolution (Tier 2)
 """
 import argparse, json, struct, sys, os
 
 sys.path.insert(0, os.path.dirname(__file__))
 from actors import Rpc, enumerate_actors  # noqa: E402
 from csab_lookup import CsabResolver      # noqa: E402
+# Tier-2 live resolver (imported lazily via --live-zar to avoid cost when not needed)
+_live_resolver = None
 
 SKELETON_VTABLE = 0x004EC030
 ARENA_LO, ARENA_HI = 0x09000000, 0x0A000000
@@ -160,7 +172,13 @@ def read_anim(data, s):
                 endFrame=round(ef, 2), animLength=round(ln, 2))
 
 
-def export(r):
+def export(r, live_zar=False):
+    """Export all live actors. If live_zar=True, enable Tier-2 live ZAR CSAB resolution."""
+    global _live_resolver
+    if live_zar and _live_resolver is None:
+        from zar_ram_csab import LiveCsabResolver  # noqa: E402
+        _live_resolver = LiveCsabResolver(r)
+
     info = enumerate_actors(r)
     out = {"scene": info["scene"], "actors": []}
     for cat, (cnt, actors) in sorted(info["cats"].items()):
@@ -169,10 +187,31 @@ def export(r):
             s, data = find_anim_ctrl(r, a["addr"], size)
             anim = read_anim(data, s) if s is not None else None
             variant = a["params"] & 0xFF
-            # Attach CSAB name resolution alongside the raw animLength.
+            # Tier-1: static catalog lookup.
             csab = None
             if anim is not None:
                 csab = resolve_csab(a["id"], variant, anim["animLength"])
+            # Tier-2: live ZAR RAM resolution — used when Tier-1 is absent or ambiguous.
+            csab_live = None
+            if live_zar and anim is not None and _live_resolver is not None:
+                if csab is None or csab.get("ambiguous"):
+                    from actors import profile_for  # noqa: E402
+                    prof      = profile_for(r, a["id"])
+                    object_id = prof["objectId"] if prof else -1
+                    res = _live_resolver.resolve(
+                        actor_id=a["id"],
+                        object_id=object_id,
+                        anim_length=anim["animLength"],
+                        actor_addr=a["addr"],
+                        anim_ctrl_off=s,
+                    )
+                    csab_live = {
+                        "csab":       res["name"],
+                        "ambiguous":  res["ambiguous"],
+                        "candidates": res["candidates"],
+                        "method":     res["method"],
+                        "zar_base":   res["zar_base"],
+                    }
             out["actors"].append({
                 "addr": f"{a['addr']:#x}",
                 "id": a["id"],
@@ -183,17 +222,34 @@ def export(r):
                 "pos": [round(p, 1) for p in a["pos"]],
                 "skelOff": f"{s:#x}" if s is not None else None,
                 "anim": anim,
-                "csab": csab,   # None when actor ZAR not in ACTOR_ZAR table yet
+                "csab": csab,           # Tier-1 static catalog result (or None)
+                "csab_live": csab_live, # Tier-2 live ZAR result (None unless --live-zar)
             })
     return out
 
 
+def _csab_col(csab_info) -> str:
+    """Format a CSAB info dict into a display string."""
+    if csab_info is None:
+        return "-"
+    name = csab_info.get("csab") or csab_info.get("name")
+    if name is not None:
+        return name
+    if csab_info.get("ambiguous"):
+        cands = csab_info.get("candidates", [])
+        s = "|".join(cands[:2]) + ("..." if len(cands) > 2 else "")
+        return f"?({s})"
+    return "!notfound"
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--json", nargs="?", const="-", help="emit JSON (stdout, or a path)")
+    ap.add_argument("--json",     nargs="?", const="-", help="emit JSON (stdout, or a path)")
+    ap.add_argument("--live-zar", action="store_true",
+                    help="enable Tier-2 live ZAR RAM CSAB resolution for unknown/ambiguous actors")
     args = ap.parse_args()
     r = Rpc()
-    data = export(r)
+    data = export(r, live_zar=args.live_zar)
     if args.json is not None:
         js = json.dumps(data, indent=2)
         if args.json == "-":
@@ -211,16 +267,17 @@ def main():
         ef = f"{an['endFrame']:6.1f}" if an else "     -"
         ln = f"{an['animLength']:6.1f}" if an else "     -"
         px, py, pz = a["pos"]
-        # CSAB column: show resolved name, or "?" for ambiguous, or "-" if no table entry.
-        csab_info = a.get("csab")
-        if csab_info is None:
-            csab_col = "-"
-        elif csab_info["csab"] is not None:
-            csab_col = csab_info["csab"]
-        elif csab_info["ambiguous"]:
-            csab_col = "?(" + "|".join(csab_info["candidates"][:2]) + ("..." if len(csab_info["candidates"]) > 2 else "") + ")"
+        # CSAB column: prefer Tier-2 live result (when available + resolved), else Tier-1.
+        live = a.get("csab_live")
+        if live and live.get("csab") is not None:
+            csab_col = live["csab"] + " [L]"  # [L] tag = live ZAR resolved
         else:
-            csab_col = "!notfound"
+            csab_col = _csab_col(a.get("csab"))
+            if live and live.get("ambiguous"):
+                # Live resolved but still ambiguous — append candidate list
+                cands = live.get("candidates", [])
+                s = "|".join(cands[:2]) + ("..." if len(cands) > 2 else "")
+                csab_col = f"{csab_col} ~({s})"
         print(f"{a['addr']:>10} {a['id']:4d} {a['name']:<16} {str(a['category']):<10} "
               f"{a['variant']:4d} {cf} {ef} {ln}  {csab_col:<28}  ({px:7.1f},{py:6.1f},{pz:7.1f})")
 
