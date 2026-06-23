@@ -29,6 +29,7 @@ import argparse, json, struct, sys, os
 
 sys.path.insert(0, os.path.dirname(__file__))
 from actors import Rpc, enumerate_actors  # noqa: E402
+from csab_lookup import CsabResolver      # noqa: E402
 
 SKELETON_VTABLE = 0x004EC030
 ARENA_LO, ARENA_HI = 0x09000000, 0x0A000000
@@ -39,6 +40,59 @@ CAT_NAMES = ["SWITCH", "BG", "PLAYER", "EXPLOSIVE", "NPC", "ENEMY", "PROP", "ITE
 
 # Minimal id->name map (extend as needed; numeric id is always exported regardless).
 ACTOR_NAMES = {0: "Player", 24: "En_Item00", 273: "En_Wonder_Item", 355: "En_Ko", 389: "En_Wood02"}
+
+# actor_id -> OoT3D ZAR path (for CSAB name resolution via the catalog).
+# Populated from kSoH3dObjectZars + actor overlays; extend as new actors are wired up.
+# En_Ko (355) loads km1/kw1 dynamically — use variant (params & 0xFF) to pick:
+#   types 0,1,2,5,6,12 = boy (km1) or girl (kw1); see enko_anim.py / docs/anim_system.md.
+ACTOR_ZAR = {
+    355: {  # En_Ko — keyed by variant (ENKO_TYPE, low byte of params)
+        "boy_types": {0, 1, 2, 3, 4, 9, 10, 11, 12},  # zelda_km1.zar
+        "girl_types": {5, 6, 7, 8},                    # zelda_kw1.zar
+        "km1": "/actor/zelda_km1.zar",
+        "kw1": "/actor/zelda_kw1.zar",
+    },
+    # Static single-ZAR actors (object bank -> ZAR is 1:1):
+    # Gerudo warrior — En_Ge1 (actor id resolved at runtime; see actor_table.h)
+    # Extend by adding {actor_id: "/actor/zelda_<name>.zar"} entries here.
+    # The full mapping is in soh3d_object_zars.inc (SOH3D_REPO) but we keep a
+    # curated subset here so oracle_export works standalone without SOH3D_REPO.
+}
+
+# Lazy-init CSAB resolver (None until first use).
+_csab_res: "CsabResolver | None" = None
+
+
+def csab_resolver() -> CsabResolver:
+    global _csab_res
+    if _csab_res is None:
+        _csab_res = CsabResolver()
+    return _csab_res
+
+
+def resolve_csab(actor_id: int, variant: int, anim_length: float) -> dict | None:
+    """Return CSAB resolution dict for (actor_id, variant, animLength), or None."""
+    zar_info = ACTOR_ZAR.get(actor_id)
+    if zar_info is None:
+        return None  # ZAR not in our table yet
+
+    # En_Ko multi-ZAR case
+    if isinstance(zar_info, dict) and "km1" in zar_info:
+        girl = variant in zar_info.get("girl_types", set())
+        zar = zar_info["kw1"] if girl else zar_info["km1"]
+    elif isinstance(zar_info, str):
+        zar = zar_info
+    else:
+        return None
+
+    hit = csab_resolver().lookup(zar, anim_length)
+    return {
+        "zar": zar,
+        "csab": hit["name"],          # str if unambiguous, None if ambiguous/missing
+        "ambiguous": hit["ambiguous"],
+        "candidates": hit["candidates"],
+    }
+
 
 # gActorOverlayTable @ 0x50CD84, stride 0x20, +0x14 -> ActorProfile*, ActorProfile+0xC = instanceSize.
 OVERLAY_TABLE = 0x0050CD84
@@ -100,16 +154,22 @@ def export(r):
             size = inst_size(r, a["id"])
             s, data = find_anim_ctrl(r, a["addr"], size)
             anim = read_anim(data, s) if s is not None else None
+            variant = a["params"] & 0xFF
+            # Attach CSAB name resolution alongside the raw animLength.
+            csab = None
+            if anim is not None:
+                csab = resolve_csab(a["id"], variant, anim["animLength"])
             out["actors"].append({
                 "addr": f"{a['addr']:#x}",
                 "id": a["id"],
                 "name": ACTOR_NAMES.get(a["id"], f"id{a['id']}"),
                 "category": CAT_NAMES[cat] if cat < len(CAT_NAMES) else cat,
                 "params": a["params"],
-                "variant": a["params"] & 0xFF,
+                "variant": variant,
                 "pos": [round(p, 1) for p in a["pos"]],
                 "skelOff": f"{s:#x}" if s is not None else None,
                 "anim": anim,
+                "csab": csab,   # None when actor ZAR not in ACTOR_ZAR table yet
             })
     return out
 
@@ -130,15 +190,25 @@ def main():
         return
     print(f"scene={data['scene']}  actors={len(data['actors'])}")
     print(f"{'addr':>10} {'id':>4} {'name':<16} {'cat':<10} {'var':>4} {'curF':>7} "
-          f"{'endF':>6} {'len':>6}  pos")
+          f"{'endF':>6} {'len':>6}  {'csab':<28}  pos")
     for a in data["actors"]:
         an = a["anim"]
         cf = f"{an['curFrame']:7.2f}" if an else "      -"
         ef = f"{an['endFrame']:6.1f}" if an else "     -"
         ln = f"{an['animLength']:6.1f}" if an else "     -"
         px, py, pz = a["pos"]
+        # CSAB column: show resolved name, or "?" for ambiguous, or "-" if no table entry.
+        csab_info = a.get("csab")
+        if csab_info is None:
+            csab_col = "-"
+        elif csab_info["csab"] is not None:
+            csab_col = csab_info["csab"]
+        elif csab_info["ambiguous"]:
+            csab_col = "?(" + "|".join(csab_info["candidates"][:2]) + ("..." if len(csab_info["candidates"]) > 2 else "") + ")"
+        else:
+            csab_col = "!notfound"
         print(f"{a['addr']:>10} {a['id']:4d} {a['name']:<16} {str(a['category']):<10} "
-              f"{a['variant']:4d} {cf} {ef} {ln}  ({px:7.1f},{py:6.1f},{pz:7.1f})")
+              f"{a['variant']:4d} {cf} {ef} {ln}  {csab_col:<28}  ({px:7.1f},{py:6.1f},{pz:7.1f})")
 
 
 if __name__ == "__main__":
