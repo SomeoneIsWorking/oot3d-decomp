@@ -77,6 +77,7 @@ sys.path.insert(0, str(_HERE))
 from azahar_rpc import Rpc              # noqa: E402
 from oracle_export import export as _oracle_export  # noqa: E402
 from link_ctl import warp as _warp, link_head as _link_head     # noqa: E402
+from oracle_textbox import wait_no_textbox as _wait_no_textbox  # noqa: E402
 
 
 # ── scene spec ────────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class SceneSpec(NamedTuple):
     entrance:      int
     name:          str
     scene_num:     int   # expected play+0x104 value after warp; 0 = skip check
-    textboxes:     int   # B-presses to dismiss intro dialogue
+    textboxes:     int   # legacy: was B-press count; now ignored — wait_no_textbox handles it
     settle:        float # settle time (seconds) after dismiss before export
     tp_after_warp: Optional[Tuple[float, float, float]] = None
     # If tp_after_warp is set: after the warp lands in the intermediate scene,
@@ -104,7 +105,7 @@ SCENE_LIST = [
     # entrance    name                    scene  txt  settle   tp_after_warp
     # ── confirmed warp→scene mapping (verified live) ─────────────────────────
     SceneSpec(0x00BB, "links_house",          52,    0,   3.0),
-    SceneSpec(0x00EE, "kokiri_forest",        85,    4,   3.5),   # Saria fires 4 textboxes
+    SceneSpec(0x00EE, "kokiri_forest",        85,    4,   3.5),   # Saria fired 4 boxes on first entry only; wait_no_textbox handles repeat visits
     SceneSpec(0x020D, "kokiri_forest_lower",  85,    0,   3.0),   # lower room (Deku Tree side)
     SceneSpec(0x00CD, "hyrule_field",         81,    0,   3.5),
     SceneSpec(0x00DB, "kakariko_village",     82,    0,   3.5),
@@ -170,10 +171,14 @@ def link_teleport(r: Rpc, x: float, y: float, z: float) -> None:
 
 
 def dismiss_textboxes(r: Rpc, count: int, hold: float = 0.15, gap: float = 0.5) -> None:
-    """Tap B <count> times with a gap between each to clear intro text boxes."""
-    for _ in range(count):
-        r.tap("b", hold_s=hold)
-        time.sleep(gap)
+    """Dismiss any active textbox by pressing B until cleared (or no textbox present).
+
+    The `count` parameter is kept for API compatibility but is no longer used as a hard
+    limit — we now use oracle_textbox.wait_no_textbox() which polls the RAM heuristic and
+    stops as soon as the textbox clears.  This is safe to call even when no textbox is
+    present (it returns immediately in that case).
+    """
+    _wait_no_textbox(r, max_wait=15.0, press_interval=0.7, button="b", verbose=True)
 
 
 def take_screenshot(r: Rpc, out_path: str) -> bool:
