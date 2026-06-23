@@ -529,3 +529,15 @@ of 3DS-only feature flags, NOT a wholesale logic rewrite. This favors extending 
   room-header HOT bit (+0x4c37=bit9) + version-gated alt idle table {0x1f9,0x1f8,0x1f8,0x1fa} vs default
   {0x50,...}. New anchors: 0x2344c4, +0x223c room-spawn mask, 0x54ac55 build-version byte. A port
   DECISION (faithful-3DS vs faithful-N64 idle path) is logged in divergence_map.md OPEN DECISIONS.
+- 2026-06-23: **OoT3D SkelAnime field map + morph model fully documented.** `FUN_00360190`
+  (`LinkAnimation_Change`) aligned to N64 twin: the `+0x254`-relative controller fields are
+  `+0x30=animId, +0x34=morphWeight, +0x38=morphRate, +0x3c=curFrame, +0x40=playSpeed,
+  +0x48=endFrame, +0x70=mode, +0x71=updateState, +0x78=jointTable, +0x7c=morphTable`.
+  Morph path confirmed: when `|morphFrames|>0`, the outgoing pose is frozen into morphTable
+  (`+0x7c`), morphWeight set to 1.0, morphRate=1/|morphFrames|; update-case-3 decrements
+  morphWeight each tick and lerps via `FUN_002c3814(1-w/w0, ...)`. Dominant morph duration =
+  **6 frames** across all player action transitions (fidget, talk, run→idle). Per-state CSAB ids
+  + the alt-idle-table gate logic documented. **Fix spec for #70/#83/#86:** see
+  `docs/player_anim_states.md §5` — plumb live `skelAnime.morphWeight` (+0x288) into
+  `SoH3D_UpdateAnim`, snapshot outgoing CSAB pose at transition, lerp per-bone local rotations
+  over the morph window. No new OoT3D data needed beyond what the oracle already confirmed.
