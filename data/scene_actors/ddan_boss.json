@@ -1,0 +1,266 @@
+{
+  "scene_name": "ddan_boss",
+  "scene_num": 18,
+  "is_mq": false,
+  "scene_header_file": "/scene/ddan_boss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 14004,
+      "pos": [
+        0,
+        14084,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 24,
+      "front_face": 253,
+      "back_room": 35,
+      "back_face": 245,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        4095
+      ],
+      "rot_y": 197,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 128,
+      "back_room": 59,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17608,
+        1064,
+        20354
+      ],
+      "rot_y": 13129,
+      "params": 13159
+    },
+    {
+      "front_room": 99,
+      "front_face": 15,
+      "back_room": 99,
+      "back_face": 0,
+      "id": 129,
+      "pos": [
+        13311,
+        -19190,
+        15756
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1792,
+      "pos": [
+        4883,
+        13075,
+        13159
+      ],
+      "rot_y": 25700,
+      "params": 119
+    },
+    {
+      "front_room": 129,
+      "front_face": 0,
+      "back_room": 70,
+      "back_face": 79,
+      "id": 7543,
+      "pos": [
+        15153,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 26,
+      "front_face": 7,
+      "back_room": 119,
+      "back_face": 89,
+      "id": 18432,
+      "pos": [
+        18504,
+        -30727,
+        -18383
+      ],
+      "rot_y": -18248,
+      "params": 7453
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/ddan_boss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        50504
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/ddan_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 6,
+          "pos": [
+            0,
+            43,
+            25
+          ],
+          "rot": [
+            14,
+            49,
+            72
+          ],
+          "params": 189,
+          "room": 1
+        },
+        {
+          "id": 59,
+          "pos": [
+            -895,
+            -1524,
+            -3312
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 6,
+          "room": 1
+        },
+        {
+          "id": 39,
+          "pos": [
+            -1386,
+            -1504,
+            -3339
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 76,
+          "pos": [
+            -1422,
+            -1504,
+            -3821
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 76,
+          "pos": [
+            -1416,
+            -1504,
+            -2769
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 76,
+          "pos": [
+            -370,
+            -1504,
+            -3827
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 76,
+          "pos": [
+            -352,
+            -1504,
+            -2781
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 10,
+          "pos": [
+            -1109,
+            -744,
+            -2786
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 20512,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        46544
+      ]
+    }
+  ],
+  "actor_id_set": [
+    6,
+    10,
+    39,
+    59,
+    76
+  ],
+  "total_actor_spawns": 8
+}

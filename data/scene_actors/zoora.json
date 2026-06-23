@@ -1,0 +1,110 @@
+{
+  "scene_name": "zoora",
+  "scene_num": 47,
+  "is_mq": false,
+  "scene_header_file": "/scene/zoora_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 936,
+      "pos": [
+        0,
+        952,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 247,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 964,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/zoora_0_info.zsi",
+      "actors": [
+        {
+          "id": 183,
+          "pos": [
+            187,
+            216,
+            235
+          ],
+          "rot": [
+            244,
+            242,
+            260
+          ],
+          "params": 254,
+          "room": 0
+        },
+        {
+          "id": 462,
+          "pos": [
+            75,
+            0,
+            -69
+          ],
+          "rot": [
+            0,
+            -8555,
+            0
+          ],
+          "params": 65480,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            0,
+            0,
+            -180
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 7,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        1872,
+        2,
+        0,
+        91,
+        178
+      ]
+    }
+  ],
+  "actor_id_set": [
+    61,
+    183,
+    462
+  ],
+  "total_actor_spawns": 3
+}

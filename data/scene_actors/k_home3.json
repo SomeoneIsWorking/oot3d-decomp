@@ -1,0 +1,119 @@
+{
+  "scene_name": "k_home3",
+  "scene_num": 39,
+  "is_mq": false,
+  "scene_header_file": "/scene/k_home3_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 7024,
+      "pos": [
+        0,
+        7064,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 93
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 100,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        3584
+      ],
+      "rot_y": 828,
+      "params": 32768
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/k_home3_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            -9008,
+            4,
+            0
+          ],
+          "rot": [
+            252,
+            253,
+            197
+          ],
+          "params": 300,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            -43,
+            0,
+            76
+          ],
+          "rot": [
+            0,
+            -24030,
+            0
+          ],
+          "params": 65281,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            -121,
+            16,
+            89
+          ],
+          "rot": [
+            0,
+            23484,
+            0
+          ],
+          "params": 65289,
+          "room": 0
+        },
+        {
+          "id": 273,
+          "pos": [
+            33,
+            0,
+            -55
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 17152,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    273,
+    355
+  ],
+  "total_actor_spawns": 4
+}

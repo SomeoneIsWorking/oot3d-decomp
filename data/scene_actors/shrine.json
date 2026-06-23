@@ -1,0 +1,302 @@
+{
+  "scene_name": "shrine",
+  "scene_num": 35,
+  "is_mq": false,
+  "scene_header_file": "/scene/shrine_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 6320,
+      "pos": [
+        0,
+        6392,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 1
+    },
+    {
+      "id": 0,
+      "pos": [
+        793,
+        60,
+        -420
+      ],
+      "rot": [
+        0,
+        16384,
+        0
+      ],
+      "params": 3841
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 110,
+      "front_face": 0,
+      "back_room": 100,
+      "back_face": 251,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        3840
+      ],
+      "rot_y": 606,
+      "params": 83
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": 16384,
+      "pos": [
+        18076,
+        1424,
+        28013
+      ],
+      "rot_y": -20440,
+      "params": 9049
+    },
+    {
+      "front_room": 229,
+      "front_face": 229,
+      "back_room": 99,
+      "back_face": 106,
+      "id": -2371,
+      "pos": [
+        13107,
+        24084,
+        9804
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": 1424,
+      "pos": [
+        -32126,
+        -20371,
+        9049
+      ],
+      "rot_y": -1,
+      "params": 27391
+    },
+    {
+      "front_room": 189,
+      "front_face": 246,
+      "back_room": 109,
+      "back_face": 109,
+      "id": 25443,
+      "pos": [
+        -24446,
+        16384,
+        18076
+      ],
+      "rot_y": 8192,
+      "params": 18123
+    },
+    {
+      "front_room": 144,
+      "front_face": 5,
+      "back_room": 150,
+      "back_face": 68,
+      "id": -20465,
+      "pos": [
+        9049,
+        -18971,
+        27187
+      ],
+      "rot_y": -2371,
+      "params": 5171
+    },
+    {
+      "front_room": 20,
+      "front_face": 96,
+      "back_room": 45,
+      "back_face": 61,
+      "id": 16384,
+      "pos": [
+        18076,
+        -32768,
+        17979
+      ],
+      "rot_y": 1424,
+      "params": 19496
+    },
+    {
+      "front_room": 155,
+      "front_face": 176,
+      "back_room": 89,
+      "back_face": 35,
+      "id": 11565,
+      "pos": [
+        27192,
+        -2371,
+        -19121
+      ],
+      "rot_y": 255,
+      "params": 6400
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": 16384,
+      "pos": [
+        18076,
+        1424,
+        28013
+      ],
+      "rot_y": -20440,
+      "params": 9049
+    },
+    {
+      "front_room": 229,
+      "front_face": 229,
+      "back_room": 99,
+      "back_face": 106,
+      "id": -2371,
+      "pos": [
+        13107,
+        24084,
+        9804
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": 1424,
+      "pos": [
+        -32126,
+        -20371,
+        9049
+      ],
+      "rot_y": -1,
+      "params": 27391
+    },
+    {
+      "front_room": 189,
+      "front_face": 246,
+      "back_room": 109,
+      "back_face": 109,
+      "id": 25443,
+      "pos": [
+        -24446,
+        16384,
+        18076
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shrine_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            -13232,
+            5,
+            0
+          ],
+          "rot": [
+            151,
+            378,
+            392
+          ],
+          "params": 363,
+          "room": 0
+        },
+        {
+          "id": 229,
+          "pos": [
+            10320,
+            6600,
+            -9600
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        },
+        {
+          "id": 441,
+          "pos": [
+            1000,
+            60,
+            -680
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 14342,
+          "room": 0
+        },
+        {
+          "id": 441,
+          "pos": [
+            1000,
+            60,
+            -615
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 14599,
+          "room": 0
+        },
+        {
+          "id": 441,
+          "pos": [
+            1000,
+            60,
+            -550
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 14862,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    229,
+    441
+  ],
+  "total_actor_spawns": 5
+}

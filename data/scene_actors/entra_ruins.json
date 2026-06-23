@@ -1,0 +1,307 @@
+{
+  "scene_name": "entra_ruins",
+  "scene_num": 29,
+  "is_mq": false,
+  "scene_header_file": "/scene/entra_ruins_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 1116,
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        1,
+        2
+      ],
+      "params": 64
+    },
+    {
+      "id": 0,
+      "pos": [
+        -1,
+        0,
+        2189
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        8,
+        0,
+        2886
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3840
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 192,
+      "id": 0,
+      "pos": [
+        3584,
+        177,
+        509
+      ],
+      "rot_y": 126,
+      "params": 306
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17929,
+        1824,
+        22888
+      ],
+      "rot_y": -26008,
+      "params": 60998
+    },
+    {
+      "front_room": 181,
+      "front_face": 119,
+      "back_room": 204,
+      "back_face": 99,
+      "id": 6327,
+      "pos": [
+        10291,
+        3896,
+        3842
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1824,
+      "pos": [
+        26764,
+        -26033,
+        -4538
+      ],
+      "rot_y": -13083,
+      "params": 25504
+    },
+    {
+      "front_room": 183,
+      "front_face": 24,
+      "back_room": 68,
+      "back_face": 51,
+      "id": 5181,
+      "pos": [
+        5125,
+        16384,
+        18076
+      ],
+      "rot_y": -32768,
+      "params": 17929
+    },
+    {
+      "front_room": 32,
+      "front_face": 7,
+      "back_room": 109,
+      "back_face": 84,
+      "id": -26008,
+      "pos": [
+        -4538,
+        -24378,
+        25525
+      ],
+      "rot_y": 6327,
+      "params": 9011
+    },
+    {
+      "front_room": 51,
+      "front_face": 15,
+      "back_room": 5,
+      "back_face": 7,
+      "id": 16384,
+      "pos": [
+        18076,
+        0,
+        17814
+      ],
+      "rot_y": 1824,
+      "params": 20328
+    },
+    {
+      "front_room": 140,
+      "front_face": 154,
+      "back_room": 70,
+      "back_face": 238,
+      "id": 7710,
+      "pos": [
+        25374,
+        6327,
+        -32052
+      ],
+      "rot_y": 3276,
+      "params": 1794
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17929,
+        1824,
+        22888
+      ],
+      "rot_y": -26008,
+      "params": 60998
+    },
+    {
+      "front_room": 181,
+      "front_face": 119,
+      "back_room": 204,
+      "back_face": 99,
+      "id": 6327,
+      "pos": [
+        10291,
+        3896,
+        3842
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1824,
+      "pos": [
+        26764,
+        -26033,
+        -4538
+      ],
+      "rot_y": -13083,
+      "params": 25504
+    },
+    {
+      "front_room": 183,
+      "front_face": 24,
+      "back_room": 68,
+      "back_face": 51,
+      "id": 5181,
+      "pos": [
+        5125,
+        16384,
+        18076
+      ],
+      "rot_y": -32768,
+      "params": 17929
+    },
+    {
+      "front_room": 32,
+      "front_face": 7,
+      "back_room": 109,
+      "back_face": 84,
+      "id": -26008,
+      "pos": [
+        -4538,
+        -24378,
+        25525
+      ],
+      "rot_y": 6327,
+      "params": 9011
+    },
+    {
+      "front_room": 51,
+      "front_face": 15,
+      "back_room": 5,
+      "back_face": 7,
+      "id": 16384,
+      "pos": [
+        18076,
+        0,
+        17814
+      ],
+      "rot_y": 1824,
+      "params": 20328
+    },
+    {
+      "front_room": 140,
+      "front_face": 154,
+      "back_room": 70,
+      "back_face": 238,
+      "id": 7710,
+      "pos": [
+        25374,
+        6327,
+        -32052
+      ],
+      "rot_y": 3276,
+      "params": 1794
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17929,
+        1824,
+        22888
+      ],
+      "rot_y": -26008,
+      "params": 60998
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/entra_ruins_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            64,
+            0,
+            -27312
+          ],
+          "rot": [
+            3,
+            0,
+            26
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0
+  ],
+  "total_actor_spawns": 1
+}

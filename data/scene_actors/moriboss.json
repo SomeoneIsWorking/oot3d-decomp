@@ -1,0 +1,130 @@
+{
+  "scene_name": "moriboss",
+  "scene_num": 20,
+  "is_mq": false,
+  "scene_header_file": "/scene/moriboss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 6916,
+      "pos": [
+        0,
+        6956,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 63,
+      "front_face": 255,
+      "back_room": 32,
+      "back_face": 244,
+      "id": 0,
+      "pos": [
+        21844,
+        0,
+        3583
+      ],
+      "rot_y": 590,
+      "params": 263
+    },
+    {
+      "front_room": 0,
+      "front_face": 128,
+      "back_room": 187,
+      "back_face": 68,
+      "id": 0,
+      "pos": [
+        17593,
+        1224,
+        26675
+      ],
+      "rot_y": 9832,
+      "params": 9829
+    },
+    {
+      "front_room": 204,
+      "front_face": 204,
+      "back_room": 229,
+      "back_face": 218,
+      "id": -9573,
+      "pos": [
+        13096,
+        601,
+        2572
+      ],
+      "rot_y": -32768,
+      "params": 17595
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 68,
+      "id": 2088,
+      "pos": [
+        -32167,
+        18457,
+        18616
+      ],
+      "rot_y": -1,
+      "params": 47264
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/moriboss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        34888
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/moriboss_1_info.zsi",
+      "actors": [
+        {
+          "id": 55,
+          "pos": [
+            90,
+            117,
+            189
+          ],
+          "rot": [
+            72,
+            176,
+            14
+          ],
+          "params": 0,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        13008,
+        6
+      ]
+    }
+  ],
+  "actor_id_set": [
+    55
+  ],
+  "total_actor_spawns": 1
+}

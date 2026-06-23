@@ -1,0 +1,219 @@
+{
+  "scene_name": "daiyousei_izumi",
+  "scene_num": 59,
+  "is_mq": false,
+  "scene_header_file": "/scene/daiyousei_izumi_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 10028,
+      "pos": [
+        0,
+        10052,
+        0
+      ],
+      "rot": [
+        0,
+        1,
+        2
+      ],
+      "params": 0
+    },
+    {
+      "id": 0,
+      "pos": [
+        -28,
+        20,
+        1
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    },
+    {
+      "id": 0,
+      "pos": [
+        -28,
+        20,
+        1
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 20,
+      "front_face": 0,
+      "back_room": 1,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        4095
+      ],
+      "rot_y": 32766,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17460,
+        4132,
+        21845
+      ],
+      "rot_y": 1134,
+      "params": 34855
+    },
+    {
+      "front_room": 100,
+      "front_face": 160,
+      "back_room": 214,
+      "back_face": 4,
+      "id": 30937,
+      "pos": [
+        12593,
+        79,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17786
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 52,
+      "back_face": 68,
+      "id": 4096,
+      "pos": [
+        21845,
+        1134,
+        -30681
+      ],
+      "rot_y": -24476,
+      "params": 1238
+    },
+    {
+      "front_room": 217,
+      "front_face": 120,
+      "back_room": 49,
+      "back_face": 49,
+      "id": 79,
+      "pos": [
+        0,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17786
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/daiyousei_izumi_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            20528,
+            5,
+            0
+          ],
+          "rot": [
+            149,
+            145,
+            10
+          ],
+          "params": 72,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -171,
+            113,
+            -854
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            126,
+            113,
+            -854
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 11,
+          "pos": [
+            -19,
+            -2,
+            -1000
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 302,
+          "pos": [
+            -22,
+            12,
+            -798
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 7352,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        288
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    8,
+    11,
+    302
+  ],
+  "total_actor_spawns": 5
+}

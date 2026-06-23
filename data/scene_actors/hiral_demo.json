@@ -1,0 +1,118 @@
+{
+  "scene_name": "hiral_demo",
+  "scene_num": 71,
+  "is_mq": false,
+  "scene_header_file": "/scene/hiral_demo_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 1088,
+      "pos": [
+        0,
+        1096,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -7900,
+        0,
+        0
+      ],
+      "rot_y": 0,
+      "params": 255
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17992,
+        5916,
+        20303
+      ],
+      "rot_y": 18511,
+      "params": 18504
+    },
+    {
+      "front_room": 200,
+      "front_face": 200,
+      "back_room": 200,
+      "back_face": 184,
+      "id": -18248,
+      "pos": [
+        25700,
+        100,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 5916,
+      "pos": [
+        20303,
+        18511,
+        18504
+      ],
+      "rot_y": -14136,
+      "params": 47304
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hiral_demo_0_info.zsi",
+      "actors": [
+        {
+          "id": 142,
+          "pos": [
+            143,
+            144,
+            145
+          ],
+          "rot": [
+            146,
+            147,
+            148
+          ],
+          "params": 149,
+          "room": 0
+        }
+      ],
+      "objects": [
+        0,
+        0,
+        256,
+        53,
+        764,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    142
+  ],
+  "total_actor_spawns": 1
+}

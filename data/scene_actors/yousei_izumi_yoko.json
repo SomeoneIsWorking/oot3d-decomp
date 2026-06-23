@@ -1,0 +1,246 @@
+{
+  "scene_name": "yousei_izumi_yoko",
+  "scene_num": 61,
+  "is_mq": false,
+  "scene_header_file": "/scene/yousei_izumi_yoko_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 9564,
+      "pos": [
+        0,
+        9588,
+        0
+      ],
+      "rot": [
+        0,
+        1,
+        2
+      ],
+      "params": 25697
+    },
+    {
+      "id": 0,
+      "pos": [
+        -25,
+        20,
+        5
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    },
+    {
+      "id": 0,
+      "pos": [
+        -25,
+        20,
+        5
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 20,
+      "front_face": 0,
+      "back_room": 5,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        4095
+      ],
+      "rot_y": 32761,
+      "params": 16139
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17786,
+        4896,
+        26265
+      ],
+      "rot_y": 22656,
+      "params": 88
+    },
+    {
+      "front_room": 214,
+      "front_face": 110,
+      "back_room": 100,
+      "back_face": 168,
+      "id": 168,
+      "pos": [
+        -1,
+        255,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17786
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 52,
+      "back_face": 68,
+      "id": 4096,
+      "pos": [
+        26227,
+        1114,
+        -30681
+      ],
+      "rot_y": -27203,
+      "params": 1173
+    },
+    {
+      "front_room": 217,
+      "front_face": 120,
+      "back_room": 79,
+      "back_face": 79,
+      "id": 49,
+      "pos": [
+        0,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17786
+    },
+    {
+      "front_room": 32,
+      "front_face": 19,
+      "back_room": 153,
+      "back_face": 102,
+      "id": 22656,
+      "pos": [
+        88,
+        28374,
+        -22428
+      ],
+      "rot_y": 168,
+      "params": 65535
+    },
+    {
+      "front_room": 255,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        17992,
+        0,
+        17992
+      ],
+      "rot_y": 1817,
+      "params": 10280
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/yousei_izumi_yoko_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            -19024,
+            6,
+            0
+          ],
+          "rot": [
+            10,
+            349,
+            144
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -172,
+            113,
+            -854
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1014,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            126,
+            113,
+            -854
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1014,
+          "room": 0
+        },
+        {
+          "id": 11,
+          "pos": [
+            -19,
+            -2,
+            -1000
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 302,
+          "pos": [
+            -21,
+            12,
+            -801
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 7352,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    8,
+    11,
+    302
+  ],
+  "total_actor_spawns": 5
+}

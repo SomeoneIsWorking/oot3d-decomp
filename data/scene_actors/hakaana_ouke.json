@@ -1,0 +1,407 @@
+{
+  "scene_name": "hakaana_ouke",
+  "scene_num": 65,
+  "is_mq": false,
+  "scene_header_file": "/scene/hakaana_ouke_info.zsi",
+  "room_count": 4,
+  "spawn_points": [
+    {
+      "id": 23532,
+      "pos": [
+        0,
+        23668,
+        0
+      ],
+      "rot": [
+        23728,
+        0,
+        0
+      ],
+      "params": 513
+    },
+    {
+      "id": 0,
+      "pos": [
+        -2,
+        200,
+        2226
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3583
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 60,
+      "front_face": 0,
+      "back_room": 129,
+      "back_face": 251,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3583
+      ],
+      "rot_y": 1291,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17711,
+        -824,
+        -29312
+      ],
+      "rot_y": 153,
+      "params": 8321
+    },
+    {
+      "front_room": 128,
+      "front_face": 179,
+      "back_room": 255,
+      "back_face": 96,
+      "id": -24572,
+      "pos": [
+        0,
+        896,
+        -32717
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 22,
+      "back_face": 69,
+      "id": 8192,
+      "pos": [
+        -32615,
+        128,
+        24657
+      ],
+      "rot_y": 26189,
+      "params": 153
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hakaana_ouke_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        196,
+        0,
+        14420,
+        6
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/hakaana_ouke_1_info.zsi",
+      "actors": [
+        {
+          "id": 141,
+          "pos": [
+            152,
+            164,
+            13
+          ],
+          "rot": [
+            14,
+            144,
+            399
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 144,
+          "pos": [
+            130,
+            0,
+            177
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 32512,
+          "room": 1
+        },
+        {
+          "id": 144,
+          "pos": [
+            215,
+            0,
+            446
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 32512,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        204,
+        0,
+        32220,
+        3
+      ]
+    },
+    {
+      "room_num": 2,
+      "file": "/scene/hakaana_ouke_2_info.zsi",
+      "actors": [
+        {
+          "id": 141,
+          "pos": [
+            152,
+            164,
+            13
+          ],
+          "rot": [
+            14,
+            144,
+            399
+          ],
+          "params": 122,
+          "room": 2
+        },
+        {
+          "id": 302,
+          "pos": [
+            0,
+            127,
+            -1200
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 6143,
+          "room": 2
+        },
+        {
+          "id": 94,
+          "pos": [
+            60,
+            60,
+            -1112
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 9216,
+          "room": 2
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        220,
+        0,
+        8428,
+        5
+      ]
+    },
+    {
+      "room_num": 3,
+      "file": "/scene/hakaana_ouke_3_info.zsi",
+      "actors": [
+        {
+          "id": 141,
+          "pos": [
+            152,
+            164,
+            13
+          ],
+          "rot": [
+            14,
+            144,
+            399
+          ],
+          "params": 0,
+          "room": 3
+        },
+        {
+          "id": 19,
+          "pos": [
+            -280,
+            112,
+            1445
+          ],
+          "rot": [
+            0,
+            16383,
+            0
+          ],
+          "params": 3,
+          "room": 3
+        },
+        {
+          "id": 19,
+          "pos": [
+            281,
+            81,
+            1496
+          ],
+          "rot": [
+            0,
+            -16383,
+            0
+          ],
+          "params": 3,
+          "room": 3
+        },
+        {
+          "id": 389,
+          "pos": [
+            286,
+            40,
+            1430
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 1784,
+          "room": 3
+        },
+        {
+          "id": 19,
+          "pos": [
+            54,
+            73,
+            1253
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 3,
+          "room": 3
+        },
+        {
+          "id": 19,
+          "pos": [
+            -63,
+            27,
+            1256
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 3,
+          "room": 3
+        },
+        {
+          "id": 94,
+          "pos": [
+            -56,
+            120,
+            1208
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 4256,
+          "room": 3
+        },
+        {
+          "id": 94,
+          "pos": [
+            55,
+            120,
+            1206
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 4256,
+          "room": 3
+        },
+        {
+          "id": 10,
+          "pos": [
+            1,
+            244,
+            1473
+          ],
+          "rot": [
+            0,
+            0,
+            32
+          ],
+          "params": 32800,
+          "room": 3
+        },
+        {
+          "id": 387,
+          "pos": [
+            -210,
+            5,
+            1476
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65344,
+          "room": 3
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        220,
+        0,
+        14188,
+        6
+      ]
+    }
+  ],
+  "actor_id_set": [
+    10,
+    19,
+    94,
+    141,
+    144,
+    302,
+    387,
+    389
+  ],
+  "total_actor_spawns": 16
+}

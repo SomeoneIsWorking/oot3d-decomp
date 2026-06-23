@@ -1,0 +1,280 @@
+{
+  "scene_name": "ydan_boss",
+  "scene_num": 17,
+  "is_mq": false,
+  "scene_header_file": "/scene/ydan_boss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 3860,
+      "pos": [
+        0,
+        3884,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 128,
+      "front_face": 253,
+      "back_room": 4,
+      "back_face": 3,
+      "id": 0,
+      "pos": [
+        -28217,
+        0,
+        3583
+      ],
+      "rot_y": 594,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17992,
+        1817,
+        11590
+      ],
+      "rot_y": 18488,
+      "params": 18504
+    },
+    {
+      "front_room": 179,
+      "front_face": 154,
+      "back_room": 137,
+      "back_face": 184,
+      "id": -18248,
+      "pos": [
+        4883,
+        7483,
+        2570
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1820,
+      "pos": [
+        22889,
+        18521,
+        18504
+      ],
+      "rot_y": -1,
+      "params": 47343
+    },
+    {
+      "front_room": 184,
+      "front_face": 184,
+      "back_room": 49,
+      "back_face": 49,
+      "id": 25689,
+      "pos": [
+        30564,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 26,
+      "front_face": 7,
+      "back_room": 119,
+      "back_face": 89,
+      "id": 18432,
+      "pos": [
+        18504,
+        -30727,
+        -18383
+      ],
+      "rot_y": -18248,
+      "params": 7453
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/ydan_boss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        49608
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/ydan_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 54,
+          "pos": [
+            28,
+            30,
+            72
+          ],
+          "rot": [
+            189,
+            299,
+            14
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 40,
+          "pos": [
+            -160,
+            -280,
+            -371
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            194,
+            -640,
+            -974
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            480,
+            -640,
+            -681
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            -855,
+            -640,
+            -596
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            -848,
+            -640,
+            -166
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            -444,
+            -640,
+            323
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            -646,
+            -640,
+            108
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        },
+        {
+          "id": 293,
+          "pos": [
+            525,
+            -640,
+            -375
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        46160,
+        4
+      ]
+    }
+  ],
+  "actor_id_set": [
+    40,
+    54,
+    293
+  ],
+  "total_actor_spawns": 9
+}

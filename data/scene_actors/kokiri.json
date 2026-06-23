@@ -1,0 +1,143 @@
+{
+  "scene_name": "kokiri",
+  "scene_num": null,
+  "is_mq": false,
+  "scene_header_file": "/scene/kokiri_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 3516,
+      "pos": [
+        0,
+        3564,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 109,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 614,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/kokiri_0_info.zsi",
+      "actors": [
+        {
+          "id": 187,
+          "pos": [
+            199,
+            178,
+            281
+          ],
+          "rot": [
+            257,
+            258,
+            253
+          ],
+          "params": 197,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            -114,
+            0,
+            64
+          ],
+          "rot": [
+            0,
+            9102,
+            0
+          ],
+          "params": 65290,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            89,
+            16,
+            27
+          ],
+          "rot": [
+            0,
+            -9466,
+            0
+          ],
+          "params": 65285,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            0,
+            0,
+            -59
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 194,
+          "pos": [
+            0,
+            0,
+            -20
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        56528,
+        4,
+        0,
+        252,
+        216,
+        183,
+        203
+      ]
+    }
+  ],
+  "actor_id_set": [
+    61,
+    187,
+    194,
+    355
+  ],
+  "total_actor_spawns": 5
+}

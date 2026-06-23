@@ -1,0 +1,129 @@
+{
+  "scene_name": "shop_face",
+  "scene_num": 51,
+  "is_mq": false,
+  "scene_header_file": "/scene/shop_face_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 1288,
+      "pos": [
+        0,
+        1320,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 1,
+      "front_face": 0,
+      "back_room": 108,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 465,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shop_face_0_info.zsi",
+      "actors": [
+        {
+          "id": 312,
+          "pos": [
+            336,
+            337,
+            338
+          ],
+          "rot": [
+            273,
+            197,
+            363
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            0,
+            1,
+            -68
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 10,
+          "room": 0
+        },
+        {
+          "id": 389,
+          "pos": [
+            -112,
+            30,
+            31
+          ],
+          "rot": [
+            0,
+            3641,
+            42
+          ],
+          "params": 33279,
+          "room": 0
+        },
+        {
+          "id": 420,
+          "pos": [
+            83,
+            0,
+            66
+          ],
+          "rot": [
+            0,
+            -23665,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        51152,
+        5,
+        0,
+        318,
+        178,
+        308,
+        309,
+        310
+      ]
+    }
+  ],
+  "actor_id_set": [
+    61,
+    312,
+    389,
+    420
+  ],
+  "total_actor_spawns": 4
+}

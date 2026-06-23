@@ -1,0 +1,156 @@
+{
+  "scene_name": "entra_night",
+  "scene_num": 28,
+  "is_mq": false,
+  "scene_header_file": "/scene/entra_night_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": -12,
+      "pos": [
+        0,
+        2428,
+        0
+      ],
+      "rot": [
+        7,
+        0,
+        1224
+      ],
+      "params": 0
+    },
+    {
+      "id": 0,
+      "pos": [
+        2,
+        0,
+        2147
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        11,
+        0,
+        2897
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3840
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 192,
+      "id": 0,
+      "pos": [
+        3584,
+        177,
+        509
+      ],
+      "rot_y": 126,
+      "params": 40
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        18170,
+        1424,
+        26221
+      ],
+      "rot_y": -20429,
+      "params": 9049
+    },
+    {
+      "front_room": 229,
+      "front_face": 229,
+      "back_room": 94,
+      "back_face": 106,
+      "id": -2371,
+      "pos": [
+        13107,
+        17428,
+        7748
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": 1424,
+      "pos": [
+        -32126,
+        -20371,
+        9049
+      ],
+      "rot_y": -1,
+      "params": 27391
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/entra_night_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            64,
+            0,
+            32080
+          ],
+          "rot": [
+            5,
+            0,
+            151
+          ],
+          "params": 363,
+          "room": 0
+        },
+        {
+          "id": 376,
+          "pos": [
+            117,
+            0,
+            2824
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 65288,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    376
+  ],
+  "total_actor_spawns": 2
+}

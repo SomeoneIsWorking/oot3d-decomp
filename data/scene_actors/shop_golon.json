@@ -1,0 +1,94 @@
+{
+  "scene_name": "shop_golon",
+  "scene_num": 46,
+  "is_mq": false,
+  "scene_header_file": "/scene/shop_golon_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 1376,
+      "pos": [
+        0,
+        1408,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 247,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 1020,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shop_golon_0_info.zsi",
+      "actors": [
+        {
+          "id": 199,
+          "pos": [
+            206,
+            178,
+            235
+          ],
+          "rot": [
+            242,
+            248,
+            259
+          ],
+          "params": 175,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            0,
+            0,
+            -180
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 8,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        35536,
+        4,
+        0,
+        201,
+        183
+      ]
+    }
+  ],
+  "actor_id_set": [
+    61,
+    199
+  ],
+  "total_actor_spawns": 2
+}

@@ -1,0 +1,162 @@
+{
+  "scene_name": "hakaana",
+  "scene_num": 63,
+  "is_mq": false,
+  "scene_header_file": "/scene/hakaana_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 6160,
+      "pos": [
+        0,
+        6192,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 32768
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 32,
+      "front_face": 0,
+      "back_room": 21,
+      "back_face": 1,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3583
+      ],
+      "rot_y": 865,
+      "params": 29
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17736,
+        1224,
+        -29299
+      ],
+      "rot_y": 141,
+      "params": 24657
+    },
+    {
+      "front_room": 110,
+      "front_face": 110,
+      "back_room": 249,
+      "back_face": 0,
+      "id": -24401,
+      "pos": [
+        12593,
+        200,
+        8722
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1820,
+      "pos": [
+        22889,
+        18521,
+        18504
+      ],
+      "rot_y": -1,
+      "params": 47343
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hakaana_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            -9904,
+            4,
+            0
+          ],
+          "rot": [
+            137,
+            14,
+            152
+          ],
+          "params": 164,
+          "room": 0
+        },
+        {
+          "id": 10,
+          "pos": [
+            2,
+            -20,
+            -315
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 42944,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            2,
+            -20,
+            -250
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 32514,
+          "room": 0
+        },
+        {
+          "id": 94,
+          "pos": [
+            60,
+            -20,
+            -186
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 9216,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    10,
+    94,
+    144
+  ],
+  "total_actor_spawns": 4
+}

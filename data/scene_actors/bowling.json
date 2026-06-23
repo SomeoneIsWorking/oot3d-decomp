@@ -1,0 +1,185 @@
+{
+  "scene_name": "bowling",
+  "scene_num": 75,
+  "is_mq": false,
+  "scene_header_file": "/scene/bowling_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 7796,
+      "pos": [
+        0,
+        7876,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 1,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 956,
+      "params": 18037
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17786,
+        -824,
+        13160
+      ],
+      "rot_y": -17483,
+      "params": 11352
+    },
+    {
+      "front_room": 79,
+      "front_face": 175,
+      "back_room": 229,
+      "back_face": 53,
+      "id": -12616,
+      "pos": [
+        25548,
+        181,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 69,
+      "id": -624,
+      "pos": [
+        20333,
+        18541,
+        18504
+      ],
+      "rot_y": -1,
+      "params": 47343
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/bowling_0_info.zsi",
+      "actors": [
+        {
+          "id": 191,
+          "pos": [
+            352,
+            189,
+            376
+          ],
+          "rot": [
+            383,
+            19,
+            363
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 421,
+          "pos": [
+            10,
+            0,
+            160
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        },
+        {
+          "id": 331,
+          "pos": [
+            180,
+            -12,
+            260
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        },
+        {
+          "id": 445,
+          "pos": [
+            0,
+            -100,
+            -272
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 128,
+          "pos": [
+            -135,
+            -87,
+            -176
+          ],
+          "rot": [
+            0,
+            16384,
+            0
+          ],
+          "params": 1040,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        55248,
+        7,
+        0,
+        10,
+        133,
+        206
+      ]
+    }
+  ],
+  "actor_id_set": [
+    128,
+    191,
+    331,
+    421,
+    445
+  ],
+  "total_actor_spawns": 5
+}

@@ -1,0 +1,151 @@
+{
+  "scene_name": "k_home5",
+  "scene_num": 41,
+  "is_mq": false,
+  "scene_header_file": "/scene/k_home5_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 5608,
+      "pos": [
+        0,
+        5664,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 101,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        3584
+      ],
+      "rot_y": 1095,
+      "params": 32768
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/k_home5_0_info.zsi",
+      "actors": [
+        {
+          "id": 3,
+          "pos": [
+            0,
+            252,
+            253
+          ],
+          "rot": [
+            197,
+            188,
+            183
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            2,
+            1,
+            -4
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 65286,
+          "room": 0
+        },
+        {
+          "id": 326,
+          "pos": [
+            2,
+            0,
+            -4
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            45,
+            1,
+            -52
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 14339,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            46,
+            1,
+            56
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 14595,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            -46,
+            1,
+            57
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 15107,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    3,
+    21,
+    326,
+    355
+  ],
+  "total_actor_spawns": 6
+}

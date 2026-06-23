@@ -1,0 +1,181 @@
+{
+  "scene_name": "hakadan_boss",
+  "scene_num": 24,
+  "is_mq": false,
+  "scene_header_file": "/scene/hakadan_boss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 11036,
+      "pos": [
+        0,
+        11076,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 144,
+      "front_face": 6,
+      "back_room": 10,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        4095
+      ],
+      "rot_y": 694,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hakadan_boss_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            12092,
+            105,
+            72
+          ],
+          "rot": [
+            117,
+            176,
+            226
+          ],
+          "params": 189,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -110,
+            1721,
+            -998
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            10,
+            1721,
+            -998
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            10,
+            1721,
+            -837
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -110,
+            1721,
+            -837
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -110,
+            1721,
+            -677
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 1013,
+          "room": 0
+        }
+      ],
+      "objects": [
+        11777,
+        258,
+        0,
+        64,
+        0,
+        1872
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/hakadan_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 105,
+          "pos": [
+            72,
+            117,
+            176
+          ],
+          "rot": [
+            226,
+            189,
+            14
+          ],
+          "params": 0,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        25168,
+        5
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    8,
+    105
+  ],
+  "total_actor_spawns": 7
+}

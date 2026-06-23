@@ -1,0 +1,757 @@
+{
+  "scene_name": "tokinoma",
+  "scene_num": 67,
+  "is_mq": false,
+  "scene_header_file": "/scene/tokinoma_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 256,
+      "pos": [
+        257,
+        2,
+        259
+      ],
+      "rot": [
+        4,
+        261,
+        262
+      ],
+      "params": 263
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        -40,
+        2453
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    },
+    {
+      "id": 0,
+      "pos": [
+        -7,
+        -40,
+        1515
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 511
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        40,
+        193
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 256
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        -40,
+        1450
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3583
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        70,
+        46
+      ],
+      "rot": [
+        0,
+        -3641,
+        0
+      ],
+      "params": 3583
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        -40,
+        2160
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3583
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        -40,
+        2170
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3583
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 236,
+      "front_face": 255,
+      "back_room": 233,
+      "back_face": 7,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        3583
+      ],
+      "rot_y": 1138,
+      "params": 107
+    },
+    {
+      "front_room": 0,
+      "front_face": 128,
+      "back_room": 187,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17711,
+        10240,
+        -32640
+      ],
+      "rot_y": 1907,
+      "params": 57471
+    },
+    {
+      "front_room": 255,
+      "front_face": 255,
+      "back_room": 230,
+      "back_face": 249,
+      "id": 8321,
+      "pos": [
+        16474,
+        10023,
+        13095
+      ],
+      "rot_y": -32768,
+      "params": 17851
+    },
+    {
+      "front_room": 0,
+      "front_face": 128,
+      "back_room": 187,
+      "back_face": 69,
+      "id": 1808,
+      "pos": [
+        32631,
+        163,
+        -14736
+      ],
+      "rot_y": -25958,
+      "params": 154
+    },
+    {
+      "front_room": 144,
+      "front_face": 58,
+      "back_room": 49,
+      "back_face": 49,
+      "id": 2609,
+      "pos": [
+        2570,
+        -32768,
+        17851
+      ],
+      "rot_y": 0,
+      "params": 17530
+    },
+    {
+      "front_room": 224,
+      "front_face": 25,
+      "back_room": 141,
+      "back_face": 141,
+      "id": 1933,
+      "pos": [
+        -18360,
+        -1,
+        -1537
+      ],
+      "rot_y": 18616,
+      "params": 13107
+    },
+    {
+      "front_room": 127,
+      "front_face": 31,
+      "back_room": 31,
+      "back_face": 51,
+      "id": -32768,
+      "pos": [
+        17851,
+        0,
+        17711
+      ],
+      "rot_y": 15360,
+      "params": 26214
+    },
+    {
+      "front_room": 102,
+      "front_face": 7,
+      "back_room": 127,
+      "back_face": 224,
+      "id": -13108,
+      "pos": [
+        -1537,
+        8321,
+        0
+      ],
+      "rot_y": 7194,
+      "params": 10010
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17992,
+        -944,
+        0
+      ],
+      "rot_y": 0,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 2787,
+      "pos": [
+        12593,
+        -3023,
+        27326
+      ],
+      "rot_y": -1,
+      "params": 34815
+    },
+    {
+      "front_room": 0,
+      "front_face": 219,
+      "back_room": 79,
+      "back_face": 79,
+      "id": 119,
+      "pos": [
+        0,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 8,
+      "front_face": 11,
+      "back_room": 49,
+      "back_face": 49,
+      "id": -3023,
+      "pos": [
+        27326,
+        -1,
+        -30721
+      ],
+      "rot_y": -9472,
+      "params": 20303
+    },
+    {
+      "front_room": 119,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        17786,
+        0,
+        17786
+      ],
+      "rot_y": -248,
+      "params": 7453
+    },
+    {
+      "front_room": 29,
+      "front_face": 207,
+      "back_room": 37,
+      "back_face": 145,
+      "id": 13878,
+      "pos": [
+        11781,
+        -5004,
+        8984
+      ],
+      "rot_y": 49,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17786,
+        6920,
+        15163
+      ],
+      "rot_y": -12504,
+      "params": 37157
+    },
+    {
+      "front_room": 255,
+      "front_face": 255,
+      "back_room": 205,
+      "back_face": 46,
+      "id": -5004,
+      "pos": [
+        17969,
+        100,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17786
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 69,
+      "id": 17088,
+      "pos": [
+        15163,
+        -12504,
+        -28379
+      ],
+      "rot_y": -1,
+      "params": 11981
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/tokinoma_0_info.zsi",
+      "actors": [
+        {
+          "id": 173,
+          "pos": [
+            94,
+            138,
+            182
+          ],
+          "rot": [
+            146,
+            168,
+            144
+          ],
+          "params": 161,
+          "room": 0
+        },
+        {
+          "id": 245,
+          "pos": [
+            697,
+            0,
+            -168
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 16,
+          "room": 0
+        },
+        {
+          "id": 140,
+          "pos": [
+            195,
+            40,
+            77
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1,
+          "room": 0
+        },
+        {
+          "id": 139,
+          "pos": [
+            0,
+            70,
+            -1
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65295,
+          "room": 0
+        },
+        {
+          "id": 108,
+          "pos": [
+            -1,
+            68,
+            0
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        },
+        {
+          "id": 140,
+          "pos": [
+            -14,
+            939,
+            -652
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 14,
+          "room": 0
+        },
+        {
+          "id": 72,
+          "pos": [
+            0,
+            71,
+            11
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 9,
+          "room": 0
+        },
+        {
+          "id": 156,
+          "pos": [
+            697,
+            0,
+            -99
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 4,
+          "room": 0
+        },
+        {
+          "id": 106,
+          "pos": [
+            0,
+            276,
+            1120
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1,
+          "room": 0
+        },
+        {
+          "id": 106,
+          "pos": [
+            -1,
+            -39,
+            1761
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 139,
+          "pos": [
+            -34,
+            16,
+            1338
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 19,
+          "room": 0
+        },
+        {
+          "id": 139,
+          "pos": [
+            0,
+            16,
+            1338
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 20,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        832,
+        0,
+        2384,
+        8,
+        0
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/tokinoma_1_info.zsi",
+      "actors": [
+        {
+          "id": 146,
+          "pos": [
+            168,
+            144,
+            97
+          ],
+          "rot": [
+            98,
+            96,
+            404
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 110,
+          "pos": [
+            0,
+            -40,
+            2023
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1,
+          "room": 1
+        },
+        {
+          "id": 106,
+          "pos": [
+            0,
+            276,
+            1120
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1,
+          "room": 1
+        },
+        {
+          "id": 106,
+          "pos": [
+            -1,
+            -39,
+            1761
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 140,
+          "pos": [
+            0,
+            0,
+            1080
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 13,
+          "room": 1
+        },
+        {
+          "id": 302,
+          "pos": [
+            -1,
+            -40,
+            1383
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 5119,
+          "room": 1
+        },
+        {
+          "id": 327,
+          "pos": [
+            0,
+            5,
+            1330
+          ],
+          "rot": [
+            0,
+            0,
+            9284
+          ],
+          "params": 4095,
+          "room": 1
+        },
+        {
+          "id": 139,
+          "pos": [
+            -34,
+            16,
+            1338
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 19,
+          "room": 1
+        },
+        {
+          "id": 139,
+          "pos": [
+            0,
+            16,
+            1338
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 20,
+          "room": 1
+        },
+        {
+          "id": 139,
+          "pos": [
+            34,
+            16,
+            1338
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 21,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        832,
+        0,
+        4688,
+        11,
+        0,
+        173,
+        94,
+        138
+      ]
+    }
+  ],
+  "actor_id_set": [
+    72,
+    106,
+    108,
+    110,
+    139,
+    140,
+    146,
+    156,
+    173,
+    245,
+    302,
+    327
+  ],
+  "total_actor_spawns": 22
+}

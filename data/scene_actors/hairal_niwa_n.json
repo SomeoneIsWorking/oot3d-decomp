@@ -1,0 +1,131 @@
+{
+  "scene_name": "hairal_niwa_n",
+  "scene_num": 70,
+  "is_mq": false,
+  "scene_header_file": "/scene/hairal_niwa_n_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 5300,
+      "pos": [
+        0,
+        5372,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 83,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        3584
+      ],
+      "rot_y": 573,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": 20480,
+      "pos": [
+        18371,
+        -32568,
+        28013
+      ],
+      "rot_y": 40,
+      "params": 0
+    },
+    {
+      "front_room": 229,
+      "front_face": 229,
+      "back_room": 99,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        13107,
+        17428,
+        7748
+      ],
+      "rot_y": 0,
+      "params": 18170
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 28,
+      "back_face": 72,
+      "id": -31968,
+      "pos": [
+        -32126,
+        109,
+        0
+      ],
+      "rot_y": -1,
+      "params": 255
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hairal_niwa_n_0_info.zsi",
+      "actors": [
+        {
+          "id": 4,
+          "pos": [
+            0,
+            41,
+            52
+          ],
+          "rot": [
+            87,
+            151,
+            19
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 143,
+          "pos": [
+            1924,
+            0,
+            122
+          ],
+          "rot": [
+            0,
+            17476,
+            0
+          ],
+          "params": 1535,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    4,
+    143
+  ],
+  "total_actor_spawns": 2
+}

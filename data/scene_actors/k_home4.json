@@ -1,0 +1,166 @@
+{
+  "scene_name": "k_home4",
+  "scene_num": 40,
+  "is_mq": false,
+  "scene_header_file": "/scene/k_home4_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 7524,
+      "pos": [
+        0,
+        7564,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 94,
+      "back_face": 255,
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        3839
+      ],
+      "rot_y": 1091,
+      "params": 16
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/k_home4_0_info.zsi",
+      "actors": [
+        {
+          "id": 3,
+          "pos": [
+            0,
+            197,
+            252
+          ],
+          "rot": [
+            253,
+            251,
+            14
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            -56,
+            16,
+            128
+          ],
+          "rot": [
+            0,
+            -27125,
+            0
+          ],
+          "params": 65284,
+          "room": 0
+        },
+        {
+          "id": 365,
+          "pos": [
+            3,
+            48,
+            134
+          ],
+          "rot": [
+            0,
+            -32767,
+            0
+          ],
+          "params": 65280,
+          "room": 0
+        },
+        {
+          "id": 355,
+          "pos": [
+            -125,
+            12,
+            72
+          ],
+          "rot": [
+            0,
+            21663,
+            0
+          ],
+          "params": 65280,
+          "room": 0
+        },
+        {
+          "id": 10,
+          "pos": [
+            58,
+            0,
+            -55
+          ],
+          "rot": [
+            0,
+            16384,
+            0
+          ],
+          "params": 22944,
+          "room": 0
+        },
+        {
+          "id": 10,
+          "pos": [
+            58,
+            0,
+            35
+          ],
+          "rot": [
+            0,
+            16384,
+            0
+          ],
+          "params": 22945,
+          "room": 0
+        },
+        {
+          "id": 10,
+          "pos": [
+            -60,
+            0,
+            -55
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 22914,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    3,
+    10,
+    355,
+    365
+  ],
+  "total_actor_spawns": 7
+}

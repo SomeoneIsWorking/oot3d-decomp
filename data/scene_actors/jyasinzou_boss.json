@@ -1,0 +1,627 @@
+{
+  "scene_name": "jyasinzou_boss",
+  "scene_num": 23,
+  "is_mq": false,
+  "scene_header_file": "/scene/jyasinzou_boss_info.zsi",
+  "room_count": 4,
+  "spawn_points": [
+    {
+      "id": 13384,
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        256,
+        257,
+        770
+      ],
+      "params": 0
+    },
+    {
+      "id": 0,
+      "pos": [
+        -1661,
+        0,
+        1660
+      ],
+      "rot": [
+        0,
+        24576,
+        0
+      ],
+      "params": 4095
+    },
+    {
+      "id": 0,
+      "pos": [
+        -1341,
+        0,
+        1331
+      ],
+      "rot": [
+        0,
+        22755,
+        0
+      ],
+      "params": 3583
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 81,
+      "back_face": 2,
+      "id": 0,
+      "pos": [
+        22755,
+        0,
+        3839
+      ],
+      "rot_y": 757,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17711,
+        1304,
+        -32116
+      ],
+      "rot_y": 16255,
+      "params": 8037
+    },
+    {
+      "front_room": 130,
+      "front_face": 181,
+      "back_room": 255,
+      "back_face": 193,
+      "id": 8091,
+      "pos": [
+        26754,
+        0,
+        3087
+      ],
+      "rot_y": 0,
+      "params": 17914
+    },
+    {
+      "front_room": 0,
+      "front_face": 128,
+      "back_room": 162,
+      "back_face": 69,
+      "id": 1304,
+      "pos": [
+        -32116,
+        16255,
+        8037
+      ],
+      "rot_y": -19070,
+      "params": 49663
+    },
+    {
+      "front_room": 155,
+      "front_face": 31,
+      "back_room": 130,
+      "back_face": 104,
+      "id": 0,
+      "pos": [
+        3087,
+        0,
+        17914
+      ],
+      "rot_y": -32768,
+      "params": 17723
+    },
+    {
+      "front_room": 0,
+      "front_face": 4,
+      "back_room": 192,
+      "back_face": 77,
+      "id": 8192,
+      "pos": [
+        8321,
+        255,
+        -8192
+      ],
+      "rot_y": -8063,
+      "params": 255
+    },
+    {
+      "front_room": 0,
+      "front_face": 255,
+      "back_room": 39,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        17914,
+        -32768,
+        17723
+      ],
+      "rot_y": 1024,
+      "params": 32794
+    },
+    {
+      "front_room": 179,
+      "front_face": 32,
+      "back_room": 129,
+      "back_face": 32,
+      "id": -13235,
+      "pos": [
+        -7937,
+        -8063,
+        -13235
+      ],
+      "rot_y": 26367,
+      "params": 65459
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 69,
+      "id": -32768,
+      "pos": [
+        17723,
+        1224,
+        19840
+      ],
+      "rot_y": 128,
+      "params": 129
+    },
+    {
+      "front_room": 255,
+      "front_face": 255,
+      "back_room": 200,
+      "back_face": 0,
+      "id": 129,
+      "pos": [
+        -1,
+        10184,
+        4621
+      ],
+      "rot_y": 0,
+      "params": 17914
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/jyasinzou_boss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/jyasinzou_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 365,
+          "pos": [
+            176,
+            193,
+            144
+          ],
+          "rot": [
+            262,
+            179,
+            364
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 275,
+          "pos": [
+            -1235,
+            0,
+            1268
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1280,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1235,
+            0,
+            1268
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 4,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1235,
+            0,
+            1268
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 3,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1235,
+            0,
+            1268
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 6,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1235,
+            0,
+            1268
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 5,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1240,
+            0,
+            1248
+          ],
+          "rot": [
+            0,
+            -8191,
+            0
+          ],
+          "params": 1,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1213,
+            0,
+            1267
+          ],
+          "rot": [
+            0,
+            -8191,
+            0
+          ],
+          "params": 2,
+          "room": 1
+        },
+        {
+          "id": 195,
+          "pos": [
+            -1212,
+            16,
+            1210
+          ],
+          "rot": [
+            0,
+            -8191,
+            0
+          ],
+          "params": 4,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1206,
+            -5,
+            1206
+          ],
+          "rot": [
+            0,
+            -24576,
+            0
+          ],
+          "params": 1,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1482,
+            0,
+            1652
+          ],
+          "rot": [
+            0,
+            -8374,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1652,
+            0,
+            1482
+          ],
+          "rot": [
+            0,
+            -8010,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1340,
+            0,
+            1510
+          ],
+          "rot": [
+            0,
+            -8010,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1510,
+            0,
+            1340
+          ],
+          "rot": [
+            0,
+            -8374,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1370,
+            0,
+            1031
+          ],
+          "rot": [
+            0,
+            -8010,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 361,
+          "pos": [
+            -1031,
+            0,
+            1370
+          ],
+          "rot": [
+            0,
+            -8374,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 276,
+          "pos": [
+            -1256,
+            0,
+            1210
+          ],
+          "rot": [
+            0,
+            -8191,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        },
+        {
+          "id": 204,
+          "pos": [
+            -1303,
+            0,
+            1136
+          ],
+          "rot": [
+            0,
+            -8191,
+            0
+          ],
+          "params": 0,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        288,
+        0,
+        38320,
+        4
+      ]
+    },
+    {
+      "room_num": 2,
+      "file": "/scene/jyasinzou_boss_2_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            264,
+            0,
+            10008
+          ],
+          "rot": [
+            1,
+            0,
+            365
+          ],
+          "params": 0,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -1072,
+            65,
+            960
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -949,
+            65,
+            837
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -825,
+            65,
+            713
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -960,
+            65,
+            1073
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -836,
+            65,
+            949
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        }
+      ],
+      "objects": [
+        1
+      ]
+    },
+    {
+      "room_num": 3,
+      "file": "/scene/jyasinzou_boss_3_info.zsi",
+      "actors": [
+        {
+          "id": 8,
+          "pos": [
+            0,
+            365,
+            211
+          ],
+          "rot": [
+            189,
+            117,
+            72
+          ],
+          "params": 0,
+          "room": 3
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        288,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    8,
+    195,
+    204,
+    275,
+    276,
+    361,
+    365
+  ],
+  "total_actor_spawns": 25
+}

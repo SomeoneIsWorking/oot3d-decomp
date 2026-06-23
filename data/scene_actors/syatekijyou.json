@@ -1,0 +1,153 @@
+{
+  "scene_name": "syatekijyou",
+  "scene_num": 66,
+  "is_mq": false,
+  "scene_header_file": "/scene/syatekijyou_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 6060,
+      "pos": [
+        0,
+        6140,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 1
+    },
+    {
+      "id": 0,
+      "pos": [
+        -10,
+        0,
+        380
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3584
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 124,
+      "back_face": 1,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 32762,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17608,
+        1424,
+        -30826
+      ],
+      "rot_y": -12696,
+      "params": 49509
+    },
+    {
+      "front_room": 255,
+      "front_face": 229,
+      "back_room": 175,
+      "back_face": 249,
+      "id": 24345,
+      "pos": [
+        13155,
+        5160,
+        7741
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1820,
+      "pos": [
+        22889,
+        18521,
+        18504
+      ],
+      "rot_y": -1,
+      "params": 47343
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/syatekijyou_0_info.zsi",
+      "actors": [
+        {
+          "id": 216,
+          "pos": [
+            19,
+            281,
+            303
+          ],
+          "rot": [
+            379,
+            383,
+            363
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 192,
+          "pos": [
+            -20,
+            20,
+            181
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        272,
+        0,
+        13088,
+        7,
+        0,
+        91,
+        183,
+        187,
+        189,
+        190
+      ]
+    }
+  ],
+  "actor_id_set": [
+    192,
+    216
+  ],
+  "total_actor_spawns": 2
+}

@@ -1,0 +1,224 @@
+{
+  "scene_name": "bdan_boss",
+  "scene_num": 19,
+  "is_mq": false,
+  "scene_header_file": "/scene/bdan_boss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 4344,
+      "pos": [
+        0,
+        4368,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 84,
+      "back_face": 1,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3583
+      ],
+      "rot_y": 1031,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 68,
+      "id": 0,
+      "pos": [
+        17480,
+        1064,
+        5209
+      ],
+      "rot_y": -16103,
+      "params": 49535
+    },
+    {
+      "front_room": 255,
+      "front_face": 61,
+      "back_room": 175,
+      "back_face": 0,
+      "id": 22657,
+      "pos": [
+        -19121,
+        3276,
+        6405
+      ],
+      "rot_y": 0,
+      "params": 17814
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 200,
+      "back_face": 68,
+      "id": 1424,
+      "pos": [
+        26754,
+        18541,
+        8319
+      ],
+      "rot_y": -24321,
+      "params": 61491
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/bdan_boss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        19528,
+        0
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/bdan_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 150,
+          "pos": [
+            163,
+            140,
+            33
+          ],
+          "rot": [
+            18,
+            72,
+            189
+          ],
+          "params": 14,
+          "room": 1
+        },
+        {
+          "id": 186,
+          "pos": [
+            10,
+            0,
+            -220
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 1
+        },
+        {
+          "id": 273,
+          "pos": [
+            279,
+            10,
+            -761
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 16387,
+          "room": 1
+        },
+        {
+          "id": 273,
+          "pos": [
+            -268,
+            10,
+            -786
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 16899,
+          "room": 1
+        },
+        {
+          "id": 273,
+          "pos": [
+            -543,
+            10,
+            -496
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 17411,
+          "room": 1
+        },
+        {
+          "id": 273,
+          "pos": [
+            554,
+            10,
+            -493
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 17923,
+          "room": 1
+        },
+        {
+          "id": 273,
+          "pos": [
+            551,
+            10,
+            36
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 18435,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        46800,
+        5,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    150,
+    186,
+    273
+  ],
+  "total_actor_spawns": 7
+}

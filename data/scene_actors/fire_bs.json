@@ -1,0 +1,148 @@
+{
+  "scene_name": "fire_bs",
+  "scene_num": 21,
+  "is_mq": false,
+  "scene_header_file": "/scene/fire_bs_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 13280,
+      "pos": [
+        0,
+        13360,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 200,
+      "front_face": 0,
+      "back_room": 11,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        4095
+      ],
+      "rot_y": 373,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17558,
+        1304,
+        15766
+      ],
+      "rot_y": 25,
+      "params": 127
+    },
+    {
+      "front_room": 130,
+      "front_face": 51,
+      "back_room": 25,
+      "back_face": 0,
+      "id": 129,
+      "pos": [
+        -25627,
+        13056,
+        0
+      ],
+      "rot_y": 16384,
+      "params": 17820
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 200,
+      "back_face": 68,
+      "id": 1424,
+      "pos": [
+        22965,
+        25,
+        127
+      ],
+      "rot_y": 19637,
+      "params": 76
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/fire_bs_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        6856,
+        6
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/fire_bs_1_info.zsi",
+      "actors": [
+        {
+          "id": 44,
+          "pos": [
+            176,
+            156,
+            165
+          ],
+          "rot": [
+            117,
+            189,
+            72
+          ],
+          "params": 14,
+          "room": 1
+        },
+        {
+          "id": 59,
+          "pos": [
+            -4,
+            -100,
+            5
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 7,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        59728,
+        5,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    44,
+    59
+  ],
+  "total_actor_spawns": 2
+}

@@ -1,0 +1,127 @@
+{
+  "scene_name": "yousei_izumi_tate",
+  "scene_num": 60,
+  "is_mq": false,
+  "scene_header_file": "/scene/yousei_izumi_tate_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 15804,
+      "pos": [
+        0,
+        15860,
+        0
+      ],
+      "rot": [
+        15884,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 30,
+      "front_face": 0,
+      "back_room": 205,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3583
+      ],
+      "rot_y": 32767,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17686,
+        2168,
+        -32666
+      ],
+      "rot_y": 170,
+      "params": 127
+    },
+    {
+      "front_room": 59,
+      "front_face": 110,
+      "back_room": 214,
+      "back_face": 0,
+      "id": 129,
+      "pos": [
+        -21876,
+        249,
+        21311
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 22,
+      "back_face": 69,
+      "id": 2248,
+      "pos": [
+        26214,
+        1177,
+        -30681
+      ],
+      "rot_y": -1,
+      "params": 1263
+    },
+    {
+      "front_room": 217,
+      "front_face": 120,
+      "back_room": 49,
+      "back_face": 49,
+      "id": 79,
+      "pos": [
+        16415,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17992
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/yousei_izumi_tate_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            28752,
+            4,
+            0
+          ],
+          "rot": [
+            144,
+            145,
+            148
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0
+  ],
+  "total_actor_spawns": 1
+}

@@ -1,0 +1,113 @@
+{
+  "scene_name": "shop_alley",
+  "scene_num": 49,
+  "is_mq": false,
+  "scene_header_file": "/scene/shop_alley_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 2448,
+      "pos": [
+        0,
+        2496,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 124,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -30400,
+        0,
+        3584
+      ],
+      "rot_y": 674,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shop_alley_0_info.zsi",
+      "actors": [
+        {
+          "id": 244,
+          "pos": [
+            374,
+            375,
+            197
+          ],
+          "rot": [
+            268,
+            363,
+            187
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 366,
+          "pos": [
+            -11,
+            0,
+            86
+          ],
+          "rot": [
+            0,
+            16201,
+            0
+          ],
+          "params": 1939,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            40,
+            0,
+            -80
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 3,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        13008,
+        7,
+        0,
+        345,
+        178,
+        235,
+        371,
+        372
+      ]
+    }
+  ],
+  "actor_id_set": [
+    61,
+    244,
+    366
+  ],
+  "total_actor_spawns": 3
+}

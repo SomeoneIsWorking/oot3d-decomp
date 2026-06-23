@@ -1,0 +1,143 @@
+{
+  "scene_name": "mahouya",
+  "scene_num": 78,
+  "is_mq": false,
+  "scene_header_file": "/scene/mahouya_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 2864,
+      "pos": [
+        0,
+        2912,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 125,
+      "back_face": 1,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 845,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 68,
+      "id": 0,
+      "pos": [
+        17583,
+        1144,
+        -27520
+      ],
+      "rot_y": 32660,
+      "params": 20844
+    },
+    {
+      "front_room": 51,
+      "front_face": 0,
+      "back_room": 141,
+      "back_face": 129,
+      "id": -11647,
+      "pos": [
+        -13057,
+        4761,
+        8031
+      ],
+      "rot_y": 0,
+      "params": 17530
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 68,
+      "id": 1124,
+      "pos": [
+        27994,
+        32621,
+        20844
+      ],
+      "rot_y": 51,
+      "params": 33165
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/mahouya_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            64,
+            0,
+            -18736
+          ],
+          "rot": [
+            11,
+            0,
+            271
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 329,
+          "pos": [
+            -14,
+            -22,
+            84
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            130,
+            76,
+            -8
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 2037,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    8,
+    329
+  ],
+  "total_actor_spawns": 3
+}

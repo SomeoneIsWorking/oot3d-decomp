@@ -1,0 +1,190 @@
+{
+  "scene_name": "tent",
+  "scene_num": 57,
+  "is_mq": false,
+  "scene_header_file": "/scene/tent_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 2068,
+      "pos": [
+        0,
+        2100,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 174,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 976,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 68,
+      "id": 0,
+      "pos": [
+        17992,
+        1064,
+        26471
+      ],
+      "rot_y": -13464,
+      "params": 43851
+    },
+    {
+      "front_room": 255,
+      "front_face": 189,
+      "back_room": 0,
+      "back_face": 47,
+      "id": 29934,
+      "pos": [
+        7741,
+        -226,
+        13247
+      ],
+      "rot_y": 0,
+      "params": 17658
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1064,
+      "pos": [
+        26471,
+        -13464,
+        -21685
+      ],
+      "rot_y": -16897,
+      "params": 12032
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/tent_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            24912,
+            4,
+            0
+          ],
+          "rot": [
+            197,
+            290,
+            316
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 307,
+          "pos": [
+            101,
+            0,
+            16
+          ],
+          "rot": [
+            0,
+            -16930,
+            0
+          ],
+          "params": 65520,
+          "room": 0
+        },
+        {
+          "id": 307,
+          "pos": [
+            103,
+            0,
+            56
+          ],
+          "rot": [
+            0,
+            -20571,
+            0
+          ],
+          "params": 65521,
+          "room": 0
+        },
+        {
+          "id": 307,
+          "pos": [
+            100,
+            0,
+            101
+          ],
+          "rot": [
+            0,
+            -22027,
+            0
+          ],
+          "params": 65522,
+          "room": 0
+        },
+        {
+          "id": 307,
+          "pos": [
+            95,
+            0,
+            143
+          ],
+          "rot": [
+            0,
+            -23302,
+            0
+          ],
+          "params": 65523,
+          "room": 0
+        },
+        {
+          "id": 468,
+          "pos": [
+            -75,
+            0,
+            -135
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    307,
+    468
+  ],
+  "total_actor_spawns": 6
+}

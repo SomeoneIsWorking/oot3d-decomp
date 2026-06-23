@@ -1,0 +1,137 @@
+{
+  "scene_name": "kakariko_home3",
+  "scene_num": 43,
+  "is_mq": false,
+  "scene_header_file": "/scene/kakariko_home3_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 4524,
+      "pos": [
+        0,
+        4580,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 128,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 103,
+      "params": 89
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/kakariko_home3_0_info.zsi",
+      "actors": [
+        {
+          "id": 7,
+          "pos": [
+            0,
+            268,
+            197
+          ],
+          "rot": [
+            273,
+            263,
+            363
+          ],
+          "params": 300,
+          "room": 0
+        },
+        {
+          "id": 59,
+          "pos": [
+            95,
+            0,
+            -118
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 20,
+          "room": 0
+        },
+        {
+          "id": 366,
+          "pos": [
+            17,
+            0,
+            -83
+          ],
+          "rot": [
+            0,
+            -8374,
+            0
+          ],
+          "params": 1934,
+          "room": 0
+        },
+        {
+          "id": 273,
+          "pos": [
+            -146,
+            0,
+            -97
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 17155,
+          "room": 0
+        },
+        {
+          "id": 273,
+          "pos": [
+            -76,
+            0,
+            -202
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 17667,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        23632
+      ]
+    }
+  ],
+  "actor_id_set": [
+    7,
+    59,
+    273,
+    366
+  ],
+  "total_actor_spawns": 5
+}

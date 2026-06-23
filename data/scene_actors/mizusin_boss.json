@@ -1,0 +1,134 @@
+{
+  "scene_name": "mizusin_boss",
+  "scene_num": 22,
+  "is_mq": false,
+  "scene_header_file": "/scene/mizusin_boss_info.zsi",
+  "room_count": 2,
+  "spawn_points": [
+    {
+      "id": 14656,
+      "pos": [
+        0,
+        14712,
+        0
+      ],
+      "rot": [
+        14728,
+        0,
+        256
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        3583
+      ],
+      "rot_y": 1059,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 192,
+      "back_room": 243,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17608,
+        -1024,
+        26649
+      ],
+      "rot_y": 6504,
+      "params": 16229
+    },
+    {
+      "front_room": 76,
+      "front_face": 204,
+      "back_room": 204,
+      "back_face": 231,
+      "id": -15973,
+      "pos": [
+        -27065,
+        19575,
+        -25752
+      ],
+      "rot_y": -16384,
+      "params": 17907
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 47,
+      "back_face": 69,
+      "id": 16384,
+      "pos": [
+        30568,
+        6519,
+        16229
+      ],
+      "rot_y": -13162,
+      "params": 59340
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/mizusin_boss_0_info.zsi",
+      "actors": [],
+      "objects": [
+        1,
+        258,
+        29338,
+        56,
+        0,
+        1864,
+        0,
+        0
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/mizusin_boss_1_info.zsi",
+      "actors": [
+        {
+          "id": 117,
+          "pos": [
+            189,
+            18,
+            33
+          ],
+          "rot": [
+            180,
+            176,
+            14
+          ],
+          "params": 0,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        17104,
+        6,
+        0,
+        89
+      ]
+    }
+  ],
+  "actor_id_set": [
+    117
+  ],
+  "total_actor_spawns": 1
+}

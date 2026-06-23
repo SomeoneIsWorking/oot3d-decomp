@@ -1,0 +1,258 @@
+{
+  "scene_name": "kenjyanoma",
+  "scene_num": 68,
+  "is_mq": false,
+  "scene_header_file": "/scene/kenjyanoma_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 3576,
+      "pos": [
+        0,
+        3592,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 50
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 6,
+      "front_face": 0,
+      "back_room": 2,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -16384,
+        0,
+        767
+      ],
+      "rot_y": 714,
+      "params": 12957
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17992,
+        -588,
+        -28806
+      ],
+      "rot_y": -30048,
+      "params": 36992
+    },
+    {
+      "front_room": 123,
+      "front_face": 219,
+      "back_room": 242,
+      "back_face": 0,
+      "id": 82,
+      "pos": [
+        11533,
+        244,
+        0
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": -588,
+      "pos": [
+        -28806,
+        -30048,
+        -28544
+      ],
+      "rot_y": -9349,
+      "params": 242
+    },
+    {
+      "front_room": 82,
+      "front_face": 0,
+      "back_room": 13,
+      "back_face": 45,
+      "id": 244,
+      "pos": [
+        0,
+        0,
+        17992
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 180,
+      "front_face": 253,
+      "back_room": 122,
+      "back_face": 143,
+      "id": -30048,
+      "pos": [
+        -28544,
+        -9349,
+        242
+      ],
+      "rot_y": 82,
+      "params": 11533
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/kenjyanoma_0_info.zsi",
+      "actors": [
+        {
+          "id": 188,
+          "pos": [
+            135,
+            157,
+            202
+          ],
+          "rot": [
+            179,
+            186,
+            72
+          ],
+          "params": 144,
+          "room": 0
+        },
+        {
+          "id": 210,
+          "pos": [
+            192,
+            6,
+            1
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 93,
+          "pos": [
+            0,
+            6,
+            2
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65534,
+          "room": 0
+        },
+        {
+          "id": 169,
+          "pos": [
+            -95,
+            6,
+            170
+          ],
+          "rot": [
+            0,
+            27307,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 168,
+          "pos": [
+            93,
+            6,
+            -161
+          ],
+          "rot": [
+            0,
+            -5460,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 139,
+          "pos": [
+            32,
+            2,
+            11
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 18,
+          "room": 0
+        },
+        {
+          "id": 195,
+          "pos": [
+            94,
+            6,
+            165
+          ],
+          "rot": [
+            0,
+            -27307,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 201,
+          "pos": [
+            -97,
+            6,
+            -168
+          ],
+          "rot": [
+            0,
+            5460,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        288,
+        0,
+        33072,
+        4,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    93,
+    139,
+    168,
+    169,
+    188,
+    195,
+    201,
+    210
+  ],
+  "total_actor_spawns": 8
+}

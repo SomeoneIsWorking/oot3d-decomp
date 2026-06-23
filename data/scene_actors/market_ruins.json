@@ -1,0 +1,486 @@
+{
+  "scene_name": "market_ruins",
+  "scene_num": 34,
+  "is_mq": false,
+  "scene_header_file": "/scene/market_ruins_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 4,
+      "pos": [
+        5,
+        6,
+        7
+      ],
+      "rot": [
+        8,
+        9,
+        10
+      ],
+      "params": 0
+    },
+    {
+      "id": 0,
+      "pos": [
+        -4,
+        0,
+        768
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        -2,
+        0,
+        -762
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        477,
+        0,
+        -367
+      ],
+      "rot": [
+        0,
+        -9284,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        -548,
+        0,
+        -502
+      ],
+      "rot": [
+        0,
+        8737,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        -548,
+        0,
+        525
+      ],
+      "rot": [
+        0,
+        21844,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        488,
+        0,
+        -118
+      ],
+      "rot": [
+        0,
+        -16384,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        492,
+        0,
+        223
+      ],
+      "rot": [
+        0,
+        -16384,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        -552,
+        0,
+        -2
+      ],
+      "rot": [
+        0,
+        16384,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        -241,
+        0,
+        -575
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3840
+    },
+    {
+      "id": 0,
+      "pos": [
+        320,
+        0,
+        -538
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 3840
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 15,
+      "id": 51,
+      "pos": [
+        312,
+        369,
+        173
+      ],
+      "rot_y": 666,
+      "params": 115
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17929,
+        1224,
+        20323
+      ],
+      "rot_y": -26008,
+      "params": 60998
+    },
+    {
+      "front_room": 181,
+      "front_face": 119,
+      "back_room": 204,
+      "back_face": 99,
+      "id": 6327,
+      "pos": [
+        10291,
+        3896,
+        3842
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1224,
+      "pos": [
+        22893,
+        -26028,
+        -4538
+      ],
+      "rot_y": -13083,
+      "params": 25504
+    },
+    {
+      "front_room": 183,
+      "front_face": 24,
+      "back_room": 68,
+      "back_face": 51,
+      "id": 5181,
+      "pos": [
+        5125,
+        16384,
+        18076
+      ],
+      "rot_y": -32768,
+      "params": 17929
+    },
+    {
+      "front_room": 200,
+      "front_face": 4,
+      "back_room": 104,
+      "back_face": 79,
+      "id": -26023,
+      "pos": [
+        -4538,
+        -24378,
+        25525
+      ],
+      "rot_y": 6327,
+      "params": 9011
+    },
+    {
+      "front_room": 51,
+      "front_face": 15,
+      "back_room": 5,
+      "back_face": 7,
+      "id": 16384,
+      "pos": [
+        18076,
+        0,
+        17814
+      ],
+      "rot_y": 1224,
+      "params": 16217
+    },
+    {
+      "front_room": 114,
+      "front_face": 154,
+      "back_room": 70,
+      "back_face": 238,
+      "id": 7710,
+      "pos": [
+        25374,
+        6327,
+        -32052
+      ],
+      "rot_y": 3276,
+      "params": 1794
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 156,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17929,
+        1224,
+        13135
+      ],
+      "rot_y": -26033,
+      "params": 60998
+    },
+    {
+      "front_room": 150,
+      "front_face": 99,
+      "back_room": 160,
+      "back_face": 99,
+      "id": 6327,
+      "pos": [
+        10291,
+        3896,
+        3842
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1224,
+      "pos": [
+        17507,
+        -26051,
+        -4538
+      ],
+      "rot_y": -18991,
+      "params": 25504
+    },
+    {
+      "front_room": 183,
+      "front_face": 24,
+      "back_room": 68,
+      "back_face": 35,
+      "id": 5209,
+      "pos": [
+        5125,
+        16384,
+        18076
+      ],
+      "rot_y": -32768,
+      "params": 17929
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/market_ruins_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            7376,
+            12,
+            0
+          ],
+          "rot": [
+            26,
+            152,
+            378
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            425,
+            0,
+            203
+          ],
+          "rot": [
+            0,
+            -20388,
+            0
+          ],
+          "params": 33024,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            200,
+            0,
+            316
+          ],
+          "rot": [
+            0,
+            -21844,
+            0
+          ],
+          "params": 33024,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            -199,
+            0,
+            268
+          ],
+          "rot": [
+            0,
+            21663,
+            0
+          ],
+          "params": 33024,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            -239,
+            0,
+            505
+          ],
+          "rot": [
+            0,
+            18568,
+            0
+          ],
+          "params": 33026,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            247,
+            0,
+            -460
+          ],
+          "rot": [
+            0,
+            -4733,
+            0
+          ],
+          "params": 33024,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            -283,
+            0,
+            -154
+          ],
+          "rot": [
+            0,
+            10193,
+            0
+          ],
+          "params": 33026,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            223,
+            0,
+            17
+          ],
+          "rot": [
+            0,
+            -15474,
+            0
+          ],
+          "params": 33026,
+          "room": 0
+        },
+        {
+          "id": 144,
+          "pos": [
+            -170,
+            0,
+            -425
+          ],
+          "rot": [
+            0,
+            4914,
+            0
+          ],
+          "params": 33024,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    144
+  ],
+  "total_actor_spawns": 9
+}

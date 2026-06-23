@@ -1,0 +1,547 @@
+{
+  "scene_name": "takaraya",
+  "scene_num": 16,
+  "is_mq": false,
+  "scene_header_file": "/scene/takaraya_info.zsi",
+  "room_count": 7,
+  "spawn_points": [
+    {
+      "id": 24788,
+      "pos": [
+        0,
+        24948,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 214,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 469,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17723,
+        -984,
+        25433
+      ],
+      "rot_y": 61,
+      "params": 126
+    },
+    {
+      "front_room": 249,
+      "front_face": 204,
+      "back_room": 204,
+      "back_face": 83,
+      "id": 163,
+      "pos": [
+        30634,
+        4471,
+        4403
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 175,
+      "back_face": 69,
+      "id": -984,
+      "pos": [
+        26214,
+        114,
+        -32440
+      ],
+      "rot_y": 19865,
+      "params": 153
+    },
+    {
+      "front_room": 184,
+      "front_face": 127,
+      "back_room": 102,
+      "back_face": 86,
+      "id": -19943,
+      "pos": [
+        31339,
+        0,
+        17992
+      ],
+      "rot_y": -32768,
+      "params": 17723
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/takaraya_0_info.zsi",
+      "actors": [
+        {
+          "id": 2,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            194,
+            91,
+            181
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 5108,
+          "room": 0
+        },
+        {
+          "id": 8,
+          "pos": [
+            -114,
+            90,
+            36
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 5108,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        38352
+      ]
+    },
+    {
+      "room_num": 1,
+      "file": "/scene/takaraya_1_info.zsi",
+      "actors": [
+        {
+          "id": 1,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 1
+        },
+        {
+          "id": 8,
+          "pos": [
+            88,
+            78,
+            -409
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 1
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -409
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 1
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        28112
+      ]
+    },
+    {
+      "room_num": 2,
+      "file": "/scene/takaraya_2_info.zsi",
+      "actors": [
+        {
+          "id": 2,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            88,
+            78,
+            -849
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            88,
+            78,
+            -849
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -849
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 2
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        6736
+      ]
+    },
+    {
+      "room_num": 3,
+      "file": "/scene/takaraya_3_info.zsi",
+      "actors": [
+        {
+          "id": 1,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 3
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -1288
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 3
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -1288
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 3
+        },
+        {
+          "id": 8,
+          "pos": [
+            88,
+            78,
+            -1288
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 3
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        60752
+      ]
+    },
+    {
+      "room_num": 4,
+      "file": "/scene/takaraya_4_info.zsi",
+      "actors": [
+        {
+          "id": 2,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 4
+        },
+        {
+          "id": 8,
+          "pos": [
+            88,
+            78,
+            -1728
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 4
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -1728
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 4
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        6864
+      ]
+    },
+    {
+      "room_num": 5,
+      "file": "/scene/takaraya_5_info.zsi",
+      "actors": [
+        {
+          "id": 1,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 5
+        },
+        {
+          "id": 341,
+          "pos": [
+            18,
+            20,
+            -2000
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 5
+        },
+        {
+          "id": 8,
+          "pos": [
+            -67,
+            78,
+            -2168
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1012,
+          "room": 5
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        20944
+      ]
+    },
+    {
+      "room_num": 6,
+      "file": "/scene/takaraya_6_info.zsi",
+      "actors": [
+        {
+          "id": 1,
+          "pos": [
+            0,
+            14,
+            341
+          ],
+          "rot": [
+            189,
+            170,
+            383
+          ],
+          "params": 363,
+          "room": 6
+        },
+        {
+          "id": 341,
+          "pos": [
+            18,
+            20,
+            -2492
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 6
+        },
+        {
+          "id": 8,
+          "pos": [
+            95,
+            98,
+            -2557
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 1013,
+          "room": 6
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        5072
+      ]
+    }
+  ],
+  "actor_id_set": [
+    1,
+    2,
+    8,
+    341
+  ],
+  "total_actor_spawns": 23
+}

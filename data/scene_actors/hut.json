@@ -1,0 +1,69 @@
+{
+  "scene_name": "hut",
+  "scene_num": 58,
+  "is_mq": false,
+  "scene_header_file": "/scene/hut_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 1720,
+      "pos": [
+        0,
+        1752,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 41
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 15,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -24576,
+        0,
+        3328
+      ],
+      "rot_y": 853,
+      "params": 0
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hut_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            72,
+            0,
+            29528
+          ],
+          "rot": [
+            3,
+            0,
+            152
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0
+  ],
+  "total_actor_spawns": 1
+}

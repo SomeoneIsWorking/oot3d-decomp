@@ -1,0 +1,222 @@
+{
+  "scene_name": "hylia_labo",
+  "scene_num": 56,
+  "is_mq": false,
+  "scene_header_file": "/scene/hylia_labo_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 7428,
+      "pos": [
+        0,
+        7492,
+        0
+      ],
+      "rot": [
+        7500,
+        0,
+        0
+      ],
+      "params": 1
+    },
+    {
+      "id": 0,
+      "pos": [
+        -12,
+        0,
+        294
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3839
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 95,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -28763,
+        0,
+        3583
+      ],
+      "rot_y": 972,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 69,
+      "id": 0,
+      "pos": [
+        17914,
+        -1024,
+        22850
+      ],
+      "rot_y": 91,
+      "params": 45902
+    },
+    {
+      "front_room": 153,
+      "front_face": 255,
+      "back_room": 255,
+      "back_face": 0,
+      "id": 19890,
+      "pos": [
+        24690,
+        2659,
+        15133
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 1820,
+      "pos": [
+        32626,
+        18559,
+        18504
+      ],
+      "rot_y": -1,
+      "params": 47343
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/hylia_labo_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            29392,
+            11,
+            0
+          ],
+          "rot": [
+            306,
+            197,
+            368
+          ],
+          "params": 36,
+          "room": 0
+        },
+        {
+          "id": 330,
+          "pos": [
+            -100,
+            0,
+            53
+          ],
+          "rot": [
+            0,
+            2001,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            68,
+            -372,
+            -207
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 258,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            -52,
+            -372,
+            -32
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 514,
+          "room": 0
+        },
+        {
+          "id": 21,
+          "pos": [
+            -169,
+            -372,
+            -124
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 770,
+          "room": 0
+        },
+        {
+          "id": 416,
+          "pos": [
+            90,
+            -372,
+            -119
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 29448,
+          "room": 0
+        },
+        {
+          "id": 59,
+          "pos": [
+            -173,
+            53,
+            256
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 15,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    21,
+    59,
+    330,
+    416
+  ],
+  "total_actor_spawns": 7
+}

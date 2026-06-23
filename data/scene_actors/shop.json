@@ -1,0 +1,142 @@
+{
+  "scene_name": "shop",
+  "scene_num": 45,
+  "is_mq": false,
+  "scene_header_file": "/scene/shop_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 2092,
+      "pos": [
+        0,
+        2132,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 1
+    },
+    {
+      "id": 0,
+      "pos": [
+        -30,
+        0,
+        144
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3839
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 144,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 32764,
+      "params": 63
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shop_0_info.zsi",
+      "actors": [
+        {
+          "id": 199,
+          "pos": [
+            220,
+            187,
+            206
+          ],
+          "rot": [
+            197,
+            263,
+            201
+          ],
+          "params": 363,
+          "room": 0
+        },
+        {
+          "id": 430,
+          "pos": [
+            54,
+            0,
+            73
+          ],
+          "rot": [
+            0,
+            -21117,
+            0
+          ],
+          "params": 65517,
+          "room": 0
+        },
+        {
+          "id": 366,
+          "pos": [
+            -124,
+            0,
+            77
+          ],
+          "rot": [
+            0,
+            8555,
+            0
+          ],
+          "params": 1940,
+          "room": 0
+        },
+        {
+          "id": 194,
+          "pos": [
+            -30,
+            0,
+            0
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        31568,
+        5,
+        0,
+        91,
+        178,
+        216,
+        183
+      ]
+    }
+  ],
+  "actor_id_set": [
+    194,
+    199,
+    366,
+    430
+  ],
+  "total_actor_spawns": 4
+}

@@ -1,0 +1,445 @@
+{
+  "scene_name": "ganon_tou",
+  "scene_num": 100,
+  "is_mq": false,
+  "scene_header_file": "/scene/ganon_tou_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 22388,
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        1,
+        2
+      ],
+      "params": 0
+    },
+    {
+      "id": 0,
+      "pos": [
+        -453,
+        1085,
+        3400
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 4095
+    },
+    {
+      "id": 0,
+      "pos": [
+        -341,
+        1624,
+        707
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 4095
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 192,
+      "id": 0,
+      "pos": [
+        4095,
+        602,
+        1127
+      ],
+      "rot_y": 1218,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 16384,
+      "pos": [
+        17948,
+        1224,
+        15705
+      ],
+      "rot_y": 18521,
+      "params": 18504
+    },
+    {
+      "front_room": 150,
+      "front_face": 150,
+      "back_room": 181,
+      "back_face": 184,
+      "id": -18248,
+      "pos": [
+        10291,
+        3896,
+        3842
+      ],
+      "rot_y": 0,
+      "params": 17992
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1424,
+      "pos": [
+        20354,
+        18511,
+        18504
+      ],
+      "rot_y": -14629,
+      "params": 47264
+    },
+    {
+      "front_room": 184,
+      "front_face": 184,
+      "back_room": 68,
+      "back_face": 35,
+      "id": 5209,
+      "pos": [
+        5125,
+        0,
+        17992
+      ],
+      "rot_y": 16384,
+      "params": 17948
+    },
+    {
+      "front_room": 200,
+      "front_face": 4,
+      "back_room": 114,
+      "back_face": 61,
+      "id": 18511,
+      "pos": [
+        18504,
+        30662,
+        -18333
+      ],
+      "rot_y": -18248,
+      "params": 9011
+    },
+    {
+      "front_room": 51,
+      "front_face": 15,
+      "back_room": 5,
+      "back_face": 7,
+      "id": 0,
+      "pos": [
+        17992,
+        -32768,
+        17851
+      ],
+      "rot_y": 1064,
+      "params": 15720
+    },
+    {
+      "front_room": 104,
+      "front_face": 72,
+      "back_room": 72,
+      "back_face": 72,
+      "id": 7731,
+      "pos": [
+        -18381,
+        -18248,
+        -32052
+      ],
+      "rot_y": 3276,
+      "params": 1794
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 72,
+      "back_face": 70,
+      "id": 0,
+      "pos": [
+        17686,
+        1024,
+        29581
+      ],
+      "rot_y": -8576,
+      "params": 30741
+    },
+    {
+      "front_room": 204,
+      "front_face": 127,
+      "back_room": 204,
+      "back_face": 34,
+      "id": -30485,
+      "pos": [
+        4647,
+        5427,
+        5388
+      ],
+      "rot_y": 16384,
+      "params": 18076
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 122,
+      "back_face": 70,
+      "id": 1224,
+      "pos": [
+        17507,
+        -26051,
+        -4538
+      ],
+      "rot_y": -18991,
+      "params": 25504
+    },
+    {
+      "front_room": 183,
+      "front_face": 24,
+      "back_room": 68,
+      "back_face": 35,
+      "id": 5209,
+      "pos": [
+        5125,
+        16384,
+        18076
+      ],
+      "rot_y": -32768,
+      "params": 17929
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/ganon_tou_0_info.zsi",
+      "actors": [
+        {
+          "id": 304,
+          "pos": [
+            155,
+            96,
+            26
+          ],
+          "rot": [
+            286,
+            154,
+            36
+          ],
+          "params": 144,
+          "room": 0
+        },
+        {
+          "id": 328,
+          "pos": [
+            -197,
+            1571,
+            1036
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65535,
+          "room": 0
+        },
+        {
+          "id": 146,
+          "pos": [
+            3003,
+            1186,
+            517
+          ],
+          "rot": [
+            0,
+            -16384,
+            0
+          ],
+          "params": 256,
+          "room": 0
+        },
+        {
+          "id": 149,
+          "pos": [
+            1061,
+            1447,
+            787
+          ],
+          "rot": [
+            16384,
+            27307,
+            0
+          ],
+          "params": 36609,
+          "room": 0
+        },
+        {
+          "id": 466,
+          "pos": [
+            2323,
+            1168,
+            533
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 3,
+          "room": 0
+        },
+        {
+          "id": 466,
+          "pos": [
+            1590,
+            1264,
+            786
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 5,
+          "room": 0
+        },
+        {
+          "id": 466,
+          "pos": [
+            1661,
+            1269,
+            748
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 6,
+          "room": 0
+        },
+        {
+          "id": 334,
+          "pos": [
+            2260,
+            1169,
+            560
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 0
+        },
+        {
+          "id": 334,
+          "pos": [
+            1606,
+            1286,
+            685
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 0
+        },
+        {
+          "id": 334,
+          "pos": [
+            1766,
+            1263,
+            726
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 0
+        },
+        {
+          "id": 334,
+          "pos": [
+            1701,
+            1271,
+            661
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 65281,
+          "room": 0
+        },
+        {
+          "id": 139,
+          "pos": [
+            -335,
+            1626,
+            583
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 4114,
+          "room": 0
+        },
+        {
+          "id": 245,
+          "pos": [
+            100,
+            1358,
+            1466
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 0,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        168,
+        0,
+        7096,
+        12,
+        0
+      ]
+    }
+  ],
+  "actor_id_set": [
+    139,
+    146,
+    149,
+    245,
+    304,
+    328,
+    334,
+    466
+  ],
+  "total_actor_spawns": 13
+}

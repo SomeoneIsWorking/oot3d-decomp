@@ -1,0 +1,111 @@
+{
+  "scene_name": "kakariko_impa",
+  "scene_num": 53,
+  "is_mq": false,
+  "scene_header_file": "/scene/kakariko_impa_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 7868,
+      "pos": [
+        0,
+        7924,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 32768
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 168,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3584
+      ],
+      "rot_y": 908,
+      "params": 99
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/kakariko_impa_0_info.zsi",
+      "actors": [
+        {
+          "id": 264,
+          "pos": [
+            269,
+            268,
+            273
+          ],
+          "rot": [
+            277,
+            363,
+            368
+          ],
+          "params": 0,
+          "room": 0
+        },
+        {
+          "id": 59,
+          "pos": [
+            -178,
+            0,
+            119
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 20,
+          "room": 0
+        },
+        {
+          "id": 366,
+          "pos": [
+            74,
+            0,
+            -32
+          ],
+          "rot": [
+            0,
+            -5643,
+            0
+          ],
+          "params": 1920,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64,
+        0,
+        63952,
+        9,
+        0,
+        300,
+        197,
+        261
+      ]
+    }
+  ],
+  "actor_id_set": [
+    59,
+    264,
+    366
+  ],
+  "total_actor_spawns": 3
+}

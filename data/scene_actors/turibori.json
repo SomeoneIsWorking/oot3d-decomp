@@ -1,0 +1,224 @@
+{
+  "scene_name": "turibori",
+  "scene_num": 73,
+  "is_mq": false,
+  "scene_header_file": "/scene/turibori_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 32644,
+      "pos": [
+        0,
+        32716,
+        0
+      ],
+      "rot": [
+        32740,
+        0,
+        0
+      ],
+      "params": 0
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 94,
+      "back_face": 5,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 777,
+      "params": 0
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": -16384,
+      "pos": [
+        18138,
+        1064,
+        26728
+      ],
+      "rot_y": 18511,
+      "params": 18504
+    },
+    {
+      "front_room": 214,
+      "front_face": 214,
+      "back_room": 155,
+      "back_face": 184,
+      "id": -18248,
+      "pos": [
+        13107,
+        -32226,
+        20354
+      ],
+      "rot_y": 0,
+      "params": 18170
+    },
+    {
+      "front_room": 0,
+      "front_face": 64,
+      "back_room": 28,
+      "back_face": 71,
+      "id": 1824,
+      "pos": [
+        -29556,
+        130,
+        0
+      ],
+      "rot_y": -52,
+      "params": 234
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 25,
+      "back_face": 51,
+      "id": 20236,
+      "pos": [
+        -32132,
+        0,
+        18170
+      ],
+      "rot_y": 0,
+      "params": 18170
+    },
+    {
+      "front_room": 144,
+      "front_face": 5,
+      "back_room": 140,
+      "back_face": 56,
+      "id": 51,
+      "pos": [
+        0,
+        -32001,
+        79
+      ],
+      "rot_y": 0,
+      "params": 3123
+    },
+    {
+      "front_room": 40,
+      "front_face": 79,
+      "back_room": 15,
+      "back_face": 20,
+      "id": 0,
+      "pos": [
+        18170,
+        0,
+        17914
+      ],
+      "rot_y": 1064,
+      "params": 22824
+    },
+    {
+      "front_room": 150,
+      "front_face": 0,
+      "back_room": 0,
+      "back_face": 0,
+      "id": 13086,
+      "pos": [
+        40,
+        0,
+        -13213
+      ],
+      "rot_y": 1535,
+      "params": 7685
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 70,
+      "id": -32768,
+      "pos": [
+        17851,
+        -984,
+        16179
+      ],
+      "rot_y": 18505,
+      "params": 18504
+    },
+    {
+      "front_room": 109,
+      "front_face": 181,
+      "back_room": 79,
+      "back_face": 184,
+      "id": -18248,
+      "pos": [
+        18761,
+        22893,
+        20323
+      ],
+      "rot_y": 0,
+      "params": 18170
+    },
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 250,
+      "back_face": 69,
+      "id": -984,
+      "pos": [
+        29257,
+        18521,
+        18504
+      ],
+      "rot_y": -6793,
+      "params": 47308
+    },
+    {
+      "front_room": 184,
+      "front_face": 184,
+      "back_room": 51,
+      "back_face": 130,
+      "id": 20394,
+      "pos": [
+        -32116,
+        0,
+        18170
+      ],
+      "rot_y": -32768,
+      "params": 17851
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/turibori_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            64,
+            0,
+            -5168
+          ],
+          "rot": [
+            12,
+            0,
+            347
+          ],
+          "params": 303,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0
+  ],
+  "total_actor_spawns": 1
+}

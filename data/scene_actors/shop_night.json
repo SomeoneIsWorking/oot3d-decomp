@@ -1,0 +1,102 @@
+{
+  "scene_name": "shop_night",
+  "scene_num": 50,
+  "is_mq": false,
+  "scene_header_file": "/scene/shop_night_info.zsi",
+  "room_count": 1,
+  "spawn_points": [
+    {
+      "id": 2660,
+      "pos": [
+        0,
+        2684,
+        0
+      ],
+      "rot": [
+        0,
+        0,
+        0
+      ],
+      "params": 1
+    },
+    {
+      "id": 0,
+      "pos": [
+        0,
+        0,
+        147
+      ],
+      "rot": [
+        0,
+        -32767,
+        0
+      ],
+      "params": 3584
+    }
+  ],
+  "transition_actors": [
+    {
+      "front_room": 0,
+      "front_face": 0,
+      "back_room": 147,
+      "back_face": 0,
+      "id": 0,
+      "pos": [
+        -32767,
+        0,
+        3839
+      ],
+      "rot_y": 960,
+      "params": 318
+    }
+  ],
+  "rooms": [
+    {
+      "room_num": 0,
+      "file": "/scene/shop_night_0_info.zsi",
+      "actors": [
+        {
+          "id": 0,
+          "pos": [
+            -1968,
+            6,
+            0
+          ],
+          "rot": [
+            357,
+            178,
+            328
+          ],
+          "params": 217,
+          "room": 0
+        },
+        {
+          "id": 61,
+          "pos": [
+            0,
+            0,
+            -40
+          ],
+          "rot": [
+            0,
+            0,
+            0
+          ],
+          "params": 2,
+          "room": 0
+        }
+      ],
+      "objects": [
+        1,
+        258,
+        0,
+        64
+      ]
+    }
+  ],
+  "actor_id_set": [
+    0,
+    61
+  ],
+  "total_actor_spawns": 2
+}
