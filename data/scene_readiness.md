@@ -19,9 +19,9 @@ score = more urgent: large lighting gap AND actors not yet fully mapped.
 | 4 | `ganon_demo` | `ganon_demo` | 178.6 | 32/10 | 1 | 90% | **169.7** | Demo_Gj(×13,no-CSAB); Demo_Gt(×11,no-CSAB); En_Wonder_Talk2(×1,no-ZAR); #6179(×1,no-ZAR) |
 | 1 | `ganontika` | `ganontika` | 197.7 | 267/63 | 19 | 70% | **167.9** | En_Light(×37,no-ZAR); Bg_Ice_Turara(×25,no-CSAB); En_G_Switch(×24,no-ZAR); Bg_Gnd_Darkmeiro(×20,no-CSAB) |
 | 6 | `spot02` | `spot02` | 158.0 | 84/32 | 1 | 97% | **155.5** | Obj_Syokudai(×26,no-CSAB); Bg_Haka(×17,no-CSAB); Bg_Spot02_Objects(×4,CSAB-unmapped); Obj_Hana(×3,no-ZAR) |
-| 7 | `ganontikasonogo` | `ganontikasonogo` | 157.3 | 24/11 | 1 | 91% | **150.2** | En_Fire_Rock(×7,no-CSAB); En_Light(×3,no-ZAR); En_Zl3(×2,no-ZAR); En_River_Sound(×2,no-ZAR) |
+| 7 | `ganontikasonogo` | `ganontikasonogo` | 157.3 | 24/11 | 1 | 91% | **150.2** | En_Fire_Rock(×7,no-CSAB); En_Light(×3,no-ZAR); En_Zl3(×2,CSAB-unmapped); En_River_Sound(×2,no-ZAR) |
 | 11 | `kokiri_home3` | `k_home3` | 148.6 | 4/3 | 0 | 100% | **148.6** | En_Ko(×2,no-ZAR); Player(×1,no-ZAR); Obj_Tsubo(×1,no-ZAR) |
-| 10 | `ganon_sonogo` | `ganon_sonogo` | 152.7 | 87/12 | 1 | 92% | **146.3** | En_Fire_Rock(×41,no-CSAB); En_Light(×12,no-ZAR); Obj_Tsubo(×9,no-ZAR); En_Zl3(×5,no-ZAR) |
+| 10 | `ganon_sonogo` | `ganon_sonogo` | 152.7 | 87/12 | 1 | 92% | **146.3** | En_Fire_Rock(×41,no-CSAB); En_Light(×12,no-ZAR); Obj_Tsubo(×9,no-ZAR); En_Zl3(×5,CSAB-unmapped) |
 | 9 | `link_home` | `link` | 155.1 | 9/7 | 1 | 86% | **144.0** | #29434(×2,no-ZAR); #1424(×2,no-ZAR); Player(×1,no-ZAR); Obj_Tsubo(×1,no-ZAR) |
 | 17 | `fire_bs` | `fire_bs` | 139.1 | 4/4 | 0 | 100% | **139.1** | En_River_Sound(×1,no-ZAR); En_Arow_Trap(×1,no-ZAR); Bg_Pushbox(×1,no-ZAR); #1424(×1,no-ZAR) |
 | 8 | `yousei_izumi_yoko` | `yousei_izumi_yoko` | 155.8 | 9/7 | 2 | 71% | **133.5** | En_Light(×2,no-ZAR); Player(×1,no-ZAR); En_Okarina_Tag(×1,no-ZAR); #4096(×1,no-ZAR) |

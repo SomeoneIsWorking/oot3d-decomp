@@ -14,8 +14,10 @@ highest-leverage scene to fix next (lighting + actor coverage together).
 Usage
 -----
   python3 tools/scene_readiness.py [--top N] [--out data/scene_readiness.md]
+  python3 tools/scene_readiness.py --scene <name>   # per-actor detail for one scene
 
 Defaults: top 30 scenes, output to data/scene_readiness.md.
+--scene prints a per-actor audit table to stdout (no file written).
 
 Data sources (all static, no oracle needed):
   - data/lighting_parity_report.md                 (this repo)
@@ -179,45 +181,61 @@ def parse_scene_actors(path: str) -> dict[int, int]:
 # Actor→Object mapping via overlay sources
 # ---------------------------------------------------------------------------
 
-def build_actor_to_object_map(overlays_dir: str, actor_id_to_name: dict[int, str]) -> dict[int, int]:
+def parse_obj_name_to_id(obj_table_h: str) -> dict[str, int]:
+    """Parse object_table.h → {OBJECT_ENUM: numeric_id}."""
+    obj_name_to_id: dict[str, int] = {}
+    if not os.path.exists(obj_table_h):
+        return obj_name_to_id
+    with open(obj_table_h) as f:
+        for line in f:
+            # /* 0x0013 */ DEFINE_OBJECT(object_niw, OBJECT_NIW)
+            m = re.match(
+                r"\s*/\*\s*0x([0-9A-Fa-f]+)\s*\*/\s*DEFINE_OBJECT\([^,]+,\s*(\w+)\)",
+                line,
+            )
+            if m:
+                obj_name_to_id[m.group(2)] = int(m.group(1), 16)
+                continue
+            # /* 0x0000 */ DEFINE_OBJECT_UNSET(OBJECT_INVALID)
+            m = re.match(
+                r"\s*/\*\s*0x([0-9A-Fa-f]+)\s*\*/\s*DEFINE_OBJECT_(?:UNSET|NULL)\((\w+)\)",
+                line,
+            )
+            if m:
+                obj_name_to_id[m.group(2)] = int(m.group(1), 16)
+    return obj_name_to_id
+
+
+def build_actor_to_object_map(
+    overlays_dir: str,
+    actor_id_to_name: dict[int, str],
+    obj_name_to_id: dict[str, int],
+) -> dict[int, int]:
     """Scan overlay source files to extract actor_id → object_id.
 
     For each actor name, looks for its z_<name>.c (lowercased) and reads the
-    ActorInit struct's objectId field.
+    ActorInit struct's objectId field (4th positional argument).
     """
     # Build name -> actor_id reverse map for lookup
     name_to_actor: dict[str, int] = {v: k for k, v in actor_id_to_name.items()
                                       if not v.startswith("unset_")}
 
-    # Object name enum → numeric id: parse the object_table.h
-    # overlays_dir = .../Shipwright/soh/src/overlays/actors
-    # object_table.h is at .../Shipwright/soh/include/tables/object_table.h
-    obj_table_h = os.path.normpath(os.path.join(
-        overlays_dir, "..", "..", "..", "include", "tables", "object_table.h"
-    ))
-    obj_name_to_id: dict[str, int] = {}
-    if os.path.exists(obj_table_h):
-        with open(obj_table_h) as f:
-            for line in f:
-                # /* 0x0013 */ DEFINE_OBJECT(object_niw, OBJECT_NIW)
-                m = re.match(
-                    r"\s*/\*\s*0x([0-9A-Fa-f]+)\s*\*/\s*DEFINE_OBJECT\([^,]+,\s*(\w+)\)",
-                    line,
-                )
-                if m:
-                    obj_name_to_id[m.group(2)] = int(m.group(1), 16)
-                    continue
-                # /* 0x0000 */ DEFINE_OBJECT_UNSET(OBJECT_INVALID)
-                m = re.match(
-                    r"\s*/\*\s*0x([0-9A-Fa-f]+)\s*\*/\s*DEFINE_OBJECT_(?:UNSET|NULL)\((\w+)\)",
-                    line,
-                )
-                if m:
-                    obj_name_to_id[m.group(2)] = int(m.group(1), 16)
-
     actor_to_obj: dict[int, int] = {}
     if not os.path.isdir(overlays_dir):
         return actor_to_obj
+
+    # Pattern: match the ActorInit struct literal and extract the 4th positional
+    # argument (objectId field at offset 0x08).  The struct layout is always:
+    #   { ACTOR_ID, ACTORCAT_*, FLAGS, OBJECT_*, sizeof(...), ... }
+    # We capture everything between the opening brace and the first sizeof() so
+    # we can reliably pull the 4th comma-separated token.
+    # Re-assembled on full file text (re.DOTALL) to handle multi-line structs.
+    _ACTORINIT_RE = re.compile(
+        r"ActorInit\s+\w+\s*=\s*\{([^}]+)\}",
+        re.DOTALL,
+    )
+
+    import glob as _glob
 
     for entry in os.scandir(overlays_dir):
         if not entry.is_dir():
@@ -230,21 +248,35 @@ def build_actor_to_object_map(overlays_dir: str, actor_id_to_name: dict[int, str
         # Find the C source
         src = os.path.join(entry.path, f"z_{actor_name.lower()}.c")
         if not os.path.exists(src):
-            # Try case-insensitive glob
-            import glob as _glob
             matches = _glob.glob(os.path.join(entry.path, "z_*.c"))
             src = matches[0] if matches else None
         if not src or not os.path.exists(src):
             continue
         with open(src) as f:
             text = f.read()
-        # Find OBJECT_xxx in ActorInit block — take the first occurrence
-        # which is almost always the primary object slot.
-        m = re.search(r"\bOBJECT_(\w+)\b", text)
+
+        # Extract objectId from the ActorInit struct literal — it is always the
+        # 4th field (index 3 after splitting on commas, stripping whitespace and
+        # C-style cast syntax like "(ActorFunc)").
+        obj_enum: str | None = None
+        m = _ACTORINIT_RE.search(text)
         if m:
-            obj_enum = f"OBJECT_{m.group(1)}"
-            if obj_enum in obj_name_to_id:
-                actor_to_obj[actor_id] = obj_name_to_id[obj_enum]
+            body = m.group(1)
+            # Split into fields; strip whitespace and cast wrappers
+            fields = [f.strip() for f in body.split(",") if f.strip()]
+            if len(fields) >= 4:
+                field4 = fields[3]
+                # Strip any leading cast like "(s16)" or extra parens
+                field4 = re.sub(r"^\([^)]+\)", "", field4).strip()
+                if field4.startswith("OBJECT_"):
+                    obj_enum = field4
+        # Fall back to first OBJECT_* in file only when struct parse fails
+        if obj_enum is None:
+            mf = re.search(r"\bOBJECT_\w+\b", text)
+            obj_enum = mf.group(0) if mf else None
+
+        if obj_enum and obj_enum in obj_name_to_id:
+            actor_to_obj[actor_id] = obj_name_to_id[obj_enum]
 
     return actor_to_obj
 
@@ -253,6 +285,97 @@ def build_actor_to_object_map(overlays_dir: str, actor_id_to_name: dict[int, str
 # Main
 # ---------------------------------------------------------------------------
 
+def print_scene_detail(
+    scene_name: str,
+    actor_id_to_name: dict[int, str],
+    actor_to_obj: dict[int, int],
+    obj_to_zar: dict[int, str | None],
+    csab_catalog: dict[str, dict],
+    animmap_json: dict[str, dict],
+    obj_name_to_id: dict[str, int],
+) -> None:
+    """Print per-actor detail for a single scene to stdout (--scene mode).
+
+    Columns: actor_id, actor_name, object_id, object_enum, ZAR, csab_count,
+             animmap_entries, status.  Useful for Stream 4 pre-fix audits.
+    """
+    # Build object_id -> name reverse
+    obj_id_to_name: dict[int, str] = {v: k for k, v in obj_name_to_id.items()}
+
+    scene_file = os.path.join(SCENE_ACTORS_DIR, f"{scene_name}.json")
+    if not os.path.exists(scene_file):
+        print(f"ERROR: no scene actor data for '{scene_name}' at {scene_file}", file=sys.stderr)
+        sys.exit(1)
+
+    actor_counts = parse_scene_actors(scene_file)
+    if not actor_counts:
+        print(f"No actors found in {scene_file}.")
+        return
+
+    # Header
+    print(f"\n### Scene: {scene_name}  ({len(actor_counts)} unique actor types, "
+          f"{sum(actor_counts.values())} total spawns)\n")
+    col_w = [6, 28, 6, 24, 30, 6, 7, 16]
+    header = (f"{'ActorID':<{col_w[0]}}  {'ActorName':<{col_w[1]}}  "
+              f"{'ObjID':<{col_w[2]}}  {'ObjectEnum':<{col_w[3]}}  "
+              f"{'ZAR':<{col_w[4]}}  {'CSABs':>{col_w[5]}}  "
+              f"{'AnimMap':>{col_w[6]}}  {'Status':<{col_w[7]}}")
+    print(header)
+    print("-" * len(header))
+
+    # Sort by status (unmapped first), then spawn count descending
+    STATUS_ORDER = {"no-ZAR": 0, "no-CSAB": 1, "CSAB-unmapped": 2, "mapped": 3, "unset": 4}
+
+    rows: list[tuple] = []
+    for actor_id, spawn_count in actor_counts.items():
+        actor_name = actor_id_to_name.get(actor_id, f"#{actor_id:04X}")
+        if actor_name.startswith("unset_"):
+            rows.append((STATUS_ORDER["unset"], -spawn_count, actor_id, actor_name,
+                         None, None, 0, 0, 0, "unset"))
+            continue
+
+        obj_id = actor_to_obj.get(actor_id)
+        obj_enum = obj_id_to_name.get(obj_id, f"#{obj_id:04X}" if obj_id is not None else "?")
+        zar = obj_to_zar.get(obj_id) if obj_id is not None else None
+
+        cat_entry = csab_catalog.get(zar) if zar else None
+        csab_count = cat_entry["totalCsabs"] if cat_entry else 0
+
+        am_entry = animmap_json.get(zar) if zar else None
+        am_entries = len(am_entry["rows"]) if am_entry else 0
+
+        if zar is None:
+            status = "no-ZAR"
+        elif csab_count == 0:
+            status = "no-CSAB"
+        elif am_entries == 0:
+            status = "CSAB-unmapped"
+        else:
+            status = "mapped"
+
+        rows.append((STATUS_ORDER.get(status, 9), -spawn_count, actor_id, actor_name,
+                     obj_id, obj_enum, zar or "", csab_count, am_entries, status))
+
+    rows.sort()
+
+    for row in rows:
+        _, neg_sc, actor_id, actor_name, obj_id, obj_enum, zar, csab_count, am_entries, status = row
+        spawn_count = -neg_sc
+        obj_id_str = f"0x{obj_id:04X}" if obj_id is not None else "?"
+        zar_display = zar if zar else "-"
+        print(f"{actor_id:<{col_w[0]}X}  {actor_name+'(×'+str(spawn_count)+')':<{col_w[1]}}  "
+              f"{obj_id_str:<{col_w[2]}}  {(obj_enum or '?'):<{col_w[3]}}  "
+              f"{zar_display:<{col_w[4]}}  {csab_count:>{col_w[5]}}  "
+              f"{am_entries:>{col_w[6]}}  {status:<{col_w[7]}}")
+
+    # Summary
+    typed = [r for r in rows if r[-1] != "unset"]
+    mapped = sum(1 for r in typed if r[-1] == "mapped")
+    csab_have = sum(1 for r in typed if r[7] > 0)  # type: ignore[index]
+    print(f"\nSummary: {mapped}/{len(typed)} actor types fully mapped"
+          f"  |  {csab_have}/{len(typed)} have CSABs")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -260,6 +383,8 @@ def main() -> None:
                     help="Number of top lighting-diverged scenes to include (default 30)")
     ap.add_argument("--out", default=os.path.join(DATA_DIR, "scene_readiness.md"),
                     help="Output Markdown file path")
+    ap.add_argument("--scene", metavar="NAME",
+                    help="Print per-actor audit detail for a single scene and exit")
     args = ap.parse_args()
 
     print("Loading lighting parity report...", flush=True)
@@ -281,7 +406,22 @@ def main() -> None:
 
     print("Building actor→object map from overlays...", flush=True)
     overlays_dir = os.path.join(SOH3D_REPO, "Shipwright", "soh", "src", "overlays", "actors")
-    actor_to_obj = build_actor_to_object_map(overlays_dir, actor_id_to_name)
+    obj_table_h = os.path.join(SOH3D_REPO, "Shipwright", "soh", "include", "tables", "object_table.h")
+    obj_name_to_id = parse_obj_name_to_id(obj_table_h)
+    actor_to_obj = build_actor_to_object_map(overlays_dir, actor_id_to_name, obj_name_to_id)
+
+    # --scene mode: print per-actor detail for a single scene and exit
+    if args.scene:
+        print_scene_detail(
+            scene_name=args.scene,
+            actor_id_to_name=actor_id_to_name,
+            actor_to_obj=actor_to_obj,
+            obj_to_zar=obj_to_zar,
+            csab_catalog=csab_catalog,
+            animmap_json=animmap_json,
+            obj_name_to_id=obj_name_to_id,
+        )
+        return
 
     # Helper: given a zar, classify CSAB/animmap state
     def zar_status(zar: str | None) -> tuple[int, int, str]:
