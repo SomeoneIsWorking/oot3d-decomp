@@ -18,6 +18,8 @@ this to prioritise which scenes to oracle-verify first.
        - zars_at_risk    : set of ZAR paths that contribute ≥1 flagged row
        - scene_risk      : composite score = max_suspicion * log2(1+total_flagged)
   5. Emits a human-readable ranked table + optionally JSON for Stream 4.
+  6. HIGH_DFRAME panel: shows which scenes/actors have the worst unresolved
+     frame-count mismatches, ranked for Stream 4 oracle-verification priority.
 
 ## Data sources (all committed, no oracle, no build needed)
   - data/scene_actors/*.json
@@ -35,6 +37,20 @@ this to prioritise which scenes to oracle-verify first.
   python3 tools/scene_anim_dashboard.py --top 30
   python3 tools/scene_anim_dashboard.py --scene spot04
   python3 tools/scene_anim_dashboard.py --json scratch/scene_anim_dashboard.json
+  python3 tools/scene_anim_dashboard.py --high-dframe         # show HIGH_DFRAME panel
+  python3 tools/scene_anim_dashboard.py --high-dframe --top 20
+
+## --apply-verified mode (Stream 4 bulk-apply workflow)
+  Stream 4 produces a whitelist TSV of oracle-confirmed rows (subset of the
+  patch_high_dframe.py output, with # VERIFIED comments stripped/added).
+  Pass it with --apply-verified to bulk-append NEW rows to charcompare_overrides.tsv:
+
+  python3 tools/scene_anim_dashboard.py --apply-verified scratch/verified.tsv
+      --overrides <soh3d>/tools/skeldata/charcompare_overrides.tsv
+
+  Rows already in the overrides file are skipped (idempotent).  Rows that have
+  a # PROPOSAL prefix in the source are accepted (the comment is preserved as
+  # VERIFIED).  Prints a summary of how many rows were added.
 """
 import argparse
 import json
@@ -348,6 +364,225 @@ def build_zar_risk(soh3d_repo: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# HIGH_DFRAME per-ZAR proposal map
+# (mirrors patch_high_dframe.py logic inline — no subprocess, same data sources)
+# ---------------------------------------------------------------------------
+
+HIGH_DFRAME_THRESHOLD = 10  # must match anim_parity.py / patch_high_dframe.py
+
+
+def build_high_dframe_by_zar(soh3d_repo: str) -> dict:
+    """Return {zarPath: [proposal, ...]} for non-overridden HIGH_DFRAME rows.
+
+    Each proposal dict has:
+      n64, n64_frames, current_csab, current_dframe, proposed_csab,
+      proposed_dframe, confidence, improvement
+    Proposals are sorted best-improvement-first within each ZAR.
+    Only rows where improvement > 0 are included (i.e. a better CSAB exists).
+    """
+    csab_by_name, csab_by_zar = _load_csab_catalog(CSAB_CATALOG)
+    overrides = _load_overrides(SOH3D_OVERRIDES)
+    animmap   = _load_animmap(SOH3D_ANIMMAP)
+
+    CONF_RANK = {"HIGH": 3, "MED": 2, "LOW": 1, "NONE": 0}
+    by_zar: dict[str, list] = {}
+
+    for zar, entry in animmap.items():
+        zar_csabs = csab_by_zar.get(zar, {})
+        for row in entry.get("rows", []):
+            n64        = row["n64"]
+            n64_frames = int(row.get("frameCount") or 0)
+
+            if (zar, n64) in overrides:
+                continue  # already hand-verified
+
+            current_csab = row.get("best") or ""
+            if not current_csab:
+                continue  # NO_CSAB is a separate issue
+
+            zar_rec     = zar_csabs.get(current_csab)
+            catalog_rec = csab_by_name.get(current_csab)
+            if zar_rec is None and catalog_rec is None:
+                continue
+            current_dur    = (zar_rec or catalog_rec)["duration"]
+            current_dframe = abs(n64_frames - current_dur)
+
+            if current_dframe <= HIGH_DFRAME_THRESHOLD:
+                continue
+
+            # Rank all same-ZAR CSABs by frame proximity
+            ranked = sorted(
+                zar_csabs.items(),
+                key=lambda kv: (abs(kv[1]["duration"] - n64_frames), kv[1]["duration"])
+            )
+            if not ranked:
+                continue
+
+            best_name, best_rec = ranked[0]
+            best_dur    = best_rec["duration"]
+            best_dframe = abs(n64_frames - best_dur)
+            improvement = current_dframe - best_dframe
+
+            if improvement <= 0:
+                continue  # no better candidate
+
+            if best_dframe == 0:
+                confidence = "HIGH"
+            elif best_dframe <= 5:
+                confidence = "MED"
+            else:
+                confidence = "LOW"
+
+            prop = {
+                "n64":             n64,
+                "n64_frames":      n64_frames,
+                "current_csab":    current_csab,
+                "current_dframe":  current_dframe,
+                "proposed_csab":   best_name,
+                "proposed_dframe": best_dframe,
+                "confidence":      confidence,
+                "improvement":     improvement,
+            }
+            by_zar.setdefault(zar, []).append(prop)
+
+    # Sort each ZAR's list: best improvement first
+    for zar in by_zar:
+        by_zar[zar].sort(key=lambda p: (-p["improvement"],
+                                        -CONF_RANK.get(p["confidence"], 0)))
+
+    return by_zar
+
+
+def build_scene_high_dframe(scenes: list,
+                             actor_zar_map: dict,
+                             hdf_by_zar: dict) -> list:
+    """Return per-scene HIGH_DFRAME summary, sorted by worst_dframe desc.
+
+    Each entry:
+      scene, worst_dframe, total_hdf_rows, high_conf_rows, zar_breakdown
+    zar_breakdown is a list of {zar, n_rows, worst_dframe, sample_n64} for the
+    top ZARs contributing HIGH_DFRAME rows to this scene.
+    """
+    results = []
+    for scene in scenes:
+        scene_name = scene.get("scene_name", "?")
+
+        if "actor_id_set" in scene:
+            unique_ids: set = set(scene["actor_id_set"])
+        else:
+            actors = scene.get("actors", [])
+            for room in scene.get("rooms", []):
+                actors += room.get("actors", [])
+            actor_ids_raw = [a.get("id", a.get("actor_id")) for a in actors]
+            unique_ids = set(a for a in actor_ids_raw if a is not None)
+
+        scene_zars: set[str] = set()
+        for aid in unique_ids:
+            for z in actor_zar_map.get(aid, []):
+                scene_zars.add(z)
+
+        total_hdf   = 0
+        worst_dframe = 0
+        high_conf   = 0
+        zar_breakdown: list = []
+
+        for zar in sorted(scene_zars):
+            props = hdf_by_zar.get(zar)
+            if not props:
+                continue
+            zar_worst = max(p["current_dframe"] for p in props)
+            zar_high  = sum(1 for p in props if p["confidence"] == "HIGH")
+            worst_dframe = max(worst_dframe, zar_worst)
+            total_hdf   += len(props)
+            high_conf   += zar_high
+            # sample: n64 anim with worst current_dframe in this ZAR
+            sample_prop = max(props, key=lambda p: p["current_dframe"])
+            zar_breakdown.append({
+                "zar":         zar,
+                "n_rows":      len(props),
+                "worst_dframe": zar_worst,
+                "sample_n64":  sample_prop["n64"],
+                "sample_cur":  sample_prop["current_csab"],
+                "sample_prop": sample_prop["proposed_csab"],
+                "sample_conf": sample_prop["confidence"],
+            })
+
+        if total_hdf == 0:
+            continue
+
+        zar_breakdown.sort(key=lambda z: -z["worst_dframe"])
+        results.append({
+            "scene":         scene_name,
+            "worst_dframe":  worst_dframe,
+            "total_hdf_rows": total_hdf,
+            "high_conf_rows": high_conf,
+            "zar_breakdown": zar_breakdown,
+        })
+
+    results.sort(key=lambda r: (-r["worst_dframe"], -r["total_hdf_rows"]))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# --apply-verified: bulk-append oracle-confirmed rows to charcompare_overrides.tsv
+# ---------------------------------------------------------------------------
+
+def apply_verified(verified_tsv: str, overrides_path: str) -> None:
+    """Read verified_tsv (patch_high_dframe.py TSV format) and append rows not
+    already present in overrides_path to overrides_path.  Idempotent.
+    """
+    if not os.path.exists(verified_tsv):
+        sys.exit(f"ERROR: --apply-verified file not found: {verified_tsv}")
+    if not os.path.exists(overrides_path):
+        sys.exit(f"ERROR: overrides file not found: {overrides_path}")
+
+    # Load existing overrides keys
+    existing: set = set()
+    for line in open(overrides_path):
+        line = line.rstrip("\n")
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            existing.add((parts[0].strip(), parts[1].strip()))
+
+    # Parse new rows from verified_tsv
+    new_rows: list[str] = []
+    for line in open(verified_tsv):
+        line = line.rstrip("\n")
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        key = (parts[0].strip(), parts[1].strip())
+        if key in existing:
+            continue
+        # Rewrite PROPOSAL → VERIFIED in comment field if present
+        rest = "\t".join(parts[3:]).replace("# PROPOSAL", "# VERIFIED")
+        row  = f"{parts[0]}\t{parts[1]}\t{parts[2]}"
+        if rest:
+            row += f"\t{rest}"
+        new_rows.append(row)
+
+    if not new_rows:
+        print("apply-verified: nothing new to add (all rows already present).")
+        return
+
+    # Append to overrides file
+    with open(overrides_path, "a") as fh:
+        fh.write(f"\n# === apply-verified batch ({len(new_rows)} rows) ===\n")
+        for r in new_rows:
+            fh.write(r + "\n")
+
+    print(f"apply-verified: appended {len(new_rows)} new row(s) to {overrides_path}")
+    for r in new_rows:
+        cols = r.split("\t")
+        short_zar = os.path.basename(cols[0]).replace("zelda_", "z_").replace(".zar", "")
+        print(f"  + {short_zar}  {cols[1][:50]}  →  {cols[2]}")
+
+
+# ---------------------------------------------------------------------------
 # Scene loading
 # ---------------------------------------------------------------------------
 
@@ -494,6 +729,76 @@ def print_dashboard(results: list, top: int, zar_risk: dict):
               f"{r['wrong_zar']:>9} {r['high_dframe']:>6} {r['ambiguous']:>6}")
 
 
+def print_high_dframe_panel(scene_hdf: list, top: int):
+    """Print the HIGH_DFRAME scene-ranking panel.
+
+    scene_hdf is the output of build_scene_high_dframe() — scenes ranked by
+    worst unresolved frame mismatch.  Stream 4 uses this to pick which scene
+    to oracle-verify next for frame-count improvements.
+    """
+    total_scenes = len(scene_hdf)
+    total_rows   = sum(r["total_hdf_rows"]  for r in scene_hdf)
+    total_high   = sum(r["high_conf_rows"]  for r in scene_hdf)
+
+    print()
+    print("=" * 78)
+    print("  HIGH_DFRAME Scene Panel  (unresolved frame mismatches > 10 — verify with oracle)")
+    print("=" * 78)
+    print(f"  Scenes with unresolved HIGH_DFRAME rows : {total_scenes}")
+    print(f"  Total improvable HIGH_DFRAME rows       : {total_rows}")
+    print(f"  Of which HIGH-confidence (exact match)  : {total_high}")
+    print()
+    print("  'worst_df' = current |n64_frames - csab_duration| for the worst row in scene.")
+    print("  Stream 4: verify the top scenes against the OoT3D oracle; apply with --apply-verified.")
+    print()
+
+    hdr = (f"  {'scene':<30} {'worst_df':>8} {'hdf_rows':>8} {'hi_conf':>7}  "
+           f"{'worst ZAR / sample N64 anim'}")
+    print(hdr)
+    print("  " + "-" * (len(hdr) - 2))
+
+    for r in scene_hdf[:top]:
+        if not r["zar_breakdown"]:
+            continue
+        top_zar  = r["zar_breakdown"][0]
+        zar_s    = os.path.basename(top_zar["zar"]).replace("zelda_", "z_").replace(".zar", "")
+        n64_s    = top_zar["sample_n64"]
+        # Truncate long N64 anim names
+        sample_s = f"{zar_s}: {n64_s}"
+        if len(sample_s) > 45:
+            sample_s = sample_s[:44] + "…"
+        conf_tag = f"[{top_zar['sample_conf']}]"
+        print(f"  {r['scene']:<30} {r['worst_dframe']:>8} {r['total_hdf_rows']:>8} "
+              f"{r['high_conf_rows']:>7}  {sample_s} {conf_tag}")
+
+    if total_scenes > top:
+        print(f"  ... ({total_scenes - top} more scenes)")
+
+    print()
+
+    # Per-ZAR breakdown table across ALL scenes (deduplicated, sorted by worst_dframe)
+    zar_seen: dict[str, dict] = {}
+    for r in scene_hdf:
+        for zb in r["zar_breakdown"]:
+            zar = zb["zar"]
+            if zar not in zar_seen or zb["worst_dframe"] > zar_seen[zar]["worst_dframe"]:
+                zar_seen[zar] = zb
+    zar_sorted = sorted(zar_seen.values(), key=lambda z: -z["worst_dframe"])
+
+    print("=" * 78)
+    print("  ZAR-level HIGH_DFRAME summary (top ZARs by worst frame mismatch)")
+    print("=" * 78)
+    print(f"  {'ZAR':<32} {'rows':>5} {'worst_df':>8}  {'sample N64 anim (cur → proposed)'}")
+    print("  " + "-" * 74)
+    for zb in zar_sorted[:20]:
+        short   = os.path.basename(zb["zar"]).replace("zelda_", "z_").replace(".zar", "")
+        cur_s   = (zb["sample_cur"]  or "")[:18]
+        prop_s  = (zb["sample_prop"] or "?")[:18]
+        n64_s   = zb["sample_n64"][:28]
+        print(f"  {short:<32} {zb['n_rows']:>5} {zb['worst_dframe']:>8}  "
+              f"{n64_s:<30} {cur_s} → {prop_s}")
+
+
 def print_scene_detail(results: list, scene_name: str, actor_zar_map: dict,
                        actor_names: dict, zar_risk: dict, scenes: list):
     """Print detailed breakdown for a single scene."""
@@ -543,7 +848,20 @@ def main():
                     help="show detailed breakdown for a single scene")
     ap.add_argument("--json", metavar="PATH",
                     help="write full report JSON to PATH (- for stdout)")
+    ap.add_argument("--high-dframe", action="store_true",
+                    help="show HIGH_DFRAME panel: scenes ranked by worst unresolved "
+                         "frame mismatch (for Stream 4 oracle-verify priority)")
+    ap.add_argument("--apply-verified", metavar="TSV",
+                    help="bulk-append oracle-confirmed rows from TSV to "
+                         "charcompare_overrides.tsv (idempotent; use with --overrides)")
+    ap.add_argument("--overrides", metavar="PATH", default=SOH3D_OVERRIDES,
+                    help=f"path to charcompare_overrides.tsv (default: {SOH3D_OVERRIDES})")
     args = ap.parse_args()
+
+    # ---- --apply-verified: early-exit mode, no scene data needed ----
+    if args.apply_verified:
+        apply_verified(args.apply_verified, args.overrides)
+        return
 
     # ---- Build actor→ZAR map ----
     print("Loading actor→ZAR map ...", file=sys.stderr, end=" ", flush=True)
@@ -570,8 +888,16 @@ def main():
     else:
         print_dashboard(results, args.top, zar_risk)
 
+    if args.high_dframe:
+        print("Building HIGH_DFRAME proposals ...", file=sys.stderr, end=" ", flush=True)
+        hdf_by_zar = build_high_dframe_by_zar(SOH3D_REPO)
+        hdf_total  = sum(len(v) for v in hdf_by_zar.values())
+        print(f"{hdf_total} improvable rows across {len(hdf_by_zar)} ZARs", file=sys.stderr)
+        scene_hdf  = build_scene_high_dframe(scenes, actor_zar_map, hdf_by_zar)
+        print_high_dframe_panel(scene_hdf, args.top)
+
     if args.json:
-        report = {
+        report: dict = {
             "summary": {
                 "total_scenes":   len(results),
                 "risky_scenes":   sum(1 for r in results if r["scene_risk"] > 0),
@@ -581,6 +907,8 @@ def main():
             "zar_risk": {k: v for k, v in sorted(zar_risk.items(),
                                                   key=lambda x: -x[1]["flagged_rows"])},
         }
+        if args.high_dframe:
+            report["high_dframe_scenes"] = scene_hdf  # type: ignore[possibly-undefined]
         js = json.dumps(report, indent=2)
         if args.json == "-":
             print(js)
