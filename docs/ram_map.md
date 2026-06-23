@@ -98,6 +98,35 @@ Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor 
   real pos each tick (scratch: `nav_probe.py`/`nav_goto.py`/`exit_walk.py`) lets you drive him, but
   precise nav is unreliable — prefer TELEPORT for in-scene positioning.
 
+## CAMERA layout — CONFIRMED 2026-06-23 (Kokiri Forest scene 85)
+
+Two Vec3f fields embedded directly in the PlayState struct (reached via gPlayState):
+
+| field | PlayState offset | notes |
+|-------|-----------------|-------|
+| Camera **EYE** Vec3f | `play + 0x1b8` | live camera position in world space; duplicated at +0x3f0 and +0x408 (eyeNext / interpolation) |
+| Camera **AT** Vec3f  | `play + 0x1c4` | look-at point; tracks Link's XZ exactly plus ~35u Y offset (head height); duplicated at +0x3e4 |
+
+These are the live per-frame values the renderer reads. Writing them overrides the camera for ONE
+frame (the camera update runs at 30 fps and recomputes them). For a screenshot, write then
+immediately issue the screenshot RPC — the screenshot captures the frame before the next update.
+
+Other camera data:
+- `play + 0x330c` → `cam_path_ptr` — points to a spline/path buffer (e.g. 0x08129034 in Kokiri)
+  used by fixed-camera modes (the overhead arc). `cam_path_ptr + 0x34` stores a PATH FRAME eye
+  position, not the live per-frame eye. **Do not use cam_path_ptr+0x34 as the live camera eye.**
+- `play + 0x440` = Link's exact world pos (Vec3f copy).
+- `play + 0x20f8` = camera AT lag copy (slightly behind the primary at+0x1c4).
+
+**Tool:** `tools/azahar_cam.py` — `status`, `set_eye`, `set_at`, `frame_actor`, `freeze_link`, `scan`.
+`freeze_link` spam-writes Link's canonical world.pos at ~100 Hz (3× the 30 fps game update) to hold
+him stationary so the camera follows him to the right position for a screenshot. `frame_actor <addr>`
+teleports Link adjacent to an actor, freezes him, waits for camera to settle, and screenshots.
+
+GOTCHA: if Link is teleported to a position above/outside collision mesh, the game will push him
+back to the nearest floor. For off-ground actors (e.g. type 3 En_Ko at y=-80 underground), you may
+need to adjust the Y offset in `frame_actor` so Link lands on valid terrain nearby.
+
 ## WARP / scene-transition — **SOLVED** 2026-06-21 (deterministic warp to any scene)
 **The transition trigger is `PlayState.transitionTrigger @ play+0x5c2d` (s8), polled every frame
 by Play_Update.** To warp: set `PlayState.nextEntranceIndex @ play+0x5c32` (s16) to an entrance
