@@ -123,9 +123,14 @@ Other camera data:
 him stationary so the camera follows him to the right position for a screenshot. `frame_actor <addr>`
 teleports Link adjacent to an actor, freezes him, waits for camera to settle, and screenshots.
 
-GOTCHA: if Link is teleported to a position above/outside collision mesh, the game will push him
-back to the nearest floor. For off-ground actors (e.g. type 3 En_Ko at y=-80 underground), you may
-need to adjust the Y offset in `frame_actor` so Link lands on valid terrain nearby.
+GOTCHA 1: if Link is teleported to a position outside the collision mesh, the game pushes him back
+to the nearest floor. For off-ground actors (e.g. type 3 En_Ko at y=-80 underground), adjust Y.
+
+GOTCHA 2: camera mode is scene-dependent. The offsets above (play+0x1b8 / +0x1c4) were confirmed
+in Kokiri Forest (follow-cam mode). In Market/Hyrule (fixed-cam mode), the same offsets hold
+different values and may not be the live camera eye/at. For follow-cam scenes these offsets work;
+for fixed-cam scenes (overhead fixed views) further RE is needed. Use `azahar_cam.py status` to
+sanity-check that eye/at are plausible (eye should be within ~500u of Link for follow-cam).
 
 ## WARP / scene-transition — **SOLVED** 2026-06-21 (deterministic warp to any scene)
 **The transition trigger is `PlayState.transitionTrigger @ play+0x5c2d` (s8), polled every frame
