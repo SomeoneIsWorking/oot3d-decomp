@@ -132,6 +132,81 @@ different values and may not be the live camera eye/at. For follow-cam scenes th
 for fixed-cam scenes (overhead fixed views) further RE is needed. Use `azahar_cam.py status` to
 sanity-check that eye/at are plausible (eye should be within ~500u of Link for follow-cam).
 
+## ENVIRONMENT LIGHTING (EnvLightSettings) — CONFIRMED 2026-06-24 (Kokiri Forest exterior, spot04)
+
+RE'd via dayTime RAM-diff against the live oracle (pin `gSaveContext.dayTime` u16 @ 0x00587958+0x0C
+by spam-writing ~2 s; noon=0x8000, dusk=0xC000, deep-night=0x0000). Tooling: `soh3d:tools/azahar_rpc.py`.
+
+**KEY NEGATIVE RESULT — do not re-walk:** the runtime does **NOT** store a blended `ambientColor`
+u8[3] anywhere in PlayState. A 512 KB sweep of PlayState (play+0x00000..0x80000) at noon vs night
+found **zero** `?? 48 48`-shaped (G=B=72) bytes that *change* with dayTime. All `?? 48 48` hits are
+**static copies of the source EnvLightSettings list** (12 entries, replicated ~13× across
+play+0x73000..0x7F000 — code/skybox/draw caches). The interpolated environment color is computed
+inline into the PICA200 lighting each frame and never written back to a u8 triple. So you cannot
+read "the blended ambient" as a struct field; instead read the **slot index + source list** and lerp
+yourself, OR sample the rendered frame.
+
+### The active EnvLightSettings list (per-boot heap; this boot = `0x087918c0`)
+- Found via PlayState pointer **`play + 0x3230`** → list base (e.g. `0x087918c0` for Kokiri). The list
+  base also appears at `play + 0x3228`-region (an env struct: `{?, count u32=0x0c, listPtr,
+  flags, fogEnd f32=12000, drawDist f32=2400, ...}`).
+- **Runtime entry = 28 bytes** (NOT the ZSI on-disk order — see `scene_lighting.md`; runtime puts
+  the fog floats FIRST):
+  ```
+  +0x00 f32  fogEnd      (Kokiri = 12000)
+  +0x04 f32  drawDist    (Kokiri = 2400)
+  +0x08 u8   ?           (often 0xff at +0x09)
+  +0x0a u8[2] ?
+  +0x0c u8[3] ambientColor   (R,72,72) — G,B==72 constant across all Kokiri slots
+  +0x0f s8   light0Dir? (1 byte; dir/color alignment slightly fuzzy)
+  +0x10 u8[3] light0Color    (the sun/key color — THIS is the noon/night discriminator)
+  +0x13 ... (overlaps; light0Color reads cleanly as +0x10..0x12)
+  +0x16 u8[3] light1Color    (the fill/moon color)
+  ```
+
+### Kokiri Forest decoded slots (CONFIRMED values)
+| slot | ambient(+0x0c) | light0Color(+0x10) | light1Color(+0x16) |
+|------|----------------|--------------------|--------------------|
+| 0 | (61,72,72)  | (239,239,99)  | (79,79,51)    |
+| 1 | (160,72,72) | (255,255,219) | (109,99,79)   |
+| 2 | (40,72,72)  | (239,140,61)  | (99,61,68)    |
+| 3 | (160,72,72) | (63,63,99)    | (99,170,219)  |
+| 4 | (68,72,72)  | (109,181,79)  | (40,51,119)   |
+| 5 | (109,72,72) | (160,198,198) | (40,51,170)   |
+| 6 | (40,72,72)  | (109,109,130) | (51,40,140)   |
+| 7 | (104,72,72) | (20,40,99)    | (51,130,160)  |
+
+### dayTime → slot selector (CONFIRMED): `play + 0x3370` (a `u8[2]` = [slotA, slotB] to cross-fade)
+Single selector drives both skybox and environment lighting in this build.
+| dayTime | play+0x3370 | meaning |
+|---------|-------------|---------|
+| 0x0000 (deep night) | `03 03` | slot 3 |
+| 0x4000 (dawn)       | `00 00` | slot 0 |
+| 0x6000–0x8000 (morning/noon) | `01 01` | slot 1 |
+| 0xA000 | `01 02` | cross-fade slot 1→2 |
+| 0xC000 (dusk) | `02 02` | slot 2 |
+| 0xD000 | `02 03` | cross-fade 2→3 |
+| 0xE000 (night) | `03 03` | slot 3 |
+
+**SLOT-ALIGNMENT RESOLVED:** noon → **slot 1**, deep-night → **slot 3**, dusk → **slot 2**.
+- noon  (slot1): ambient (160,72,72), light0 (255,255,219) bright warm-white, light1 (109,99,79)
+- night (slot3): ambient (160,72,72), light0 **(63,63,99) dim blue**, light1 (99,170,219)
+- dusk  (slot2): ambient (40,72,72),  light0 (239,140,61) orange,        light1 (99,61,68)
+
+NOTE: ambient is (160,72,72) at BOTH noon and night — the day/night brightness difference comes from
+**light0Color (the directional sun/key)**, not ambient. ambient is dark only at dusk (slot2=40) and
+dawn-ish. This is the crux of the slot ambiguity: don't expect ambient to track brightness; it's the
+light0Color that does.
+
+### Empirical cross-check (rendered ground pixel, camera straight down on grass)
+noon (82,109,14) · night (31,62,15) · dusk (80,50,4) — R ~2.7× brighter at noon than night,
+consistent with light0Color (255 vs 63). Confirms the slot mapping above.
+
+**Confidence: HIGH.** The 28-byte entry layout matches `scene_lighting.md`'s documented field set
+(ambient (R,72,72) + the `b8 b8 b8`/`ff ff db` light colors are the exact Kokiri-day signature), the
+selector at play+0x3370 was isolated as the ONLY small-int byte tracking dayTime in play+0x3200..0x9200,
+and the rendered-pixel sweep matches the decoded slots.
+
 ## WARP / scene-transition — **SOLVED** 2026-06-21 (deterministic warp to any scene)
 **The transition trigger is `PlayState.transitionTrigger @ play+0x5c2d` (s8), polled every frame
 by Play_Update.** To warp: set `PlayState.nextEntranceIndex @ play+0x5c32` (s16) to an entrance
