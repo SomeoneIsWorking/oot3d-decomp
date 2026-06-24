@@ -152,6 +152,23 @@ else                                         { showMesh(model,5); showMesh(model
 
 ---
 
+## ⚠ 2026-06-25 — the SoH3D port must NOT read interactInfo by RAW N64 byte offset
+
+The "ready-to-paste `kTrackActors` rows" below give the **N64** `interactOff` (0x1E8 / 0x1E0). The
+original SoH3D port read `*(Vec3s*)((u8*)actor + interactOff + 0x08)` — a RAW byte offset. **SoH is a
+64-bit build**, so the N64 struct-offset comments in `z_*.h` do NOT match the runtime layout (8-byte
+pointers shift every field past the first pointer ~0x74). That raw read returned **misread memory**
+(En_Ko "headRot" came back as 0x5B90 = 129°, non-physical) and the RotateZ track folded the kid's head
+down/back — the real cause of soh3d #116, masked (not fixed) by an 0x4000 plausibility clamp.
+
+**Correct approach (done for En_Ko in `behaviors/actor/kokiri_kid.cpp`):** read interactInfo through the
+**C struct** (`((EnKo*)actor)->interactInfo.headRot`) so the compiler resolves the right offset; the
+value is then the genuine Npc_TrackPoint-clamped rotation and the faithful `RotateX(rot.y)·RotateZ(rot.x)`
+applies cleanly with no clamp. The raw `interactOff` numbers here are FYI for identifying the field in a
+decomp; they are NOT valid runtime byte offsets in the 64-bit SoH3D build. Same caveat for the facial
+eye/mouth index offsets (read those via the C struct too). En_Sa/En_Md/En_Ma1-3/En_Hy still on the legacy
+raw-offset path in SoH3D — migrate each into a `behaviors/actor/*.cpp` module with typed reads.
+
 ## SUMMARY of corrections to the SoH3D port assumptions
 1. **interactInfo @ 0x1E8 is wrong** — it is per-actor: En_Ko +0x28c (head +0x294, torso +0x29a),
    En_Sa +0x450 (head +0x458, torso +0x45e). Resolve per actor; don't hardcode 0x1E8.
