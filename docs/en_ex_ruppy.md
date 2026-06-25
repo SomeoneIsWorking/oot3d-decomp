@@ -59,3 +59,18 @@ suppress N64).
 (read via the `ainfo` rupee colorIdx debug aid), distinct gems, single color each, no stacking.
 This is the first port to use the midMask channel for a NON-Link color/variant select — a
 reusable pattern for any CMB that packs variants as distinct mesh_ids.
+
+## Shared with En_Item00 (dropped/placed rupees)
+
+`En_Item00` (0x15) draws the SAME N64 `gRupeeDL` with a per-color texture swap for its rupee
+item types (`EnItem00_DrawRupee`): `texIndex = (params <= ITEM00_RUPEE_RED) ? params : params-0x10`
+→ GREEN(0x00)=0, BLUE(0x01)=1, RED(0x02)=2, ORANGE(0x13)=3, PURPLE(0x14)=4 — the identical OoT3D
+color order. So the SoH3D rupee draw is factored into the shared `SoH3D::drawRupeeColorMesh`
+(behaviors/actor_behavior.cpp); `behaviors/actor/en_item00.cpp` maps params→colorIdx, honors the
+N64 blink-visibility gate (`!(unk_156 & unk_158)`), and falls through to the N64 draw for all
+non-rupee item types (hearts, magic, seeds, nuts, bombs, arrows, sticks, heart piece/container).
+
+Note the rupee CMB is centered at origin (Y[-30,30]); the N64 `gRupeeDL` is likewise centered, so
+both sink to the same depth when the actor's `world.pos.y` is at the floor — a floating/bobbing
+rupee (`world.pos.y` above ground) shows the full gem. Verified live (Gerudo Valley test spawns):
+solid purple (0x14) + green (0) gems, correct color and relative size, upright.
