@@ -600,6 +600,39 @@ Remaining (minor, separate): the carry-IDLE→carry-WALK clip change (carryB_wai
 with no morph (~1-frame arm twitch at walk start), the same class as other loco-entry transitions; would
 need the synthetic-morph infra (§6e) generalized to loco-entry. Not visible as a steady-state pop.
 
+## 6g. PICKUP / lift (rock) — the lift clip IS played by the engine; SoH3D was clobbering it (FIXED 2026-06-25, session 12)
+
+GROUND TRUTH (live trace of the SoH-embedded N64 player logic + the OoT3D rig). Picking up a normal
+rock (En_Ishi, `params & 0xF != 1`) runs `Player_SetupAction(Player_Action_80846050)` and
+`LinkAnimation_PlayOnce(&this->skelAnime, GET_PLAYER_ANIM(PLAYER_ANIMGROUP_carryB, modelAnimType))`
+(z_player.c:5573-5578). For normal child Link `modelAnimType` selects `PLAYER_ANIMGROUP_carryB[0]` =
+**`carryB_free`** (NOT `carryB` — the earlier docs said `carryB`; the live engine resolves the `_free`
+variant for the no-item form). So the WHOLE-BODY `skelAnime` plays the lift clip `nml_carryB_free`
+once (frames 0→16, ~0.5s), then `Player_Action_80846050` settles into the carry-hold: `skelAnime` →
+`wait_free` and `upperSkelAnime` → `carryB_wait` (with a morph), copied whole-rig (SetCopyAll).
+
+THE #117 PICKUP BUG: SoH3D's `soh3d_link.cpp` carry-IDLE override unconditionally replaced the resolved
+lower CSAB with `ResolvePlayerCsab(upperSkelAnime.animation)` whenever `heldActor != NULL`. `heldActor`
+is set EARLY (mid-lift), while `upperSkelAnime` is still `wait_free` (the upper-copy is not engaged until
+the hold). So the instant the rock was grabbed, the good lower lift clip (`nml_carryB_free`) was clobbered
+to `nml_wait_free` → Link snapped straight to the standing pose instead of raising. (Live trace
+`linktrace`: at lift frame cf=4.5 `held` flips 1 and `csab` jumps `nml_carryB_free`→`nml_wait_free`.)
+
+FIX (faithful, no synthetic morph, no magic constant): gate the upper-copy override on the upper body
+GENUINELY being a carry anim — `strstr(upperSkelAnime.animation, "carry")`. This is exactly N64's SetCopy
+condition (it copies the upper *carry* pose, meaningful only when the upper IS carry). During the lift the
+upper is `wait_free` → override skipped → the lower `nml_carryB_free` lift plays through; in the hold the
+upper is `carryB_wait` → override fires → whole-rig hold. The lift clip is already played by the engine;
+the bug was purely SELECTION, so the brief's planned "port nml_carryB as a synthetic one-shot with -6f
+morph" was unnecessary.
+
+GEOMETRIC VALIDATION (no screenshots — `tools/pickup_pose_validate.py`, diffs each live `skindump` pose
+vs the offline csab.py sampler at the same tagged frame, per-bone geodesic angle, bones 1-21):
+- lift `nml_carryB_free` @0→16 (12 frames): **mean 0.003°, max 0.004°** — rendered lift == clip
+- hold `nml_carryB_wait`: **0.00°** after a clean 4-frame entry morph (b21/R_HAND cross-fades 98°→0)
+- carry-walk regression check: steady `nml_carryB_free` **0.00°**, only the carry-idle→walk seam frame
+  elevated (the known §6f hard-cut) — no regression.
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
