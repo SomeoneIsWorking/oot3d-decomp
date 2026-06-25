@@ -13,7 +13,7 @@ ROM 2026-06-25 (tools/ctr_romfs.py + tools/zar.py). 31 CMBs; the relevant ones:
 | `kibako_hahen_model.cmb`  | crate fragments                        | |
 | `switch_{1,2,4,5,6,7,9,10,11}_model.cmb` | OBJ_SWITCH (0x12A)      | floor/crystal/eye switches; ANIMATED (up/down, tex scroll) |
 | `crashbox_model.cmb`      | breakable box                          | |
-| `brick_15_<theme>_<size>_model.cmb` | OBJ_OSHIHIKI (0xFF) push block | per-dungeon themed cubes — see below |
+| `brick_15_<theme>_<size>_model.cmb` | OBJ_OSHIHIKI (0xFF) push block | **DONE** — push_block.cpp (per-dungeon themed 600u cubes, scale=sScales) — see below |
 | `efc_candle_modelT.cmb`   | candle effect                          | |
 | `doorkagi_model.cmb` / `doorkusari_model.cmb` | door lock / chain          | for locked doors |
 
@@ -32,27 +32,31 @@ base at origin, single mesh/texture). Ported in `behaviors/actor/kibako.cpp`, wo
 **Reproduction**: the crate appears in no coverage room-0, so spawn it with `spawnp 0x110 0` in any
 dungeon (OBJECT_GAMEPLAY_DANGEON_KEEP loaded). Verified live in Spirit Temple — solid grounded crate.
 
-## Push block (OBJ_OSHIHIKI 0xFF) — INVESTIGATED, blocked on reproduction
+## Push block (OBJ_OSHIHIKI 0xFF) — DONE
 N64 `z_obj_oshihiki.c`: draws ONE mesh `gPushBlockDL` (unit cube) scaled by `sScales[params & 0xF]`,
 with a swappable texture (silver/base/gray) and a per-scene RGB tint (`sColors`).
 - **Sizes** `sScales[]` = SMALL `1/10`, MEDIUM `1/6`, LARGE `1/5`, HUGE `1/3` (× gPushBlockDL).
-  (params&0xF: 0–3 = S/M/L/H START_ON, 4–7 = S/M/L/H START_OFF.)
+  (params&0xF: 0–3 = S/M/L/H START_ON, 4–7 = S/M/L/H START_OFF; so size = `(params & 0xF) & 3`.)
 - **Scene→theme** (N64 `sScenes[]` order, matching the brick filename codes):
   Deku Tree→`deku`, Dodongo's Cavern→`dod`, Forest Temple→`frs`, Fire Temple→`fire`,
-  Water Temple→`wat`, **Spirit Temple→`soul`**, Shadow Temple→`dark`, Ganon's Tower→(ganon? no brick
-  — uses white tint), Gerudo Training Ground→`gerd`.
-- **OoT3D bricks**: `brick_15_<theme>_<size>_model.cmb` — each is a **600-unit cube, base Y=0**.
-  CRUCIAL: `_sa` and `_La` are BOTH 600 units (measured) — size is conveyed by the ACTOR SCALE,
-  not the CMB. Available themes/sizes vary (soul: sa, La; dark: Ma; dod: Sa, Sb; frs: Ma, Mb; ...).
-- **Port plan** (NOT yet done): module `behaviors/actor/push_block.cpp`, scene→theme table above,
-  pick the brick CMB, world scale = `(gPushBlockDL_raw_size × sScales[type]) / 600`. STILL NEED the
-  N64 `gPushBlockDL` raw cube dimension (extract from the OTR object, or measure a drawn block) to
-  set the scale faithfully — without it the scale is a guess.
-- **REPRODUCTION — SOLVED (2026-06-25):** the room-actor-list issue is moot now that `spawnp` exists.
-  Spawn a block on demand in any dungeon (OBJECT_GAMEPLAY_DANGEON_KEEP loaded) with
-  `spawnp 0xFF <params>`, where `params` low nibble = size (`sScales` index) and the theme is the
-  scene's (the scene→theme table above). This is how the crate (OBJ_KIBAKO) was unblocked. STILL
-  NEED the N64 `gPushBlockDL` raw cube dimension for a faithful scale before porting.
+  Water Temple→`wat`, **Spirit Temple→`soul`**, Shadow Temple→`dark`, Ganon's Tower→(no brick
+  — N64 uses an `mREG` white tint), Gerudo Training Ground→`gerd`.
+- **OoT3D bricks** (enumerated from `zelda_dangeon_keep.zar`): `brick_15_<theme>_<Size><variant>_model.cmb`,
+  each a **600-unit cube, base Y=0**. Shipped set: `deku_Sa, dod_Sa, dod_Sb, frs_Ma, frs_Mb, fire_Sa,
+  wat_Ma, wat_Mb, soul_sa, soul_La, dark_Ma, gerd_La`. CRUCIAL: `_sa` and `_La` are BOTH 600 units —
+  size is conveyed by the ACTOR SCALE, not the CMB; the filename size letter selects texture detail.
+- **RAW gPushBlockDL SIZE — RESOLVED = 600-unit cube** (no OTR extraction needed). Derived from the
+  collision math in `z_obj_oshihiki.c:328`: `colCheckOffset = sColCheckPoints[i] * (actor.scale * 10.0f)`
+  with the bottom-face check points at `±29.99`. At actor scale 1.0 the half-extent is `29.99 * 10 ≈ 300`
+  → 600-unit cube. (`sFaceVtx` likewise reaches Y=60 × scale×10 = 600 tall at scale 1.0.)
+- **Faithful world scale = `sScales[type]` directly.** N64 in-world block = `600 (raw cube) × sScales`;
+  OoT3D CMB is also 600u; so world scale = `(600 × sScales) / 600 = sScales`. (S=0.1, M=1/6, L=0.2, H=1/3.)
+- **PORTED:** module `behaviors/actor/push_block.cpp` (`ObjOshihikiBehavior::tryDrawModel`). Scene→brick
+  table above; Spirit picks `soul_La` for L else `soul_sa`; other scenes have one brick each. gscale slot
+  20 (base multiplier 1.0, per-size = sScales). Unknown scenes (Ganon's Tower) fall through to N64.
+- **VERIFIED LIVE (2026-06-25):** Spirit Temple ent 130, `spawnp 0xFF 0` (small `soul_sa`) and
+  `spawnp 0xFF 2` (large `soul_La`) — both render the themed sandstone brick, grounded, sized correctly
+  relative to Link (large ≈ 2× small). Repro: `spawnp 0xFF <params>` in any dungeon with the keep loaded.
 
 ## Switch (OBJ_SWITCH 0x12A) — not started
 Animated (floor switch depresses, crystal/eye switches have tex scroll + on/off state). Multiple
