@@ -562,6 +562,44 @@ showed the real divergence is deeper than a phase offset:
   vs the oracle. Closing this would require porting the walk_L/walk_R BLEND (or a spine-twist on the walk
   cycle) so endR's spine is reachable — out of scope for the pop fix; file separately if visible in play.
 
+## 6f. CARRY-WALK — single unified clip, NOT an upper/lower blend (RE'd live 2026-06-25, session 11)
+
+Empirically determined by capturing OoT3D Link lifting a rock (En_Ishi) and carry-walking in the oracle
+(soh3d `tools/oracle_carry_drive.py` drives the lift via heldActor @PLAYER+0x12b0 + A-tap, then holds
+forward) and matching each captured frame's bone-LOCAL rotations against the child carry CSABs
+(`tools/oracle_carry_id.py`, lower=legs 3-8, upper=arms 9-21 matched separately):
+
+```
+cap | LOWER best (legs 3-8)      | UPPER best (arms 9-21)
+  5 | carryB_free@12.0 (0.8°)    | carryB_free@12.0 (1.1°)   <- BOTH halves, SAME clip, SAME frame
+ ...| carryB_free@<f>  (~0.9°)   | carryB_free@<f>  (~1.1°)
+```
+
+**GROUND TRUTH:** OoT3D carry-WALK plays a SINGLE whole-body clip `nml_carryB_free` (17f loop) — legs
+AND arms both track it at the same phase. It does **NOT** layer a carry upper-body anim onto a walk
+lower-body via the N64 `sUpperBodyLimbCopyMap` (that copy-map is for cases where the upper plays a
+*separate* action over locomotion; carrying simply has its own authored clip). carry-IDLE (standing)
+plays `nml_carryB_wait` whole-rig (SetCopyAll). The N64 `PLAYER_ANIMGROUP_carryB[0] = carryB_free`
+(z_player.c:678) confirms carryB_free is THE carry-locomotion clip.
+
+SoH3D FIX (soh3d_link.cpp): carry-WALK now overrides the resolved CSAB to `nml_carryB_free` and free-runs
+it whole-rig by ground speed (same speed-driven loco free-run as walk/run) — replacing the former
+TWO-SOURCE blend (lower nml_walk_free + upper carryB_wait masked b9..21). Geometry re-verified vs the
+oracle: SoH3D's frozen carry-walk pose matches nml_carryB_free at frame 12.25 with mean **0.13°** (legs)
+/ **0.14°** (arms), both halves locked to the same frame == the oracle.
+
+While porting this, fixed a separate **CSAB loop-seam bug** (asset/csab.cpp `sampleTrack`): the HERMITE
+wrap segment (query frame past the last keyframe → interpolate last_kf→first_kf across the loop) computed
+`length = fmodf(k1->time - k0->time, timeEnd)` which is NEGATIVE there (fmodf(0-16,17) = -16), making the
+cubic EXTRAPOLATE garbage at the seam. carryB_free's short 17f loop exposed it (bone 20 / R_HAND read
+~160° off-pose at the seam, though the clip's own bone-20 range is only 56°). Fixed to interpolate the
+forward wrap distance `(k1->time - k0->time) + timeEnd`. Walk-STOP pop re-measured 18.5°→**17.0°** after
+(the walk_end seam also benefits), confirming no regression and a small improvement.
+
+Remaining (minor, separate): the carry-IDLE→carry-WALK clip change (carryB_wait→carryB_free) hard-cuts
+with no morph (~1-frame arm twitch at walk start), the same class as other loco-entry transitions; would
+need the synthetic-morph infra (§6e) generalized to loco-entry. Not visible as a steady-state pop.
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
