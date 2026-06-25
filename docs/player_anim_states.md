@@ -353,6 +353,51 @@ Critical for the SoH3D #117 slide fix. The walk/run leg cycle is **not** advance
 speed (free-run) and skip the morph blend for the loco path. (SoH3D fix: soh3d_link.cpp loco branch,
 commit a91976b — verified posescan 0.6°→36.9° per-frame leg motion.)
 
+## 6c. N64 `jump_climb` / `run_jump_water_fall` → OoT3D family reuse (RE'd 2026-06-25)
+
+These two N64 player-anim families have **no own CSAB** in either link zar; OoT3D's ported
+`z_player` reuses an existing family for each. Recovered statically (group table + call-site
+immediates) for soh3d task #2 — the last 8 unmapped player anims. **No oracle/eyeball needed:
+these are read straight out of the binary.** Names via `tools/skeldata/player_animid_names.json`
+(ZAR file order). SoH3D side: `tools/gen_player_animmap.py` OVERRIDES + `soh3d_player_animmap.inc`.
+
+### jump_climb → **hang** family (the wall-grab/hang/vault states)
+
+The OoT3D **player anim-group table** (the `GET_PLAYER_ANIM(group, modelAnimType)` backing store,
+N64 `sPlayerAnimGroups`) base = **`0x0053a5f8`** (loaded as a literal in `Player_Action_8084411C`
+@ `0x4bba4c`, `ldr fp,[pc]` → word @ `0x4bbda8`). Each group = 6 × u32 animId (one per
+modelAnimType), stride `0x18`. The three jump_climb groups:
+
+| group | table off | animIds (type 0..5) | → CSAB |
+|---|---|---|---|
+| jump_climb_hold | `+0x468` (`0x53aa60`) | 147,148,148,147,147,147 | nml_hang_hold_free / nml_hang_hold |
+| jump_climb_wait | `+0x480` (`0x53aa78`) | 143,144,144,143,143,143 | nml_hang_wait_free / nml_hang_wait |
+| jump_climb_up   | `+0x498` (`0x53aa90`) | 145,146,146,145,145,145 | nml_hang_up_free / nml_hang_up |
+
+The type 0/3/4/5 = `_free`, type 1/2 = non-free split matches N64 `sPlayerAnimGroups` exactly
+(z_player.c:910-935). Cross-validated: the wall-vault branch in `func_8083AA10` (`0x4be634`, N64
+z_player.c:13457) sets `jump_climb_up_free` with the **immediate** animId `0x91`=145=`nml_hang_up_free`
+— same as the table. (Same branch clears CLIMBING_LADDER `bic ...,#0x200000` and does `yaw+=0x8000`.)
+
+### run_jump_water_fall → **run_dive** family (run-jump into deep water)
+
+Direct anim refs (not the group table). In `func_8083AA10` @ `0x1cf9ac` (N64 z_player.c:5809),
+the water-dive branch: `WaterBox_GetSurface1` (`bl 0x33eeb8`) then surface-minus-floor `> 50.0f`
+(`0x1cfd60`) → `func_808389E8(this, animId, 6.0f, play)` @ `0x1cfd74` with **immediate r1=`0x69`=105
+=`nml_run_dive`** and morph `6.0f`, then `Player_SetupAction(Player_Action_80844A44, 0)`. The looper
+**`Player_Action_80844A44` @ `0x21e4e8`** (N64 z_player.c:9971) sets stateFlags2|=0x20, and on
+`LinkAnimation_Update` loops **immediate r2=`0x68`=104=`nml_run_dive_wait`** (`0x21e518`); then
+`Math_StepToF(linearVelocity,0,0.05)` and bgCheckFlags&1 → damage `0x10` knockback — byte-for-byte
+the N64 function.
+
+| N64 anim | OoT3D CSAB (animId) |
+|---|---|
+| jump_climb_hold / _free | nml_hang_hold (148) / nml_hang_hold_free (147) |
+| jump_climb_wait / _free | nml_hang_wait (144) / nml_hang_wait_free (143) |
+| jump_climb_up / _free   | nml_hang_up (146) / nml_hang_up_free (145) |
+| run_jump_water_fall      | nml_run_dive (105) |
+| run_jump_water_fall_wait | nml_run_dive_wait (104) |
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
