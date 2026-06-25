@@ -71,7 +71,7 @@ overworld props that N64 actors draw from `gameplay_field_keep`. Enumerated from
 | `ana01_modelT.cmb`               | grotto hole cover                       | trapdoor (DOOR_ANA family) |
 | `obj_door_omote_model.cmb`       | a door front                            | (cf. zelda_keep door CMBs) |
 | `obj_ginbure_model.cmb` / `_h_`  | EN_EX_RUPPY (0x131)? silver rupee/target| ginbure = silver-sway |
-| `c_bombwall{before,after}_model.cmb` / `s16*` / `s16b*` | BG_BOMBWALL (0xD0) bombable wall | per-scene variants (s16/s16b) |
+| `c_bombwall{before,after}_model.cmb` / `s16*` / `s16b*` | BG_BOMBWALL (0xD0) bombable wall | **DONE** — bombwall.cpp (state-aware); s16/s16b = per-scene variants (later) |
 | `grass05_model.cmb` / `_up`/`_dn`| field grass                             | |
 | `flower1_model.cmb`              | field flower                            | |
 
@@ -96,3 +96,18 @@ single bone, one CMB). Mirrors N64's center-origin draw so no Y correction. Port
 `behaviors/actor/hamishi.cpp` (ObjHamishiBehavior::tryDrawModel), world scale 0.4 (REPL `gscale 15`).
 Verified live (Death Mountain Crater ent 0x147, 11 rocks — needs ADULT Link to spawn; log confirms
 `auto-loaded model … obj_isi01_model.cmb height=192.0`). Grounded, Link-smashable boulder size.
+
+## Bombable wall (BG_BOMBWALL 0xD0) — DONE (increment 1)
+N64 `z_bg_bombwall.c`: `BgBombwall_Draw` → `Gfx_DrawDListOpa(play, this->dList)` from
+OBJECT_GAMEPLAY_FIELD_KEEP at the actor matrix (world.pos + shape.rot.y + scale 0.1). `this->dList`
+is `gBgBombwallNormalDL` while intact, `gBgBombwallBrokenDL` once bombed. OoT3D:
+`Model/c_bombwallbefore_model.cmb` (intact bricked alcove; X ±700, Y -40..1760, Z 0..261, base at
+Y≈0, brick face on one side) and `Model/c_bombwallafter_model.cmb` (the top remnant after the bottom
+blows out). The N64 uses ONE Normal DL across every scene, so the unscoped c_bombwall pair is the
+universal match (`s16`/`s16b` are per-scene texture variants — a later refinement). Ported in
+`behaviors/actor/bombwall.cpp` (BgBombwallBehavior::tryDrawModel), world scale 0.1 (REPL `gscale 16`).
+STATE-AWARE: reads the live `((BgBombwall*)actor)->dList` through the C struct and picks before/after
+(`dList == (Gfx*)gBgBombwallBrokenDL`) so the passage doesn't stay solid after bombing. Verified live
+(Death Mountain Trail ent 0x13D, adult Link; log `auto-loaded model … c_bombwallbefore_model.cmb
+height=1800.0`): brick wall set into the cliff face at the actor position, correct orientation via the
+standard shape.rot transform. Broken-state (after CMB) is handled in code; not yet live-bombed.
