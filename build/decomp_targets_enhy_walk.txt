@@ -1,0 +1,5 @@
+# En_Hy action handlers (walk states)
+0x001c4074
+0x003c3840
+0x003c378c
+0x00116870

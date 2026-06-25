@@ -1,0 +1,8 @@
+# EnDaiku_Init
+0x001d6414
+# EnDaiku_Destroy
+0x001d6730
+# EnDaiku_Update
+0x0020f1a8
+# EnDaiku_Draw
+0x0020f08c

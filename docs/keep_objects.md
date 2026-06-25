@@ -53,3 +53,36 @@ with a swappable texture (silver/base/gray) and a per-scene RGB tint (`sColors`)
 Animated (floor switch depresses, crystal/eye switches have tex scroll + on/off state). Multiple
 `switch_N_model.cmb`. More complex than a static prop — needs the up/down + tex-scroll state, so it's
 a poorer early target than the static pot/crate. Subtype = `params>>4 & 7`.
+
+---
+
+# Field-keep objects (`/actor/zelda_field_keep.zar`) — OoT3D ground truth for SoH3D #115
+
+A second shared keep, the OoT3D `gameplay_field_keep` (N64 OBJECT_GAMEPLAY_FIELD_KEEP), holds the
+overworld props that N64 actors draw from `gameplay_field_keep`. Enumerated from the ROM 2026-06-25
+(tools/ctr_romfs.py + tools/zar.py). 18 CMBs; the relevant ones:
+
+| CMB (Model/...)                  | N64 actor / DL                          | notes |
+|----------------------------------|-----------------------------------------|-------|
+| `hatisu_model.cmb`               | OBJ_COMB (0x19E) `gFieldBeehiveDL`      | **DONE** — comb.cpp (beehive) |
+| `hatisu_hahen_model.cmb`         | beehive fragments `gFieldBeehiveFragmentDL` | break debris |
+| `obj_isi01_model.cmb`            | OBJ_HAMISHI (0x1D2)? small stone (isi)  | DM trail/crater rocks; scale 0.4 |
+| `butterfly.cmb`                  | EN_BUTTE (0x1E) butterfly               | animated flutter |
+| `ana01_modelT.cmb`               | grotto hole cover                       | trapdoor (DOOR_ANA family) |
+| `obj_door_omote_model.cmb`       | a door front                            | (cf. zelda_keep door CMBs) |
+| `obj_ginbure_model.cmb` / `_h_`  | EN_EX_RUPPY (0x131)? silver rupee/target| ginbure = silver-sway |
+| `c_bombwall{before,after}_model.cmb` / `s16*` / `s16b*` | BG_BOMBWALL (0xD0) bombable wall | per-scene variants (s16/s16b) |
+| `grass05_model.cmb` / `_up`/`_dn`| field grass                             | |
+| `flower1_model.cmb`              | field flower                            | |
+
+## Beehive (OBJ_COMB 0x19E) — DONE
+N64 `z_obj_comb.c`: `ObjComb_Draw` → `gSPDisplayList(POLY_OPA_DISP++, gFieldBeehiveDL)` from
+OBJECT_GAMEPLAY_FIELD_KEEP, actor scale 0.1 (`ICHAIN_VEC3F_DIV1000(scale, 100)`). The draw pivots
+about `pos.y + 118*scale.y` then translates back `-118*scale.y` purely so the hive can swing on its
+attachment point — for the rest pose those translates cancel and the hive sits at world.pos.
+OoT3D = `hatisu_model.cmb` (hachi-su = beehive; W/D ±161.6, H -160..188, single bone, one CMB across
+all fields). The OoT3D hive is a redesign with deeper honeycomb cells vs the N64 hive but the same
+footprint. Ported in `behaviors/actor/comb.cpp` (ObjCombBehavior::tryDrawModel), world scale 0.1
+(REPL `gscale 14`), matching the N64 footprint (verified live, Grottos ent 0x3F, x2 hives, A/B vs
+N64 enable-toggle — near-identical size). The pivot offset is irrelevant to the rest draw so no Y
+correction is needed.

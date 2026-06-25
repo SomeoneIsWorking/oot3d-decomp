@@ -1,0 +1,6 @@
+# En_Hy walk-action entry/transition functions
+0x003ac31c
+0x003ac990
+0x003acd84
+0x003ad354
+0x003ad9c0
