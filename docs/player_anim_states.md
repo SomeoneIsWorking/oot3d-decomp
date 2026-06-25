@@ -450,14 +450,90 @@ endR). In OoT3D walk is phase-driven so end@0 ≈ walk@(stop phase) → continuo
 phase ≠ the phase end@0 expects, leaving a ~90° gap, and the N64 morph here is only ~3 frames (morphW
 1.0→0.41→0.0) — too short to hide it → the 55° pop.
 
-FIX DIRECTIONS (not yet implemented — needs the OoT3D walk-stop action func decomp for ground truth):
-1. **Phase-align the end-anim selection to the free-run phase** (pick endR/endL + its start frame to
-   match where the free-run cycle actually is), so end@start is continuous — the faithful OoT3D behavior.
-2. OR drive a **longer cross-fade** (the morph) from the frozen free-run walk pose to the end anim,
-   spanning enough frames to absorb the gap. Use OoT3D's actual walk→walk_end morph length, NOT the N64
-   `morphWeight` (which gives the ~3-frame collapse seen above) — per the "port OoT3D, forget N64" rule.
-Need: decompile the walk action func's walk→walk_end `LinkAnimation_Change` (morph length) + how OoT3D
-picks endR/endL and its start frame. (Selection itself is already correct: walk→endR/endL→wait.)
+### GROUND TRUTH — `FUN_002be4c4` = the walk-STOP → walk_end transition (DECOMPILED 2026-06-25)
+
+The walk/run action `FUN_004ba378` (§3) calls the setup-idle pair `FUN_002c2658` + **`FUN_002be4c4`**
+when `velocity==0 || (player+0x29b8 & 4)`. `FUN_002be4c4` is the one that selects the walk_end anim
+and issues its `LinkAnimation_Change` (`FUN_00360190`). Decompiled from `build/decomp/002be4c4.c` +
+the literal pool at `0x2be620` (disasm). **The morph length is PHASE-DEPENDENT, not a fixed -6.**
+
+```c
+// FUN_002be4c4(player, play) — port of N64 the walk→walk_end setup
+//   player+0x2254 = the leg-cycle PHASE accumulator (the "unk_868" analogue), range [0, 29).
+//     Advanced each frame by speed*dt_scale*0.5 (clamped ±7.25) and wrapped in [0,29) by FUN_002dd8b0.
+phase = player[0x2254] - 3.0f;            // DAT_002be620 = 3.0
+if (phase < 0.0f) phase += 29.0f;         // DAT_002be628 = 29.0 (wrap span)
+group = 0x53a5f8 + player[0x1b3]*4;       // the §6c anim-group table, indexed by modelAnimType
+if ((int)phase < 14) {                    // DAT_002be62c = 14.0  -> endR half-cycle
+    animId = <gate> ? group[0x228] : group[0x1f8];   // nml_walk_endR (alt) / nml_walk_endR_free
+    rem = 11.0f - phase;                  // DAT_002be63c = 11.0
+    if (rem < 0.0f) rem *= -1.375f;       // DAT_002be640
+    fv8 = 1.0f/11.0f;                     // DAT_002be644 = 0.0909091
+} else {                                  // endL half-cycle
+    animId = <gate> ? group[0x240] : group[0x210];   // nml_walk_endL (alt) / nml_walk_endL_free
+    rem = 26.0f - phase;                  // DAT_002be648 = 26.0
+    if (rem < 0.0f) rem *= -2.0f;         // DAT_002be64c
+    fv8 = 1.0f/12.0f;                     // DAT_002be650 = 0.0833333
+}
+endFrame    = GetAnimFrameCount(skelAnime, animId);   // FUN_003603c0 -> 11 (walk_end len)
+morphFrames = rem * fv8 * 4.0f;           // DAT_002be658 = 4.0   ==> range 0..4 frames
+LinkAnimation_Change(playSpeed=1.0f /*DAT_002be654*/, startFrame=0.0f /*DAT_002be624*/,
+                     endFrame, morphFrames, skelAnime, play, animId, animMode=2 /*ONCE*/);
+```
+
+**ARG-ORDER CORRECTION (§2 above was WRONG):** reading FUN_00360190's body, `+0x40`(playSpeed) ← param_1
+(line "param_5+0x40 = param_1"), `+0x44`/`+0x3c`(startFrame/curFrame) ← param_2, `+0x48`(endFrame) ←
+param_3, morphFrames = param_4. So the real order is **`(playSpeed, startFrame, endFrame, morphFrames,
+skelAnime, play, animId, mode)`** — param_1 is playSpeed, NOT startFrame. The FUN_002be4c4 call passes
+`(1.0, 0.0, endFrame, morphFrames, …)`, i.e. **playSpeed=1.0, startFrame=0.0**.
+
+**The two non-obvious facts this nails down (confirmed by the literal pool + FUN_00360190 body):**
+1. **walk_end plays from frame 0 and ADVANCES** (`startFrame=0.0`, `playSpeed=1.0`). It is NOT static.
+   Per the N64-side trace + OoT3D update case-3, curFrame is pinned during the morph and then plays
+   forward once the morph completes (the §6e trace's 0,0,0,1.5). The morph blends the frozen leg pose →
+   walk_end@0 (whose frame 0 is authored to continue a specific walk phase), then walk_end plays out.
+2. **morphFrames is PHASE-PROPORTIONAL** (`rem*fv8*4`, 0..4 frames), NOT a fixed -6. It is 0 (instant)
+   at the "sweet-spot" phase where walk@(phase) already equals walk_end@0 (endR: phase 11; endL:
+   phase 26) and grows toward 4 as the stop phase moves away from it. The cross-fade length scales with
+   the size of the walk→walk_end pose gap, keeping per-frame angular velocity bounded. SoH3D's constant
+   ~3-frame N64 morph did not scale → 55° pop when the (decoupled) free-run phase landed far from the
+   sweet spot.
+
+**Confirmed CSAB durations** (`docs/csab_catalog.md`): `nml_walk_free` = **29** (== the phase range, so
+SoH3D's free-run playhead is OoT3D's `player+0x2254` 1:1), `nml_walk_endR/L_free` = **11**.
+
+### SoH3D FIX (IMPLEMENTED 2026-06-25) — port `FUN_002be4c4` into the walk-stop path
+
+In `soh3d_anim.cpp SoH3D_UpdateAnimAuto`: detect the `nml_walk_free → nml_walk_end{R,L}` transition,
+take the frozen free-run walk phase φ (= the outgoing walk_free playhead, `fmod(φ,29)`), and:
+- pick endR/endL by `phase' < 14` (overriding the N64 R/L pick, since SoH3D's free-run phase is
+  decoupled from N64's leg cycle — this guarantees the *near* end pose is chosen for our actual pose);
+- compute `morphFrames = rem*fv8*4` from φ exactly as above;
+- play walk_end from frame 0 (startFrame=0, playSpeed=1.0): pinned at 0 during the morph, advancing
+  after — and run a SYNTHETIC morph (weight 1→0 at `1/morphFrames` per **logic** frame via
+  `play->gameplayFrames`, not per draw) cross-fading the frozen walk pose → walk_end — replacing the
+  N64 morphWeight (its constant ~3-frame collapse) with the phase-proportional length.
+VERIFY: `posescan` over natural walk-stops; sample per-LOGIC-frame by `step 1; sleep ~0.12` (freeze
+alone advances logic but draws are async — without a brief sleep only ~4 draws land per 24 steps, so
+the deltas span multiple logic frames and the metric lies). Compare against SoH3D's own steady-walk
+per-logic-frame baseline (~18°), which equals the oracle's steady-walk max.
+
+#### STATUS (2026-06-25): ported + measurable improvement, NOT yet at parity — residual phase-offset
+- Oracle ground truth (`tools/oracle_link_pose.py --hold-circle 0,55 --release-after 2.0`, jointTable,
+  per-distinct-frame): walk-stop is SMOOTH, **max per-frame bone jump ≤18.3°** (all on leg bones =
+  the steady walk cycle; the stop adds NO spike; median 4.7°).
+- SoH3D after this port: the walk_end pop dropped from the documented ~55° to **~43°** (one logic frame,
+  thigh bone3) and the walk_end→idle tail is now smooth (≤6°). So the port helps but is NOT at parity.
+- ROOT CAUSE of the residual: SoH3D renders the walk cycle from the **`nml_walk_free` CSAB sampled by a
+  free-run frame φ**, but OoT3D's leg cycle is `LinkAnimation_BlendToJoint(walk_L,walk_R,phase)` driven
+  by `player+0x2254`. `walk_end@0` is authored to continue the **leg-phase**, and the sweet spots in
+  FUN_002be4c4 (endR→leg-phase 14, endL→leg-phase 0/29) are in leg-phase units. §6d only matched
+  `nml_walk_free@frame` to the oracle pose via a BEST-PHASE search — i.e. there is a constant offset
+  **K** between the CSAB frame φ and the leg-phase. The morph length + endR/endL sweet-spot are computed
+  from φ as if K=0, so near a sweet spot (short morph) the gap does NOT vanish → the residual pop.
+- NEXT: derive K from the oracle (read `player+0x2254` alongside the rendered pose, or run
+  `parity_pose_sweep.py` and read the phase offset it fits), then map `φ_legphase = (φ - K) mod 29`
+  before the FUN_002be4c4 math. K is a measured ground-truth alignment (NOT a tuned magic constant).
 
 ## 7. Cross-links
 
