@@ -166,8 +166,9 @@ down/back — the real cause of soh3d #116, masked (not fixed) by an 0x4000 plau
 value is then the genuine Npc_TrackPoint-clamped rotation and the faithful `RotateX(rot.y)·RotateZ(rot.x)`
 applies cleanly with no clamp. The raw `interactOff` numbers here are FYI for identifying the field in a
 decomp; they are NOT valid runtime byte offsets in the 64-bit SoH3D build. Same caveat for the facial
-eye/mouth index offsets (read those via the C struct too). En_Sa/En_Md/En_Ma1-3/En_Hy still on the legacy
-raw-offset path in SoH3D — migrate each into a `behaviors/actor/*.cpp` module with typed reads.
+eye/mouth index offsets (read those via the C struct too). **DONE 2026-06-25:** En_Sa/En_Md/En_Ma1-3/En_Hy
+all migrated into `behaviors/actor/{saria,mido,malon,townsfolk}.cpp` with typed reads; the legacy
+raw-offset track/facial tables in soh3d_anim_override.cpp are deleted.
 
 ## SUMMARY of corrections to the SoH3D port assumptions
 1. **interactInfo @ 0x1E8 is wrong** — it is per-actor: En_Ko +0x28c (head +0x294, torso +0x29a),
