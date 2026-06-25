@@ -1,0 +1,4 @@
+# OoT3D Boss_Goma (Queen Gohma) — actor id 40/0x28, objId 28
+0x00221d70  # draw
+0x00221f20  # update
+0x001ed884  # init
