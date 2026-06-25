@@ -398,6 +398,35 @@ the N64 function.
 | run_jump_water_fall      | nml_run_dive (105) |
 | run_jump_water_fall_wait | nml_run_dive_wait (104) |
 
+## 6d. Geometry-level POSE parity — locomotion VERIFIED MATCH (2026-06-25)
+
+Sections 6/6b/6c verified **selection** (which CSAB) and **frame advancement** (free-run vs
+curFrame). This section verifies the next level down: the actual **per-bone rendered pose**, i.e.
+whether SoH3D's CSAB evaluator (`asset/csab.cpp skinMatrices`) reproduces the geometry OoT3D draws.
+
+Method (geometry-level, no eyeball — see SoH3D `tools/parity_pose_diff.py`):
+- ORACLE pose = live `jointTable` at PLAYER+0x254+0x78, per-bone LOCAL 3x3 (`tools/oracle_link_pose.py`).
+- SoH3D pose = resolved skin matrices (REPL `skindump`), de-parented to LOCAL rotation per bone.
+- Both rigs share the childlink_v2 bind frame, so LOCAL rotations compare directly. The two playheads
+  are NOT frame-locked, so per oracle frame we take the best-phase SoH3D frame and report the median
+  best-mean per-bone geodesic angle.
+
+Result (Kokiri 0xEE open ground, matched speedXZ; reproducible via SoH3D `tools/parity_pose_sweep.py`):
+- **run** (`nml_run_free`, speedXZ 5.5):  median best-mean-angle **1.5°  → MATCH**
+- **walk** (`nml_walk_free`, speedXZ 3.2): median best-mean-angle **1.3°  → MATCH**
+
+CAPTURE-DENSITY CAVEAT (learned the hard way): headless renders many DRAWS per logic tick, and skindump
+dedups identical consecutive poses, so a short 40-draw burst keeps only ~19 distinct phase samples →
+sparse coverage → the best-phase match is loose and the median inflates to 5–13° (a single bad-phase
+shin frame dominates). Capturing 120 draws (~42 distinct samples) vs 90 oracle frames collapses both
+walk and run to ~1–2° and the result is stable across repeated runs. The earlier transient FAIL was this
+artifact, NOT an evaluator divergence. **Conclusion:** SoH3D's CSAB evaluator + speed-driven free-run
+advancement render Link's
+locomotion poses faithful to OoT3D. Gated states inherit this evaluator; their selection + frame
+advancement are decomp-verified (§6/6b/6c), but a live oracle POSE compare for them is blocked by the
+equipment-less oracle save (it cannot REACH attack/jump/climb/swim/carry/damage live — see SoH3D
+`tools/parity_state_sweep.py` notes).
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
