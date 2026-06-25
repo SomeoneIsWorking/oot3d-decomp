@@ -427,6 +427,38 @@ advancement are decomp-verified (§6/6b/6c), but a live oracle POSE compare for 
 equipment-less oracle save (it cannot REACH attack/jump/climb/swim/carry/damage live — see SoH3D
 `tools/parity_state_sweep.py` notes).
 
+## 6e. walk-STOP pop — phase-discontinuity at the loco free-run exit (RE'd 2026-06-25, OPEN)
+
+Follow-on from §6b/§6d. The walk/run cycles MATCH at steady state (§6d), but the **walk→stop transition
+POPS** in SoH3D while the oracle is smooth. Measured (SoH3D `posescan`, true 1-logic-frame `freeze`+`step`):
+- SoH3D walk-stop: max per-frame shoulder/shin jump **~55°** (bone 18 shldr-X / bone 7 shin-X).
+- Oracle walk-stop (`oracle_link_pose.py --release-after`): max per-frame any-bone jump **~18°** (smooth).
+
+Frame-by-frame N64-side trace (`linkanimstate` under freeze+step) of the SoH3D stop:
+```
+step2  nml_walk_endR_free f=0.0/11.0  morphW=1.00   <- transition begins
+step3  nml_walk_endR_free f=0.0/11.0  morphW=0.41
+step4  nml_walk_endR_free f=0.0/11.0  morphW=0.00   <- morph already done (~3 frames)
+step5  nml_walk_endR_free f=1.5/11.0  morphW=0.00   <- only NOW does the end anim advance
+```
+
+ROOT CAUSE: the §6b slide fix free-runs the walk cycle by ground speed, **decoupled from the N64 walk
+phase**. So at stop time the free-run playhead is at an arbitrary phase (e.g. walk_free@11.7/20), but the
+morph cross-fades it to `nml_walk_endR_free` **@ frame 0.0** — and the end anim's frame 0 is authored to
+continue a SPECIFIC walk phase (the foot-forward pose OoT3D's phase-driven cycle is at when it selects
+endR). In OoT3D walk is phase-driven so end@0 ≈ walk@(stop phase) → continuous. In SoH3D the free-run
+phase ≠ the phase end@0 expects, leaving a ~90° gap, and the N64 morph here is only ~3 frames (morphW
+1.0→0.41→0.0) — too short to hide it → the 55° pop.
+
+FIX DIRECTIONS (not yet implemented — needs the OoT3D walk-stop action func decomp for ground truth):
+1. **Phase-align the end-anim selection to the free-run phase** (pick endR/endL + its start frame to
+   match where the free-run cycle actually is), so end@start is continuous — the faithful OoT3D behavior.
+2. OR drive a **longer cross-fade** (the morph) from the frozen free-run walk pose to the end anim,
+   spanning enough frames to absorb the gap. Use OoT3D's actual walk→walk_end morph length, NOT the N64
+   `morphWeight` (which gives the ~3-frame collapse seen above) — per the "port OoT3D, forget N64" rule.
+Need: decompile the walk action func's walk→walk_end `LinkAnimation_Change` (morph length) + how OoT3D
+picks endR/endL and its start frame. (Selection itself is already correct: walk→endR/endL→wait.)
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
