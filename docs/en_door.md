@@ -19,20 +19,23 @@ OoT3D keeps the generic door model in **`/actor/zelda_keep.zar`** (the OoT3D equ
 
 "omote" = front face (Japanese). Shutter (DOOR_SHUTTER): `shutter/model/n_door_model.cmb`.
 
-### Which CMB does a standard scene door use?
-N64 `z_en_door.c` `sDoorInfo[]` maps scene -> (dListIndex, object). Standard (non-temple) doors
-fall through to the two KEEP rows: `{-1, 0, GAMEPLAY_KEEP}` and `{-1, 4, GAMEPLAY_FIELD_KEEP}`.
-The decomp note in z_en_door.c: **"Due to Object_GetIndex always returning 0, doors always use the
-OBJECT_GAMEPLAY_FIELD_KEEP door."** So dListIndex resolves to **4 = `gFieldDoorLeftDL/RightDL`** —
-the FIELD door is what the player actually sees on every standard house/building door. OoT3D's
-faithful match is therefore **`m_Fnormaldoor_omote_model.cmb`** for all standard EN_DOOR.
+### Which CMB does a scene door use?
+N64 `z_en_door.c` `sDoorInfo[]` maps scene -> (dListIndex, object). `EnDoor_Init` loops the
+TEMPLE rows first; if the scene matches a temple it breaks early and uses THAT row. Only if no
+temple row matched (`i >= ARRAY_COUNT-2`) does the **"Object_GetIndex always returns 0"** quirk
+fire and bump the row to `{-1, 4, GAMEPLAY_FIELD_KEEP}`. So the quirk applies to **non-temple doors
+ONLY** — standard house/building doors resolve to **dListIndex 4 = `gFieldDoorLeftDL/RightDL`** =
+**`m_Fnormaldoor_omote_model.cmb`**. Temple doors genuinely use their dungeon-specific object +
+dListIndex (the earlier mistaken claim that *all* doors use field-keep was wrong — verified against
+the `EnDoor_Init` loop, 2026-06-25).
 
-Temple-specific doors (N64 sDoorInfo special rows) draw from per-dungeon objects, with OoT3D
-equivalents in those objects' ZARs (handle later, lower priority — temples are fewer scenes):
-- SCENE_FIRE_TEMPLE  -> dListIndex 1 (OBJECT_HIDAN_OBJECTS) -> object_hidan_objects equivalent
-- SCENE_WATER_TEMPLE -> dListIndex 2 (OBJECT_MIZU_OBJECTS)
-- SCENE_SHADOW_TEMPLE / BOTTOM_OF_THE_WELL -> dListIndex 3 (OBJECT_HAKA_DOOR -> zelda_haka_door.zar)
-- SCENE_FOREST_TEMPLE -> dListIndex 0 (KEEP)
+Temple-specific doors (sDoorInfo temple rows) draw from per-dungeon objects. OoT3D equivalents
+(all confirmed present in ROM, all share the IDENTICAL 4-bone door layout as the standard door, so
+the increment-2 swing applies unchanged — see "Increment 3" below):
+- SCENE_FIRE_TEMPLE  -> dListIndex 1 (OBJECT_HIDAN_OBJECTS) -> `zelda_hidan_objects.zar|Model/m_Fnormaldoor_omote_model.cmb` (14592B)
+- SCENE_WATER_TEMPLE -> dListIndex 2 (OBJECT_MIZU_OBJECTS) -> `zelda_mizu_objects.zar|Model/m_Wnormaldoor_omote_model.cmb` (14592B)
+- SCENE_SHADOW_TEMPLE / BOTTOM_OF_THE_WELL -> dListIndex 3 (OBJECT_HAKA_DOOR) -> `zelda_haka_door.zar|Model/m_Hnormaldoor_omote_model.cmb` (14592B)
+- SCENE_FOREST_TEMPLE -> dListIndex 0 (KEEP gDoorDL) -> `zelda_keep.zar|door/model/door_model.cmb` (9216B, generic KEEP door)
 
 ## Bone / pivot structure (m_Fnormaldoor_omote_model.cmb)
 ```
@@ -56,7 +59,9 @@ CMB at the actor's world.pos + shape.rot.y + calibrated scale, suppressing the N
 - Increment 1: static CLOSED door (rest pose) via the forced-CMB path (like the windmill/well-arch
   self-calibrating scale). Covers 24 scenes' standard doors with the OoT3D look. m_Fnormaldoor.
 - Increment 2 (DONE 2026-06-25): swing — rotate the panel bone by the live open angle. See below.
-- Increment 3: temple door variants + shutter (DOOR_SHUTTER) + DOOR_ANA holes.
+- Increment 3 (DONE 2026-06-25): temple door variants — per-scene CMB table in door.cpp (Fire/Water/
+  Shadow+Well/Forest), reusing the increment-2 swing verbatim (all 5 CMBs share the 4-bone layout).
+- Follow-up: shutter (DOOR_SHUTTER, vertical slide) + DOOR_ANA grotto holes.
 
 Assets verified present in ROM via tools/ctr_romfs.py + tools/zar.py (2026-06-25).
 
