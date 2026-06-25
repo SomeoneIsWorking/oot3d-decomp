@@ -55,8 +55,48 @@ actor unchanged. ONLY the draw differs. Port = intercept the door draw and subst
 CMB at the actor's world.pos + shape.rot.y + calibrated scale, suppressing the N64 door.
 - Increment 1: static CLOSED door (rest pose) via the forced-CMB path (like the windmill/well-arch
   self-calibrating scale). Covers 24 scenes' standard doors with the OoT3D look. m_Fnormaldoor.
-- Increment 2: swing — rotate the panel bone by the live open angle (N64 world.rot.y + the open
-  SkelAnime), front/back face. Needs a per-bone rotation override on the GL draw.
+- Increment 2 (DONE 2026-06-25): swing — rotate the panel bone by the live open angle. See below.
 - Increment 3: temple door variants + shutter (DOOR_SHUTTER) + DOOR_ANA holes.
 
 Assets verified present in ROM via tools/ctr_romfs.py + tools/zar.py (2026-06-25).
+
+## Increment 2 — panel swing (live-traced ground truth, 2026-06-25)
+The swing angle a standard handle door applies to its panel is **`skelAnime.jointTable[3].z`**
+(binang) — the animated rotation of the panel limb from the open/close SkelAnime — PLUS
+`actor.world.rot.y` (the DOOR_AJAR term, which `EnDoor_OverrideLimbDraw` adds via `rot->z +=
+world.rot.y`; standard handle doors keep world.rot.y == 0, so for them the whole swing is in
+jointTable[3].z; AJAR doors keep jointTable ~0 and carry it in world.rot.y instead).
+
+LIVE capture of a forced open (SoH `doorforce`; animStyle 0 = gDoorAdultOpeningLeftAnim, full
+open+close cycle, frame 0→65), reading `jointTable[3].z` through the EnDoor C struct each step:
+
+| anim frame | jointTable[3].z (binang) | ≈ degrees |
+|-----------:|-------------------------:|----------:|
+| 0–24       | 0                        |  0  (still closed; player walking up) |
+| 28.5       | -336                     | -1.8 |
+| 34.5       | -4756                    | -26  |
+| 40.5       | -8383                    | -46  |
+| 46.5       | -9380                    | -52  |
+| 52.5       | **-10728** (peak)        | **-59** |
+| 58.5       | -8809                    | -48  (closing) |
+| 64.5       | -1308                    | -7   |
+| 65         | 0                        |  0  (closed) |
+
+So a standard door swings to **~-59°** open, not a full 90°. Sign is negative.
+
+### SoH3D port (behaviors/actor/door.cpp, #115)
+The OoT3D door CMB has no swing CSAB (the swing is procedural in OoT3D too), so the port renders the
+CMB **bind pose with a procedural per-bone local-euler delta** on the panel bone — the OoT3D analogue
+of N64's `rot->z +=`. New runtime support added for this:
+- `SoH3D::restPoseSkinMatrices` (asset/csab.cpp) — skin matrices from the CMB REST TRS (no clip),
+  with the existing boneRotDelta / bonePostRot channels applied; `SoH3D_UpdateBindPose` (soh3d_anim.cpp)
+  is the C-ABI entry that consumes the per-bone rot-delta store and uploads the posed skin.
+- door.cpp reads `swing = jointTable[3].z + world.rot.y` through the EnDoor C struct and sets a
+  local-euler delta on **CMB bone 1** about its **local Y** axis (= the vertical hinge after bone1's
+  -90°-X rest; rotating about local X or Z tilts the panel flat instead — confirmed on-screen),
+  gain +1. The delta pivots at bone1's own origin (the -2700-X hinge edge), so the panel swings from
+  the correct EDGE with no magic pivot translate (avoids the "revolving door about the centre" trap).
+- Calibrated + verified LIVE 2026-06-25 (Kakariko cucco house, scene 0x52): held-pose A/B at
+  jointTable peak -10728 swings the panel ~59° open about the edge hinge; closed (live, opening=0) is
+  flush. Live tuning knobs retained: REPL `doorbone/dooraxis/doorgain`, `doorhold <binang>` (pin the
+  swing for stills), `doorforce` (trigger a real open for tracing). Defaults are the calibrated values.
