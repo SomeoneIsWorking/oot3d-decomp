@@ -35,6 +35,28 @@ caller in the player action-func block.
 `FUN_0036b4ec` (the update dispatcher switch), and `FUN_003603f8` (root-motion commit).
 N64 offsets from `Shipwright/soh/include/z64animation.h`.
 
+### jointTable element format — RE'd live 2026-06-25 (the live pose source for the parity sweep)
+
+The `+0x78` jointTable is NOT N64-style `Vec3s` rotations — OoT3D stores **per-bone LOCAL 3×4 float
+transforms**, **stride = 13 floats (0x34 bytes) per bone**, in skeleton-bone order (25 for child Link):
+
+```
+float[0..11] = 3×4 row-major matrix:  row r = [ m_r0, m_r1, m_r2, t_r ]
+  rotation 3×3 = floats {0,1,2 / 4,5,6 / 8,9,10}   (orthonormal, the anim output)
+  translation  = floats {3, 7, 11}                 (LOCAL offset from parent ≈ bone length)
+float[12]    = trailing pad/flag (0.0 at rest)
+```
+Verified: bone0 (root) = identity 3×4 at origin; bone2's local translation ≈ 0 matches its CMB bind
+offset (so the matrices are PARENT-LOCAL, not world); leg-bone local rotations cycle 36–128° over a
+run cycle. **This array updates every LOGIC frame regardless of rendering** — unlike the render-side
+bone-world-matrix array (`actor+0x25c → +0x20 → +0xd4`, see `tools/link_skel_live.py`), which is a
+GPU-skinning product that stays FROZEN under headless Azahar (no display present). So per-frame pose
+read-back for the parity sweep MUST use this jointTable, NOT the render array.
+
+- `+0x74` ("limb count" in the morph copy loop) reads 0x119/281 live — it is NOT the 25-bone count;
+  treat the bone count as the model's CMB bone count (25 for child), not this field.
+- Tool: soh3d `tools/oracle_link_pose.py` reads the local rotation 3×3 per bone per frame from here.
+
 ### AnimMode / update-state mapping
 The `+0x70` mode byte drives which update-state `+0x71` gets set by `FUN_00360190`:
 ```
