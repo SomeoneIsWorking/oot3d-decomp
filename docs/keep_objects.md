@@ -66,7 +66,7 @@ overworld props that N64 actors draw from `gameplay_field_keep`. Enumerated from
 |----------------------------------|-----------------------------------------|-------|
 | `hatisu_model.cmb`               | OBJ_COMB (0x19E) `gFieldBeehiveDL`      | **DONE** — comb.cpp (beehive) |
 | `hatisu_hahen_model.cmb`         | beehive fragments `gFieldBeehiveFragmentDL` | break debris |
-| `obj_isi01_model.cmb`            | OBJ_HAMISHI (0x1D2)? small stone (isi)  | DM trail/crater rocks; scale 0.4 |
+| `obj_isi01_model.cmb`            | OBJ_HAMISHI (0x1D2) `gSilverRockDL`     | **DONE** — hamishi.cpp (silver rock) |
 | `butterfly.cmb`                  | EN_BUTTE (0x1E) butterfly               | animated flutter |
 | `ana01_modelT.cmb`               | grotto hole cover                       | trapdoor (DOOR_ANA family) |
 | `obj_door_omote_model.cmb`       | a door front                            | (cf. zelda_keep door CMBs) |
@@ -86,3 +86,13 @@ footprint. Ported in `behaviors/actor/comb.cpp` (ObjCombBehavior::tryDrawModel),
 (REPL `gscale 14`), matching the N64 footprint (verified live, Grottos ent 0x3F, x2 hives, A/B vs
 N64 enable-toggle — near-identical size). The pivot offset is irrelevant to the rest draw so no Y
 correction is needed.
+
+## Silver rock (OBJ_HAMISHI 0x1D2) — DONE
+N64 `z_obj_hamishi.c`: `ObjHamishi_Draw` → `gSPDisplayList(POLY_OPA_DISP++, gSilverRockDL)` from
+OBJECT_GAMEPLAY_FIELD_KEEP at the actor matrix with no extra Y offset, actor scale 0.4
+(`ICHAIN_VEC3F_DIV1000(scale, 400)`). The Megaton-Hammer-smashable gray boulder. OoT3D =
+`obj_isi01_model.cmb` (isi = stone; X -94.6..79.4, Y -96.8..95.2, Z -91.9..94.0, center-origin,
+single bone, one CMB). Mirrors N64's center-origin draw so no Y correction. Ported in
+`behaviors/actor/hamishi.cpp` (ObjHamishiBehavior::tryDrawModel), world scale 0.4 (REPL `gscale 15`).
+Verified live (Death Mountain Crater ent 0x147, 11 rocks — needs ADULT Link to spawn; log confirms
+`auto-loaded model … obj_isi01_model.cmb height=192.0`). Grounded, Link-smashable boulder size.
