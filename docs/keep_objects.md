@@ -9,7 +9,7 @@ ROM 2026-06-25 (tools/ctr_romfs.py + tools/zar.py). 31 CMBs; the relevant ones:
 |---------------------------|----------------------------------------|-------|
 | `tubo_model.cmb`          | EN_TUBO_TRAP `gPotDL`                   | **DONE** — pot.cpp (single unthemed pot) |
 | `tubo_hahen_model.cmb`    | pot fragments `gPotFragmentDL`         | break debris |
-| `kibako_model.cmb`        | OBJ_KIBAKO / crate                      | wooden crate |
+| `kibako_model.cmb`        | OBJ_KIBAKO `gSmallWoodenBoxDL`          | **DONE** — kibako.cpp (200u cube, base Y=0, scale 0.1) |
 | `kibako_hahen_model.cmb`  | crate fragments                        | |
 | `switch_{1,2,4,5,6,7,9,10,11}_model.cmb` | OBJ_SWITCH (0x12A)      | floor/crystal/eye switches; ANIMATED (up/down, tex scroll) |
 | `crashbox_model.cmb`      | breakable box                          | |
@@ -24,6 +24,13 @@ dungeons). Ported in `behaviors/actor/pot.cpp` (EnTuboTrapBehavior::tryDrawModel
 (162-unit CMB → ~21 world units, calibrated to N64 pot base footprint in Spirit Temple). The OoT3D
 pot is a taller urn redesign vs the squat N64 pot, so base width — not height — is the match target.
 Verified live (Spirit Temple ent 130, x6 pots). Commit d254952.
+
+## Crate (OBJ_KIBAKO 0x110) — DONE
+N64 `z_obj_kibako.c`: `Gfx_DrawDListOpa(play, gSmallWoodenBoxDL)` from OBJECT_GAMEPLAY_DANGEON_KEEP,
+actor scale 0.1 (`ICHAIN_VEC3F_DIV1000(scale, 100)`). OoT3D = `kibako_model.cmb` (X/Z ±100, Y 0..200,
+base at origin, single mesh/texture). Ported in `behaviors/actor/kibako.cpp`, world scale 0.1.
+**Reproduction**: the crate appears in no coverage room-0, so spawn it with `spawnp 0x110 0` in any
+dungeon (OBJECT_GAMEPLAY_DANGEON_KEEP loaded). Verified live in Spirit Temple — solid grounded crate.
 
 ## Push block (OBJ_OSHIHIKI 0xFF) — INVESTIGATED, blocked on reproduction
 N64 `z_obj_oshihiki.c`: draws ONE mesh `gPushBlockDL` (unit cube) scaled by `sScales[params & 0xF]`,
@@ -41,13 +48,11 @@ with a swappable texture (silver/base/gray) and a per-scene RGB tint (`sColors`)
   pick the brick CMB, world scale = `(gPushBlockDL_raw_size × sScales[type]) / 600`. STILL NEED the
   N64 `gPushBlockDL` raw cube dimension (extract from the OTR object, or measure a drawn block) to
   set the scale faithfully — without it the scale is a guess.
-- **REPRODUCTION BLOCKER (2026-06-25):** in Spirit Temple ent 130, `actorscan 0xFF` finds 1 block at
-  (542,-50,-1) with `drawn=0`; `tp` does NOT load its room, and `roomwarp 1..28` never makes it
-  `drawn=1` (the room's actor list doesn't spawn the block in headless). Per the project hard rule,
-  do NOT attempt the push-block fix until reproduction is reliable: either (a) build/extend repro
-  tooling so an arbitrary scene actor can be force-spawned/observed, or (b) find an entrance where a
-  push block is in room 0 (check coverage_results.json for OBJ_OSHIHIKI; Dodongo's Cavern,
-  Ganon's Tower, GTG also have them).
+- **REPRODUCTION — SOLVED (2026-06-25):** the room-actor-list issue is moot now that `spawnp` exists.
+  Spawn a block on demand in any dungeon (OBJECT_GAMEPLAY_DANGEON_KEEP loaded) with
+  `spawnp 0xFF <params>`, where `params` low nibble = size (`sScales` index) and the theme is the
+  scene's (the scene→theme table above). This is how the crate (OBJ_KIBAKO) was unblocked. STILL
+  NEED the N64 `gPushBlockDL` raw cube dimension for a faithful scale before porting.
 
 ## Switch (OBJ_SWITCH 0x12A) — not started
 Animated (floor switch depresses, crystal/eye switches have tex scroll + on/off state). Multiple
