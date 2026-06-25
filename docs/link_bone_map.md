@@ -110,6 +110,29 @@ snap (#86).
 i.e. shift HEAD→b11 and HAT→b12, and set b10 to rest. This touches the shipped retarget path — gate any change on `soh3d/tools/soh3d_anim_qa.py`
 (pose-discontinuity scanner) before/after, per [[soh3d-asel-link-and-3d3-static-ok]].
 
+## Carry-walk upper/lower body partition (#85 two-source blend)
+
+N64 splits a walking-while-carrying pose per-limb via `sUpperBodyLimbCopyMap` (z_player.c:397): the
+base locomotion clip drives the LOWER body (legs cycle) while the carry clip (e.g. `carryB_wait`,
+arms raised) is copied onto the UPPER-body limbs only (`AnimationContext_SetCopyTrue`). The N64 map
+marks `PLAYER_LIMB` 10–21 (`UPPER, HEAD, HAT, COLLAR, L/R_SHOULDER, L/R_FOREARM, L/R_HAND, SHEATH,
+TORSO`) as upper. Mapped onto the OoT3D 25-bone rig via the table above:
+
+| region | OoT3D bones | source clip |
+|--------|-------------|-------------|
+| LOWER (root, waist, lower-pivot, R/L legs) | **0–8** | locomotion (walk/run) |
+| UPPER (spine b9, chest b10, head b11, hat b12, collar/shoulder roots b13/b17, L arm b14/15/16, R arm b18/19/20, sheath b21) | **9–21** | carry pose |
+| aux root2 | 22–24 | locomotion (leave lower) |
+
+So the partition is simply **bones 9–21 = upper**, everything else lower. Same for child
+(childlink_v2) and adult (link_v2) — shared rig. SoH3D ports this as `SoH3D_UpdateAnimTwoSource` +
+`kLinkUpperBodyMask` (csab.cpp `skinMatricesTwoSource`): each bone samples its LOCAL transform from
+its source clip, then the normal parent-multiply composes the hierarchy, so an upper arm hangs off
+the walking pelvis exactly as the N64 copy-map result. VERIFIED (soh3d): lower-body bone world
+matrices are bit-identical to a walk-only pose (legs come purely from the walk clip), while the hand
+bones sit ~1600 model-units higher (raised carry pose) and stay steady as the legs cycle — confirmed
+both deterministically (`linktwo` forced blend) and on a live cucco carry-walk.
+
 ## Tools
 - `soh3d/tools/link_skel_dump.py [zar]` — static rest skeleton + world positions.
 - `oot3d-decomp/tools/link_skel_live.py` — live per-bone world matrices from the oracle.
