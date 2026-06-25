@@ -330,6 +330,29 @@ active when the version gate `(player+0x174e==1 && *0x54ac55 >= 'Q' && !(player+
 
 ---
 
+## 6b. Ground locomotion (walk/run) leg-cycle — does NOT use curFrame/morph (RE'd 2026-06-25)
+
+Critical for the SoH3D #117 slide fix. The walk/run leg cycle is **not** advanced by the standard
+`skelAnime.curFrame` playhead. Instead (N64 twin `z_player.c`, confirmed in this build):
+
+- **Run action** `Player_Action_8084193C` → calls `func_80841860` EVERY frame, which sets
+  `skelAnime.animation` directly and calls **`LinkAnimation_BlendToJoint(walk_L, walk_R, phase, …)`**
+  — blending two static stride poses by an internal accumulator **`unk_868`** (the leg-cycle phase,
+  advanced by `func_8084029C` per frame from ground speed). The pose is written straight into the
+  jointTable; `curFrame` is never advanced.
+- **Walk action** `Player_Action_80842180` → `func_80841EE4` similarly uses `LinkAnimation_LoadToJoint`
+  + `LinkAnimation_InterpJointMorph` each frame, again driven by `unk_868`, not `curFrame`.
+- The run is ENTERED once by `func_8083C858` → `Player_AnimChangeLoopMorph` (= `LinkAnimation_Change`
+  with morphFrames `-6`), which sets `morphWeight = 1.0` and `curFrame = 0` ONCE. Because the steady
+  cycle bypasses the curFrame/morph machinery, **both `curFrame` (0) and `morphWeight` (1.0) stay
+  pinned for the whole run** — they are stale artifacts, not live values.
+
+**Consequence for any CSAB/retarget port (SoH3D):** you CANNOT phase-lock a locomotion CSAB to
+`curFrame` (dead at 0) and you must NOT treat the pinned `morphWeight=1.0` as a live cross-fade weight
+(doing so blends the run toward the frozen idle = a motionless slide). Drive the loco CSAB by ground
+speed (free-run) and skip the morph blend for the loco path. (SoH3D fix: soh3d_link.cpp loco branch,
+commit a91976b — verified posescan 0.6°→36.9° per-frame leg motion.)
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
