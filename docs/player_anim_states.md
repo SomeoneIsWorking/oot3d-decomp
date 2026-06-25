@@ -531,9 +531,36 @@ per-logic-frame baseline (~18°), which equals the oracle's steady-walk max.
   `nml_walk_free@frame` to the oracle pose via a BEST-PHASE search — i.e. there is a constant offset
   **K** between the CSAB frame φ and the leg-phase. The morph length + endR/endL sweet-spot are computed
   from φ as if K=0, so near a sweet spot (short morph) the gap does NOT vanish → the residual pop.
-- NEXT: derive K from the oracle (read `player+0x2254` alongside the rendered pose, or run
-  `parity_pose_sweep.py` and read the phase offset it fits), then map `φ_legphase = (φ - K) mod 29`
-  before the FUN_002be4c4 math. K is a measured ground-truth alignment (NOT a tuned magic constant).
+#### RESOLVED (2026-06-25 session 10): at oracle parity — measured-gap morph, NOT the leg-phase formula
+The "derive K" plan was abandoned once the offline pose-match (`tools/walk_stop_sweet.py`, child rig)
+showed the real divergence is deeper than a phase offset:
+- **The single-CSAB walk is NOT the oracle's blend, so there is NO sweet spot.** `nml_walk_free@φ` never
+  matches `walk_end@0` closely — the max per-bone gap stays **36–82°** at EVERY φ (it would be ~0 at the
+  oracle's blend sweet spot). So the decomp's `morphFrames = rem·fv8·4 → 0` is wrong for SoH3D: a 0-frame
+  morph snaps the whole 36–82° gap in one frame. The phase-swept pop was actually up to **119°** (not the
+  43° first measured — it is φ-DEPENDENT; `tools/walk_stop_phase_sweep.py` finds the worst φ), on the
+  SHOULDER (bone 18), not the legs.
+- **The endR/endL choice is decided by the SPINE-TWIST bone (bone 9), and SoH3D can only ever pick endL.**
+  `endR@0` and `endL@0` differ **90°** on bone 9 (the torso counter-twist between right- vs left-foot
+  strides). The oracle's walk_L/walk_R blend twists the spine to match whichever it selects; SoH3D's
+  single `nml_walk_free` barely twists bone 9, so its spine matches `endL@0` at every φ and is ~90° off
+  `endR@0`. Choosing endR (as the old leg-phase pick did at some φ) swings the spine 90°, and that
+  propagates down to every arm bone → the 119° shoulder snap.
+- **FIX (ported, at parity):** drive the cross-fade off the MEASURED gap, not the leg-phase formula. Bake,
+  per integer φ, the max per-bone gap `walk_free@φ → end{R,L}@0` (`tools/gen_walk_stop_sweet.py` →
+  `soh3d_walk_stop_sweet.inc`, all 21 body bones incl. the decisive bone 9). At stop: interpolate the gap
+  for both ends, pick the smaller (= the spine-matched end — always endL for single-CSAB walk), set
+  `morphFrames = gap / 14` (14 = oracle ceiling 18.3° ÷ the measured ~1.3× local-gap→world-rotation
+  parent-chain amplification), and synthetic-morph weight 1→0 at `1/morphFrames` per logic frame from the
+  frozen walk pose into end@0 (end pinned at 0 during the morph, then plays out — unchanged from §6e).
+- **VERIFIED** (`tools/walk_stop_phase_sweep.py`, 15 stop phases, per-logic-frame posescan): worst
+  per-frame bone jump **119° → 18.5°** (end-region 17.0°), i.e. **at the oracle's measured 18.3° ceiling
+  at every stop phase.** Live natural-walk-stop in Kokiri renders a correctly-posed standing Link (no
+  regression). soh3d commit follows.
+- Leftover divergence (acceptable, documented): SoH3D always plays the LEFT-foot end (endL) because its
+  single-CSAB walk cannot reproduce endR's spine; a stop on a right-foot stride plants the "other" foot
+  vs the oracle. Closing this would require porting the walk_L/walk_R BLEND (or a spine-twist on the walk
+  cycle) so endR's spine is reachable — out of scope for the pop fix; file separately if visible in play.
 
 ## 7. Cross-links
 
