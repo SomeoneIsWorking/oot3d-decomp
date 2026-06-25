@@ -284,26 +284,46 @@ should drop from ~110–136° peak to ≤10° (smooth as N64). Gate change on th
 
 ---
 
-## 6. Per-state CSAB quick-reference (for gen_player_animmap.py)
+## 6. animId → CSAB-name resolution (RE'd live 2026-06-25) — GROUND TRUTH for SELECTION parity
 
-Known stable anim ids from static + live sources (OoT3D anim id = CSAB internal index):
+### How `curAnimId` (PLAYER+0x254+0x30) becomes a CSAB
 
-| id (hex) | CSAB name (inferred) | state |
+The live `curAnimId` is an INDEX, resolved by **`FUN_0034807c(animSet, animId)`** (decomp
+`build/decomp/0034807c.c`), called from the per-frame pose sampler `FUN_002bb34c`:
+
+```c
+animSet  = *(skelAnime + 0x04)            // PLAYER+0x258 — the loaded anim-set handle
+count    = (*(animSet+0x20) == -1) ? 0    // bounds (582 for the player set)
+           : *(*(animSet+0xc) + *(animSet+0x20)*0x10)
+if (animId < count)
+    csabDesc = *(*(animSet + 0x50) + animId*4)   // descriptor ptr, ZAR file order
+    csabData = *(csabDesc + 0)                   // raw 'csab' resource (size at +4)
+```
+
+So **`animId` == the file-order index into `/actor/zelda_link_boy_new.zar`** (582 CSABs).
+
+**Proven live (2026-06-25):** read each `csabArr[i]`'s live CSAB header `duration`/`boneCount`
+and compared to `csab_catalog.json` `csabs[i]` IN ORDER — every parseable entry matched in
+sequence (idle `nml_waitF_typeA_20f`, walk `nml_walk_free`=0x47, run `nml_run_free`=0x6c, …).
+The array order is identical to the catalog's ZAR file order.
+
+**Table:** `tools/gen_player_animid_table.py` → `tools/skeldata/player_animid_names.json`
+(`names[animId]` = CSAB name). Live reader: soh3d `tools/oracle_link_animid.py`.
+
+### CORRECTED known ids (the earlier "anim id = CSAB internal index" guesses below were WRONG)
+
+| id (hex/dec) | CSAB name (live-verified) | state |
 |---|---|---|
-| 0x1b | nml_wait_free | idle (modelAnimType==1) |
-| 0x1c | nml_wait_free alt | idle (modelAnimType!=1 alt) |
-| 0x47 | nml_run_free | run (live-confirmed) |
-| 0x50 | nml_wait_yawn | yawn fidget (live-confirmed) |
-| 0x58 | nml_wait_B_free | idle-B fidget (default table index 1/2/3) |
-| 0xe4 | nml_turnR_free | turn-in-place (live: walk-start = 0x4a34d0 uses this) |
-| 0xe6 | 250jump_start | high-ledge mount start |
-| 0xe7 | 150step_up | medium ledge step-up |
-| 0xe8 | 100step_up | short ledge step-up |
-| 0x3a | swim_15step_up | water-exit step-up |
-| 0x3b–0x3f | side_walk*/turn | side-walk discrete set (0x4bf3bc reimpl) |
-| 0x34 | swim / turn-around | side-walk turn-around (0x4bf3bc) |
-| 0x119 | (alt idle table [3]) | version-gated alt path |
-| 0x1f8–0x1fa | (alt idle table 0–3) | version-gated alt path |
+| 0x47 / 71  | **nml_walk_free** | walk (NOT run — earlier note said run) |
+| 0x6c / 108 | **nml_run_free**  | run (the real run anim; live idle→walk→run = 0x56→0x47→0x6c) |
+| 0x50 / 80  | **nml_wait_free** | base idle (NOT yawn) |
+| 0x56 / 86  | **nml_waitF_typeA_20f** | standing idle variant (live default in Kokiri) |
+| 0x58 / 88  | **nml_wait** | idle variant |
+| 0x8f / 143 | nml_hang_wait_free | ledge-hang wait |
+
+Resolve any id from the JSON; do NOT hand-guess. The old inferred table (run=0x47, yawn=0x50,
+etc.) was derived from a wrong "id = internal index" assumption and is superseded by the live
+ZAR-order proof above.
 
 **Alt idle table** (`DAT_0034d680+0x4f8 = 0x53aaF0`): `{0x1f9, 0x1f8, 0x1f8, 0x1fa}` —
 active when the version gate `(player+0x174e==1 && *0x54ac55 >= 'Q' && !(player+0x29b8 & 0x400))` opens.
