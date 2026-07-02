@@ -10,7 +10,11 @@ live 2026-06-21 at Link's House.
 
   link_ctl.py                 # print Link pos/rot + scene
   link_ctl.py tp <x> <z> [y]  # teleport Link (collision-resolved)
-  link_ctl.py warp <entrance> # scene-transition warp (e.g. 0xEE = Kokiri Forest)
+  link_ctl.py warp <entrance> [dayTime]  # scene-transition warp (e.g. 0xEE = Kokiri Forest);
+                                          # optional dayTime u16 (0x0000..0xFFFF, e.g. 0x8000 noon)
+                                          # is written to gSaveContext.dayTime BEFORE the trigger so
+                                          # the loaded scene picks the right day/night variant
+  link_ctl.py time <dayTime>  # set gSaveContext.dayTime (in place; no warp)
 
 WARP: PlayState.transitionTrigger @ play+0x5c2d (s8) is polled every frame by Play_Update
 (fn 0x2e2e60, reached via Play_Main @ 0x45238c). Setting it to 20 (TRANS_TRIGGER_START) with
@@ -25,6 +29,13 @@ from azahar_rpc import Rpc  # noqa: E402
 GPLAYSTATE = 0x0050AF34
 TRANS_TRIGGER = 0x5c2d   # play+offset, s8 (20 = TRANS_TRIGGER_START)
 NEXT_ENTRANCE = 0x5c32   # play+offset, s16
+
+# gSaveContext @ 0x00587958 (.bss; docs/ram_map.md CONFIRMED). dayTime u16 @ +0x0C.
+# Scene-select forks that pick day-vs-night variants (Market Day/Night, Market Ruins,
+# Kakariko Day/Night, etc.) read this at entrance-warp time — write it BEFORE triggering
+# the transition or the loaded scene uses whatever time the save state carried.
+GSAVECONTEXT = 0x00587958
+DAY_TIME = GSAVECONTEXT + 0x0C
 
 def link_head(r):
     ps = r.read32(GPLAYSTATE)
@@ -43,11 +54,18 @@ def tp(r, x, z, y=0.0):
     r.write(h+0x0C, struct.pack("<f", y))
     r.write(h+0x10, struct.pack("<f", z))
 
-def warp(r, entrance):
-    """Scene-transition warp: set nextEntranceIndex then trigger the fade/load."""
+def warp(r, entrance, day_time=None):
+    """Scene-transition warp: optionally pin dayTime, set nextEntranceIndex, trigger fade/load."""
     ps = r.read32(GPLAYSTATE)
+    if day_time is not None:
+        set_day_time(r, day_time)
     r.write(ps + NEXT_ENTRANCE, struct.pack("<h", entrance))
     r.write(ps + TRANS_TRIGGER, bytes([20]))   # TRANS_TRIGGER_START
+
+def set_day_time(r, day_time):
+    """Set gSaveContext.dayTime (u16). Callers should hold this a few frames post-load if
+    the game clock ticks past what they want (dayTime auto-advances at ~one unit per frame)."""
+    r.write(DAY_TIME, struct.pack("<H", day_time & 0xFFFF))
 
 if __name__ == "__main__":
     r = Rpc()
@@ -58,7 +76,14 @@ if __name__ == "__main__":
         import time; time.sleep(0.3)
     elif len(sys.argv) > 1 and sys.argv[1] == "warp":
         ent = int(sys.argv[2], 0)
-        warp(r, ent)
+        day_time = int(sys.argv[3], 0) if len(sys.argv) > 3 else None
+        warp(r, ent, day_time)
         import time; time.sleep(3.0)
+        # Re-pin dayTime post-load so the game clock (which advances ~1/frame during scene
+        # load) doesn't drift past the requested value before we screenshot.
+        if day_time is not None:
+            set_day_time(r, day_time)
+    elif len(sys.argv) > 1 and sys.argv[1] == "time":
+        set_day_time(r, int(sys.argv[2], 0))
     sc, pos, rot, h = state(r)
     print("scene=%d head=%08x pos=(%.1f,%.1f,%.1f) rot=(%d,%d,%d)" % (sc, h, *pos, *rot))
