@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#@runtime Jython
 # Ghidra headless script: decompile functions to C.
 # Run against the analyzed oot3d project:
 #   analyzeHeadless build/ghidra oot3d -process code.bin -noanalysis \

@@ -1,0 +1,7 @@
+# OoT3D En_Elf (Navi) — actor id 0x18/24
+# Resolved via gActorOverlayTable @ 0x0050CD84 stride 0x20 -> +0x18*0x20+0x14 = ActorProfile* 0x005230a4
+# ActorProfile fn slots at +0x10 init, +0x14 destroy, +0x18 update, +0x1c draw
+0x001d6ec4  # EnElf_Draw
+0x001d732c  # EnElf_Update
+0x0018a8e0  # EnElf_Init
+0x0018b12c  # EnElf_Destroy
