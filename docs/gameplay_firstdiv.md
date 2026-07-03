@@ -591,7 +591,83 @@ jump → OoT3D source function. Same substrate wires trivially to future
 speedXZ / yaw / lighting divergences — the classifier just needs to
 know which RE'd field to query.
 
+## Second-scene sweep (2026-07-03) — three scenes, three outcomes
+
+Followed the Link's-House substrate to a real second scene. Tested
+Kokiri Forest, Hyrule Field, Kakariko Village in sequence via
+`scratch/{second_scene,hyrule_field,kakariko}_sweep.py`. Findings:
+
+### Kokiri Forest (ENTR 0x00EE → SCENE 0x0055) — sign-blind
+
+- Both engines Play, but **spawn coord diverges by 122 units** at load
+  (Az at (-66.7,-79,939.4), SoH at (33.7,-79,1009.8)). Same Y — 3DS
+  scene binary was repacked with different spawnList[0] coords.
+- After teleporting SoH to Az's coord via `soh_tp <x> <y> <z> <yaw>`,
+  SoH drifts within 60 frames to yet another position (21.6,-79,1024)
+  with yaw flipped — Kokiri runs a scripted intro-CS behavior that
+  moves Link even without stick input.
+- Actor counts: az=98, soh=54. cat4 grass 11/1, cat5 0/13, cat6
+  ambient 54/32, cat7 NPC 19/3, cat8 background 9/0. Massive 3DS
+  content refactor — new tutorial actors, Wonder_Talk2, etc.
+- **Verdict**: Kokiri Forest is dominated by content-refactor divergence,
+  not Player-port divergence. Sign-blind under the existing policy —
+  no port frontier surfaced. Move on.
+
+### Hyrule Field (ENTR 0x00CD → SCENE 0x0051) — Az enters title-inline
+
+- Az's warp to 0x00CD lands in `title(inline)` gamestate — the OoT3D
+  title-demo playback that shows Link riding across Hyrule Field.
+  Grezzo repurposed that entrance for the title CS. Falls straight
+  through into the classifier's title-vs-Play fallback (limb-rot
+  compare) — not a Play parity signal.
+- **Verdict**: HF is not a workable second parity scene via 0x00CD.
+  Try later HF entrances (0x00CE+) if you want to force normal Play
+  entry; not attempted here.
+
+### Kakariko Village (ENTR 0x00DB → SCENE 0x0052) — CLEAN, new frontier RE'd
+
+- Both engines reach Play. Spawn coords match to 0.92 units
+  ((-2450.4, 138.1, 1062.0) vs (-2451.3, 138.2, 1062.0)). Yaw matches
+  exactly (16384).
+- After `soh_tp` match: idle Δpos=0.11 (below reporting threshold).
+- **d5 camera-basis drift**: Az eye Y=211, SoH eye Y=239. |Δeye|=28
+  with matching Link pos+yaw — real Camera divergence, NOT downstream
+  of d3.
+- Substrate extended (this commit) to auto-attach watchpoint on
+  PlayState+0x01B8 (12B eye Vec3f) at scene load, and query the
+  writer PC in the "camera-basis drift" branch. Kakariko sweep
+  captured **az_pc=0x002d92a4** writing eye_off=+8 (Z-component,
+  data=1062.4).
+- **Next Ghidra-jump target: 0x002d92a4** — OoT3D's camera-eye
+  update function. The same function almost certainly also writes
+  eye X and eye Y (Vec3f copy pattern); decompile + port to close
+  the d5 gap.
+- Content-refactor noise still present: az=61 soh=56 actors, cat1
+  9/21 divergence, cat=1 id=0x003b flags az=0x20000030 vs
+  soh=0x00000030 (3DS added high-bit flags on cat1 actors — probably
+  a "3DS actor-role" tag). All sign-blind; don't chase.
+
+### Substrate additions this session
+
+- `az_playerpos` REPL command — reads Az Player world.pos + world.rot.y
+  + live playerYaw. Parseable output for match-spawn scripts.
+- `soh_tp <x> <y> <z> [yaw_s16]` — optional yaw arg. Writes Player
+  world.rot.y + shape.rot.y + Player.yaw (z64player.h:865).
+- `SohState_SetPlayerYaw(yaw_s16)` — the underlying accessor.
+- Camera-eye watchpoint auto-attach (`s_watched_cam_eye_addr`), keyed
+  on the same Player-addr scene-load trigger as bgCheckFlags/speedXZ/yaw.
+- Writer PC print in the d5 "camera-basis drift" firstdiv path.
+
+Related commits: 57f7ee48 (substrate + tp yaw), 4382960f (d5 auto-attach).
+
 ## Next-session frontiers
+2. **Ghidra-jump az_pc=0x002d92a4 in the OoT3D binary.** Decompile the
+   containing function via DecompDump.py (decomp-port skill). It will
+   be a camera-update site — probably `Camera_Update`, a specific
+   camera-type update (there are ~40 in OoT), or a mainCamera copy in
+   `Play_UpdateMainCamera`. Once decomped, wire it into SoH's camera
+   pipeline as a real port, and re-run the Kakariko sweep to see
+   |Δeye| collapse.
 2. **Guest-native stack unwinding.** Currently we capture PC + LR (one
    frame). For deeper call chains, walk r11 (fp) if the guest binary
    uses frame pointers. OoT3D probably has -fomit-frame-pointer so
