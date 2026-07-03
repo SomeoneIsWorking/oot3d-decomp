@@ -1282,6 +1282,48 @@ The Δ-A structural finding (extra Y block in FUN_00338ac8 gated on
 player-state bit 0x100) remains valid as documented; it just isn't
 what caused this particular sweep's |Δeye|.
 
+──────────────────────────────────────────────────────────────────────
+Kakariko |Δeye|→~0 CONFIRMED — LinkAge parity fix (2026-07-03)
+──────────────────────────────────────────────────────────────────────
+
+Added soh_setage / soh_getage REPL (soh3d d76cc42b): a thin
+SohState_SetLinkAge/GetLinkAge pair over gSaveContext.linkAge plus
+`play->linkAgeOnLoad` pin (so z_play.c:271's inequality check on
+scene teardown doesn't re-swap equipment). Sweep now issues
+`soh_setage 1` between soh_step and the initial soh_warp so both
+engines run child Link.
+
+Empirical Kakariko sweep, before vs after:
+
+    baseline (Link's House):
+      before: |Δeye|=0.00 |Δat|=0.03
+      after:  |Δeye|=0.00 |Δat|=0.03   (unchanged — expected)
+
+    post-warp settle (target Kakariko Village):
+      before: |Δeye|=34.25 |Δat|=24.12 |Δup|=0.0004
+      after:  |Δeye|=11.93 |Δat|= 0.91 |Δup|=0.0015
+
+    post-match idle settle:
+      before: |Δeye|=27.96 |Δat|=24.10 |Δup|=0.0009
+      after:  |Δeye|= 2.07 |Δat|= 0.10 |Δup|=0.0018
+
+|Δat| drops from 24.10 → 0.10 (float precision). |Δeye| drops from
+27.96 → 2.07. Residual is small pitch/distance rounding, not code
+divergence.
+
+CONFIRMS: Camera_Normal1 (FUN_00239fd8) + Camera_CalcAtDefault
+(FUN_00338ac8) are at PARITY with SoH's implementations for
+CAM_FUNC_NORM1 / CAM_MODE_NORMAL when engines share LinkAge. No
+418-line port was needed. The Δ-A extra-Y block remains a deferred
+port target — port when a scene/state hits `player+0x29B8 & 0x100`
+and re-verify then.
+
+Workflow lesson: what looked like a 25-unit "OoT3D camera port"
+milestone was a 1-line sweep-setup fix. The substrate probes
+(az_norm1, az_deltaA, az_height) caught the wrong direction BEFORE
+the 418-line port landed. This is exactly the value of doctrine-
+loop investigation over speculative porting.
+
 
   Delta B resolution — either read sCameraSettings[2].modes[0].values
   offline from the ROM (short[] at DAT_0023a348 + 2*8+4 → +0*8+4), or
