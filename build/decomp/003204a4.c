@@ -38,9 +38,9 @@ void FUN_003204a4(float param_1,int param_2,undefined4 param_3,uint param_4,int 
     FUN_00350820(DAT_003208dc,DAT_003208d8,0x24,0x80);
   }
   FUN_0048ba78(*(undefined4 *)(param_2 + 0x28),DAT_003208dc);
-  local_40 = *(int *)(param_2 + 4);
-  if (local_40 != 0) {
-    local_40 = FUN_0034807c(local_40,param_3);
+  local_40 = 0;
+  if (*(int *)(param_2 + 4) != 0) {
+    local_40 = FUN_0034807c(*(int *)(param_2 + 4),param_3);
   }
   iVar4 = DAT_003208fc;
   fVar17 = DAT_003208f8;
@@ -62,7 +62,7 @@ void FUN_003204a4(float param_1,int param_2,undefined4 param_3,uint param_4,int 
         if (param_4 != 0) {
           do {
             pfVar7 = (float *)(DAT_003208dc + uVar10 * 0x24);
-            FUN_00347550(param_1,local_40,uVar10);
+            FUN_00347550(param_1,local_40,uVar10,pfVar7,3);
             pfVar6 = (float *)(param_5 + uVar10 * 0x34);
             fVar12 = ABS(pfVar7[4] * fVar16);
             in_fpscr = in_fpscr & 0xfffffff | (uint)(fVar2 <= pfVar7[5] * fVar16) << 0x1d;

@@ -350,3 +350,79 @@ Enough to build a `compare titleactors` sub that A/B's SoH3D's title
 actor set against these live values — waiting on identifying WHICH
 SoH3D actor corresponds to each 3DS pose index (Link, Epona, then the
 scenery quads / camera anchors).
+
+## Writer chain — IDENTIFIED (2026-07-03)
+
+Executed the static movw/movt scan (`tools/find_indexed_writers.py`) —
+it landed 0 direct hits in the exact pose-table range, but a wider
+wraparound scan surfaced a pool literal at `0x003208DC = 0x005642D0`,
+which is ONE STRIDE (0x24=36) BEFORE the table VA I first recorded.
+So the actual table starts at **0x005642D0** — my earlier "entry 0"
+was really entry 1.
+
+### The writer chain, top-down
+
+**`FUN_003204a4`** (`build/decomp/003204a4.c`) — animation dispatcher:
+```c
+iVar5 = DAT_003208dc;   // = 0x005642D0 (pose table base)
+...
+pfVar7 = (float *)(DAT_003208dc + uVar10 * 0x24);   // entry uVar10
+FUN_00347550(param_1 /*time*/, animData, uVar10, pfVar7, /*mask=*/3);
+```
+Loops `uVar10 = 0..numEntries-1`, calls the keyframe evaluator per
+entry with mask=3 (pos+rot, scale left alone — explains the observed
+`scale=(1,1,1)` across all entries).
+
+**`FUN_00347550`** (`build/decomp/00347550.c`) — per-entry keyframe evaluator:
+```c
+if (mask & 1) for (i=0; i<3; i++)  pose[i]        = eval_kf(...);  // pos
+if (mask & 2) for (i=0; i<3; i++)  pose[3+i]      = eval_kf(...);  // rot
+if (mask & 4) for (i=0; i<3; i++)  pose[6+i]      = eval_kf(...);  // scale
+```
+Writes to `param_4 + i*4`, `param_4 + 0xc + i*4`, `param_4 + 0x18 + i*4`
+respectively — exactly the pos/rot/scale layout we RE'd empirically.
+
+**`FUN_002bb1cc`** — SkelAnime-instance update: reads animation
+parameters from an "anim instance" struct (`param_1+0x30..+0x78`),
+calls the dispatcher with per-instance time.
+
+**`FUN_0036b4ec`** — invoked 130 times across the code, always as
+`add r0, r4, #0x254; bl FUN_0036b4ec`. This is the generic
+**`SkelAnime_Update`-equivalent** taking `actor + 0x254` (the
+SkelAnime substructure inside an Actor struct — matches N64 OoT's
+Actor layout).
+
+### What the pose table actually is
+
+The 24 entries are **one specific actor's live limb-transform array**,
+not a generic scene pose set. The actor is statically pre-allocated
+(hence the fixed `.data` VA) rather than heap-spawned — consistent
+with the title-demo Link or Epona being reserved at boot to avoid
+heap fragmentation.
+
+Observed patterns now interpretable:
+- Rows with `pos=(X, 0, 0)` = child limbs offset only along the parent
+  bone axis (the canonical SkelAnime child-limb layout).
+- Rows 0/14/18/22 with fast per-frame motion = root or root-adjacent
+  limbs pulling the whole rig through the world.
+
+### What this means for parity
+
+The 24-entry table gives us **live per-limb pose of the title-demo Link
+(or Epona)** — a first-class SoH3D-side comparison target. The
+correspondence between 3DS limb indices and N64/OoT limb indices needs
+one more lookup (probably in the actor's SkeletonHeader in `.rodata`),
+but for shape parity ("are the joints animating identically?") the raw
+pose stream is already useful.
+
+### Tooling added
+
+- `tools/find_indexed_writers.py` — capstone-based ARM/Thumb scanner
+  that tracks reg→const through movw/movt/pool-loads and reports every
+  `str/vstr/stm` insn whose base register + explicit offset lands in a
+  target VA range. Complements Ghidra's static Reference DB (which
+  misses movw/movt-materialized bases).
+- `tools/ghidra_scripts/FindDataWriters.py` — Jython dump of Ghidra's
+  Reference DB for specific .data VAs.
+- `tools/ghidra_scripts/FindRangeRefs.py` — same, but for a whole VA
+  range at once (faster than N calls to the single-VA form).
