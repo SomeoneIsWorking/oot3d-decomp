@@ -341,19 +341,75 @@ Two distinct port frontiers, both first-frame reported:
 Both are legitimate Player/collision port work but land after the
 sign-convention scaffold, not as a blocker for the compare tool.
 
+### Wall-stop 4.5u divergence resolved: scene-collision, not Player_Update
+
+Direct probe (`scratch/wallstop_diagnose.py`, 2026-07-03) falsified the
+"Player_Update wall-buffer constant" hypothesis:
+
+- SoH Link at the natural forward stop: `bgCheckFlags=0x0289`
+  (Ground+Wall touching), `wallPoly=0x7f00424625c0`, position Z=131.
+  Link IS on an actual scene collision polygon.
+- Teleporting Link past the wall (`soh_tp 1.0 14.0 135.5`, 140, or 145)
+  with the stick released: Link snaps back to Z≈130.8-131 within one
+  game frame, same `wallPoly`. The wall is at Z=131 in SoH's scene
+  collision — no matter where you place Link, he can't cross it.
+
+So the 4.5u offset is a **scene-collision geometry difference** between
+OoT-N64's Link's-House interior and OoT3D's. Falls under the standing
+"OoT3D-decomp is ground truth" doctrine at the scene-data layer, not a
+Player_Update port gap.
+
+### Speed 3× divergence resolved: harness ticking mismatch + known 30fps compensation
+
+Direct probe (`scratch/speed_perframe.py`, `scratch/speed_gameframe.py`,
+2026-07-03) decomposed the 3× ratio:
+
+- Az's `run 1` = one `retro_run` call = 1/60 sec. OoT3D game logic ticks
+  at 30 fps → **2 retro_runs per Az game frame**. Empirically, Az's
+  Δpos alternates +5/0/+5/0 in the sweep, confirming the 2:1 mapping.
+- SoH's `soh_step 1` = one `RunFrame()` = one SoH game frame. SoH runs
+  Player_Update at 20 fps but presents at 30 fps, applying a documented
+  1.5× per-frame position multiplier (see the motion-parity-harness
+  memory: "SoH3D moves 1.5x pos/frame = 20->30fps compensation").
+- Combined: `step_both(h, 1)` = SoH 1 game frame vs Az 0.5 game frame =
+  1.5× × 2 = 3× per-frame Δpos ratio.
+
+Corrected with `step_game_frame(h, N)` in `scratch/drive.py` (2 retro_runs
+per Az game frame). Under game-frame-aligned ticking:
+
+| game_frame | SoH speedXZ | SoH Δpos | Az Δpos | ratio |
+|------------|-------------|----------|---------|-------|
+| 02         | 2.00        | +3.00    | +1.30   | 2.31  |
+| 03         | 4.00        | +6.00    | +2.70   | 2.22  |
+| 04         | 5.00        | +7.50    | +4.00   | 1.88  |
+| 05         | 5.00 (top)  | +7.50    | +5.00   | 1.50  |
+| 06         | 5.00        | +7.50    | +5.00   | **1.50** |
+
+Steady-state ratio at game frames [05-06] locks at 1.50 — the documented
+30fps compensation factor — matching parity. **Top speed matches** across
+engines.
+
+The residual real Player-physics gap is in the **acceleration curve
+during startup**: SoH's Player_UpdateCommon reaches speedXZ=5 by game
+frame [04], Az reaches Δpos=5 by game frame [05]. SoH's per-game-frame
+speedXZ increment is ~2/frame during 0→2; Az's is ~1.3/frame. That's
+a real Player_Update constant divergence (~1.5× faster acceleration on
+SoH) but it's small and needs Az-side speedXZ readback for direct
+comparison instead of Δpos math.
+
 ## Next-session frontiers
 
-1. **Player_Update port work.** The per-frame sweep names the SoH-vs-
-   Az speed and step-up divergence at Link's House. Port work should
-   start here — the OoT3D Player_Update decomp already lives in
-   `docs/player_port.md`; wiring it into SoH3D is what closes the
-   |Δpos| the sweep exposes.
-2. **Sweep across more scenes** to confirm d5 mainCamera offset
-   (0x1B8) works for follow/fixed/cutscene camera settings and to
-   see whether the Link's-House wall-stop divergence is specific to
-   this scene or reproduces at Kokiri Forest / Hyrule Field.
-3. **d8 = envCtx lighting** (already have `SohState_Lighting`) —
-   port parity of scene lighting settings.
+1. **RE Az-side Player.speedXZ offset.** With Actor.speedXZ readable on
+   both engines, per-game-frame acceleration comparison becomes direct
+   (no Δpos-vs-Δpos ratio bookkeeping). Ghidra decomp task on the OoT3D
+   Player struct.
+2. **Sweep across more scenes** to confirm d5 mainCamera offset works
+   for follow/fixed/cutscene camera settings.
+3. **d8 = envCtx lighting** (already have `SohState_Lighting`) — port
+   parity of scene lighting settings.
+4. **Port OoT3D scene collision** for Link's House (and Kokiri Forest,
+   Hyrule Field) so wall-stop and floor-height parity land at the scene-
+   data seam. Larger project surface — already the standing primary goal.
 
 ## Aside: RNG determinism for autonomous actors
 
@@ -373,3 +429,9 @@ future session as workflow-first infrastructure work.
 - `scratch/drive.py` — symbolic per-engine input wrapper.
 - `scratch/perframe_firstdiv.py` — per-frame firstdiv sweep under
   scripted forward-walk.
+- `scratch/wallstop_diagnose.py` — teleport-past-wall probe that
+  identified the wall-stop divergence as scene-collision, not Player.
+- `scratch/speed_perframe.py`, `scratch/speed_gameframe.py` — per-
+  frame speed decomposition that identified the "3×" as harness ticking
+  mismatch + known 30fps compensation, and named the residual startup
+  acceleration Player_Update divergence.
