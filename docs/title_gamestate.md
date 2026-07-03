@@ -232,3 +232,44 @@ title dispatch.
 
 Once the camera keyframe path is RE'd, `CompareCameraImpl` and
 `CompareActorsImpl` gain equivalent title branches.
+
+## Demo-cursor counter scan (runtime)
+
+`tools/title_demo_counter_scan.py` dumps `.data` at two title-frame
+snapshots via the harness and diffs to find monotonic 1/frame counters.
+Runs on the live emulator; captures reproducible dumps to
+`soh3d/scratch/gamestate_re/data_title_{A,B}.bin`.
+
+Six clean +300/frame counters at title (verified 2026-07-03):
+
+| VA          | value @400f | value @700f | Δ   | notes                          |
+|-------------|-------------|-------------|-----|--------------------------------|
+| 0x0054AD04  | 0x0000013a  | 0x00000266  | 300 | in-image; no static pool ref   |
+| 0x0054AD20  | 0x00000138  | 0x00000264  | 300 | in-image; no static pool ref   |
+| 0x0054CC3C  | 0x0000018b  | 0x000002b7  | 300 | in-image; no static pool ref   |
+| 0x005A7084  | 0x0000018c  | 0x000002b8  | 300 | heap-side (out of code.bin)    |
+| 0x005A7088  | 0x0000018b  | 0x000002b7  | 300 | heap-side (out of code.bin)    |
+| 0x005B9518  | 0x000000f3  | 0x0000021f  | 300 | heap-side                      |
+| 0x005B951C  | 0x000000f0  | 0x0000021c  | 300 | heap-side                      |
+| 0x005BE644  | 0x0000018c  | 0x000002b8  | 300 | heap-side                      |
+
+Plus +150/frame at 0x0051B310 & 0x0054ACC0 (30 Hz counters).
+
+**None** have direct 4-byte pool refs in the code image — the in-image
+addresses are accessed via `movw/movt` immediates (ARM's 16+16-bit
+constant loads that hide from a naïve u32 pool scan), and the heap
+addresses aren't pool constants at all. So the naive "find writers by
+pool scan" attack won't work.
+
+### Next actionable RE step
+
+Instead of pool scan, disassemble a window around each candidate VA's
+struct base and look for `movw + movt` pairs materializing the base.
+Or add a Ghidra script that finds all instructions that materialize a
+constant in `[0x0054AC00, 0x0054AE00]` via any means (pool, movw/movt,
+adr) and reports their enclosing functions. Those become the RE targets.
+
+Alternatively use Azahar's JIT hook to log the writers directly (fast
+path: attach a memory watchpoint on 0x0054AD04 in the JIT, dump the
+ARM PC at each write, translate PC → static VA → Ghidra fn). That's
+guaranteed to reach the demo-tick fn on the first frame.
