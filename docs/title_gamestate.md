@@ -564,3 +564,100 @@ Statistically indistinguishable — cursor write has no effect on the
 pose stream. 0x0054CC3C is a bystander counter (probably a UI/HUD
 telemetry tick), not the anim-eval master time. The next RE round
 should hunt via the heap-pointer inventory attack above.
+
+## Correction (dabcbbc → this note) — 0x0054CC3C IS a valid sync target; prior falsification was a single-write artifact
+
+Freeze-clamp test: writing 0x0054CC3C = const **every frame** for 3 frames
+FREEZES pose table B (Δ=0 vs baseline Δ=11958 over the same 3 frames).
+Same result for 0x005A7084 and 0x005A7088 (all three word-counters found
+by the earlier .data-diff scan) — they clamp the pose identically. So
+they are either the master cursor itself or downstream aliases fed by
+the same ARM writer chain.
+
+The prior falsification wrote 0x0054CC3C ONCE via `force titletime N`,
+then ran `compare firstdiv` several frames later — by then the ARM
++1/frame writer had re-incremented the counter and the sync was gone.
+d4 was measured out-of-phase, not desynced. Correct sync = write
+every frame, not once.
+
+Per-frame sync method:
+1. Boot both engines to title, advance to same frame N.
+2. Each frame, read SoH `csCtx.frames`, write Azahar 0x0054CC3C =
+   same value (or its alias 0x005A7084 / 0x005A7088; all three
+   accept and produce the same freeze behavior).
+3. Then run `compare firstdiv` and expect d4 to shift.
+
+### Byte-cursor freeze-test data (probe_cursor6.py, frame 500..503)
+
+| Address     | Width | Δ pose table B over 3 frozen frames |
+|-------------|-------|---------------------------------------|
+| (no write, control) | -    | 11958 (baseline animating pose)      |
+| 0x0054CC3C   | u32   | **0** (freezes pose)                 |
+| 0x005A7084   | u32   | **0** (freezes pose)                 |
+| 0x005A7088   | u32   | **0** (freezes pose)                 |
+| 0x005B8401   | u8    | 11958 (bystander byte, +1/frame)     |
+
+The 1/frame monotonic scan of .data at title surfaced 4 byte-level
+candidates; only 3 of the 4 are wired into the pose-evaluator time
+input.
+
+### Static RE — writer chain into pose table B (0x005A54D8)
+
+- `FUN_002bd9ec` is the direct-write pose evaluator. It loads
+  0x005A54D8 from its literal pool at 0x002bdd38 and writes 25 entries
+  of `{Vec3 pos, Vec3 rot, Vec3 scale}` (36 bytes each) via
+  `FUN_00347550(param_1, ..., DAT_002bdd38 + i*0x24, ...)`.
+- Its 13 direct callers are all actor-side SkelAnime wrappers.
+- The one relevant to Link is `FUN_002c3e34` (a **char frame counter**
+  at actor+0x24b9, signed short anim ID at +0x24ba, output pose
+  tables at +0x2cc and +0x17dc). Callers of FUN_002c3e34 are
+  FUN_00488b40 and FUN_004bba4c — both zero direct callers →
+  installed via function-pointer (Player action-func slot).
+- None of FUN_002c3e34's static-analysis callers have a fixed .data
+  actor base. At title (gPlayState=0), Link isn't in the actor
+  system, yet pose table B still animates — meaning the title-demo
+  path drives a *different* pipeline into the same table (still-open
+  question — the byte cursor at +0x24b9 pattern doesn't align with
+  the .data byte candidates, so title path likely uses a fresh
+  pose-evaluation shape).
+
+## Per-frame sync verified — d4 residual is anim-data floor, not sync failure
+
+Per-frame sync test (sync_firstdiv.py): with SoH and Azahar both driven
+frame-by-frame, and Azahar's 0x0054CC3C written to itself each frame
+via `force titletime` (which also mirrors to SoH's csCtx.frames),
+d4 stays at the same magnitude:
+
+- BASELINE (no sync): d4 mean|Δ| = 10474 / 10922 / 16572
+- SYNCED  (per-frame): d4 mean|Δ| = 10534 / 10717 / 16187
+
+Statistically indistinguishable. The sync IS working (verified via
+`titletime_read`: az_after_write == expected N == soh csCtx.frames).
+So the d4 residual is not a sync problem — it's the **anim-data
+floor**: at title, SoH plays the *N64-authored* Link title demo,
+Azahar plays the *3DS-reauthored* Link title demo. Same visual
+scene, different keyframe curves. Per-limb rotations differ by
+authoring, not by desync.
+
+### Implications for the firstdiv acceptance gate
+
+d4 as currently defined **cannot** reach the < 0x0800 threshold at
+title regardless of any port work — the input datasets differ. The
+d4 dimension is the wrong signal for title-demo parity.
+
+Better title-parity dimensions to add:
+- **d4b: pose-cadence sync** — instead of comparing raw rotations,
+  compare the RATE of pose change per frame. If Azahar advances an
+  anim at 30 FPS internally while SoH advances at 60, the rate
+  differs — but both cadences should be stable and predictable.
+- **d5: camera basis** — camera trajectory over the title demo is a
+  higher-level artifact; if the 3DS-side camera evaluator is RE'd,
+  eye/at/up per frame can compare more directly since both engines
+  ultimately fly the same path over Hyrule Field.
+- **d6: scene / lighting state** — env light dirs, fog, tint at
+  title should match closer since scene .zsi lighting was
+  ported forward faithfully.
+
+The camera basis (d5) was already listed as a follow-on; that path
+is the next attack. Title Link's per-limb rotations aren't the
+useful signal — accept ~12000-unit floor and move on.
