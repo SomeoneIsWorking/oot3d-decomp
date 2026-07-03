@@ -441,14 +441,55 @@ scene-collision divergence (SoH hits the Z=131 wall and triggers
 wall-slide yaw; Az still has ~4.5u ahead before its Z=135.5 wall) —
 not an independent Player port gap.
 
+### d4 firstdiv fix landed
+
+`CompareFirstDivImpl`'s Player-branch now reads Az `rot.y` from
+`PLAYER_YAW_OFF` (0x36) instead of the static Actor+0x14+2 slot. After
+the fix, per-frame `|Δrot.y|` under matched forward walk drops from
+~32700 (fake, was reading spawn value) to `+0,+2` (s16 rounding parity)
+across all pre-wall-hit game frames.
+
+## Sign-blind policy: project-vision decisions ≠ port bugs
+
+Under matched drive + game-frame alignment + the d4 fix, the surviving
+firstdiv divergences at Link's House are ALL sign-blindable
+project-vision decisions, not port bugs. Formalizing the policy so the
+compare tool doesn't chase them as regressions in future sweeps:
+
+1. **d3 pos rate** — SoH's Player runs at 20 fps with a documented
+   1.5× per-game-frame position multiplier to render at 30 fps. Per-
+   game-frame Δpos on SoH is always 1.5× Az's; real-time motion is
+   at parity. Sign-blind Δpos rate at exactly this factor.
+2. **d3 pos plateau ~4.5u at Link's House north wall** — SoH keeps N64
+   room collision faithfully. OoT3D's scene collision has walls at
+   slightly different positions (Z=135.5 vs Z=131). Same project-
+   vision policy as En_Wonder_Talk2 (3DS content additions are
+   decided-not-bugs). Sign-blind Player pos delta once both engines
+   report `bgCheckFlags & 0x008` (touching wall).
+3. **d4 rot post-wall-hit** — fully downstream of #2. SoH's wall-slide-
+   yaw kicks in when Link contacts the collision poly; Az still walking
+   straight. Sign-blind by predicating on Player wall-touching flag.
+4. **d6 count 5/4 (Wonder_Talk2)** — already documented as 3DS content
+   addition. Filter cat=1 id=0x0185 from the count-mismatch report.
+5. **d7 Navi worst_pos_drift ~40u** — cat=7 id=0x0018. RNG divergence,
+   already documented. Filter from d7 worst-pos report.
+
+Codifying the sign-blind policy in the compare tool is workflow-first
+work: turns "N sweep-noise items to visually skim past every session"
+into "one policy encoded once, next real divergence stands out
+immediately".
+
 ## Next-session frontiers
 
-1. **Update d4 in firstdiv to read Az's live yaw at +0x036 instead of
-   Actor+0x14+2.** Currently the compare tool reports a fake ~32700
-   rotation divergence at every startup because it reads the static
-   spawn-rot slot on Az. One-line change.
-2. **Sweep across more scenes** to confirm d5 mainCamera offset (0x1B8)
-   and the yaw slot (+0x036) are Link's-House-independent.
+1. **Encode the sign-blind policy above in `CompareFirstDivImpl`.** Item
+   #1 (SoH 1.5× rate) and item #4 (Wonder_Talk2 filter) are cheap and
+   collapse most of the current sweep noise. Items #2/#3 need a
+   wall-touching state read; the accessor already exists
+   (`SohState_PlayerWallInfo`), so gating d3/d4 on wall-touching is
+   straightforward. Item #5 needs a Navi actor filter.
+2. **Sweep across more scenes** to confirm the RE'd offsets
+   (ACTOR_SPEEDXZ_OFF, PLAYER_YAW_OFF, PLAY_CAM_EYE_OFF) are consistent
+   at Kokiri Forest and Hyrule Field, not Link's-House-specific.
 3. **d8 = envCtx lighting** (already have `SohState_Lighting`) — port
    parity of scene lighting settings.
 4. **Port OoT3D scene collision** for Link's House (and Kokiri Forest,
