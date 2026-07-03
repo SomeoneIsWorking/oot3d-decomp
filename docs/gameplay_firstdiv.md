@@ -1036,6 +1036,132 @@ Next-iteration frontier:
   body reduces to Camera_CalcAtDefault + a handful of LERPs that are
   already at parity via the shared code path.
 
+──────────────────────────────────────────────────────────────────────
+Δ-A resolution (2026-07-03, hand-disasm — Ghidra project unavailable)
+──────────────────────────────────────────────────────────────────────
+
+DecompDump was blocked (Ghidra project at build/ghidra/oot3d.rep/
+was created by a newer Ghidra than the installed 11.0.3 — same on both
+/opt/ghidra_11.0.3_PUBLIC and /opt/ghidra symlinks — so
+analyzeHeadless refused to open it). Fell back to raw disassembly of
+FUN_00338ac8 via tools/disasm.py (capstone ARM). Function is small
+(0x338ac8..0x338bec = 0x124 bytes, ~73 insts). Full trace below.
+
+FALSIFICATION OF HANDOFF'S Δ-A HYPOTHESIS
+
+The handoff claimed FUN_00338ac8 is 3-arg where SoH's
+Camera_CalcAtDefault is 4-arg. That's a Ghidra artifact, not a real
+divergence. The very first VFP instructions show s0 as a live float
+arg:
+
+    338ae0: vmov.f32 s18, s0      ; save extraYOffset (arg 3, float)
+    338ae4: sub sp, sp, #0x1c
+    338ae8: ldr  r0, [r0, #0xd8]  ; r0 = camera->player (Camera+0xd8)
+    338aec: mov  r7, r1           ; r7 = arg1 (VecSph* eyeAtDir)
+    338af0: mov  r8, r2           ; r8 = arg2 (calcSlope, s16)
+    338af4: bl   Player_GetHeight ; s0 = player_height
+    338af8: vmov.f32 s17, s0      ; s17 = player_height
+    338afc: vadd.f32 s0, s0, s18  ; s0 = player_height + extraYOffset
+
+So the OoT3D signature is (Camera*, VecSph*, f32 extraYOffset, s16
+calcSlope) — identical to SoH's Camera_CalcAtDefault(camera, eyeAtDir,
+extraYOffset, calcSlope). Ghidra just failed to propagate the float
+arg through the function-pointer call in FUN_00239fd8. The "spA0
+drop" hypothesis is wrong.
+
+Slope block (338b18..338b4c) matches SoH:
+    posOffsetTarget.y = player_height + extraYOffset;
+    if (calcSlope) posOffsetTarget.y -=
+        ClampMaxDist(SlopeYAdj(&floorNorm, rot.y, eyeAtDir->yaw,
+                               OREG(9)), player_height);
+    (all fields, both helpers, at parity by shape.)
+
+Then a LERPCeilVec3f call at 338b64/338b68 into camera->posOffset
+(+0x12c). All fine.
+
+THE ACTUAL Y-DIVERGENCE — an extra block at 338b6c..338b8c
+
+Immediately after the posOffset LERP, before building atTarget:
+
+    338b6c: r0 = [r4, #0xd8]        ; r0 = camera->player
+    338b70: r1 = [pc, #0x80]        ; r1 = &<global_state_table>  (=0x000029b8)
+    338b74: r1 = [r1, r0]           ; r1 = *(&<global> + player)
+                                    ; (indexed by pointer — reads a per-player
+                                    ; state word; likely
+                                    ; gPlayState->actorCtx or similar)
+    338b78: tst r1, #0x100          ; test bit 8
+    338b7c: beq 338b90              ; skip if bit clear (s16 stays 0.0f)
+    338b80: r0 += 0x1400            ; r0 = camera->player + 0x1400
+    338b84: s1 = [pc, #0x70]        ; s1 = -0.01f  (float const at 338bfc)
+    338b88: s0 = [r0, #0x360]       ; s0 = *(camera->player + 0x1760)
+    338b8c: s16 = s0 * s1           ; s16 = player[+0x1760] * -0.01f
+                                    ; (s16 was 0.0f from vldr at 338b00
+                                    ;  loading pc+0xe4 = 0.0f)
+
+atTarget build (338b90..338bcc):
+
+    338b90..338ba8: atTarget.x = *(camera+0xdc) + camera->posOffset.x
+                                = playerPosRot.pos.x + posOffset.x
+    338bac..338bbc: atTarget.y = *(camera+0xe0) + camera->posOffset.y
+                                + s16                     ← THE EXTRA Y!
+                                = playerPosRot.pos.y + posOffset.y
+                                + s16
+    338bc0..338bcc: atTarget.z = *(camera+0xe4) + posOffset.z
+
+Then final LERP at 338bd0..338bd8 into camera->at with
+atLERPStepScale, exactly like SoH.
+
+SoH's Camera_CalcAtDefault (z_camera.c:906) writes:
+    atTarget.y = playerPosRot->pos.y + camera->posOffset.y;
+— no s16 term. Camera_CalcAtDefault is called by both Normal0/1/2 and
+Jump1 in SoH, so this diff propagates broadly.
+
+THE 3DS-ONLY FIELD
+
+player+0x1760 is beyond N64 Player's 0x14F4 total size — it's a Grezzo
+3DS-only Player extension field. At Kakariko idle with |Δeye|=25
+(SoH.at.y is 25 units HIGHER than OoT3D.at.y), the required s16 to
+close the gap is -25.0f, which is:
+    player[+0x1760] * -0.01f = -25.0f
+  → player[+0x1760] = 2500.0f
+(scale, roll, some accumulated "camera Y bias" — needs a harness
+probe to confirm live).
+
+Next iteration frontier — TWO concrete steps
+
+Step 1 (verify): Add a harness probe reading
+    (a) the player-state word at *(<global 0x29b8> + camera->player)
+    (b) player[+0x1760] as f32
+  at Kakariko idle, and print. Confirm bit 0x100 set and value in the
+  2000-3000 range.
+
+Step 2 (port): Port Camera_CalcAtDefault into a
+zelda3d/behaviors/camera/at_default.cpp shared module, wiring the extra
+Y block behind a check on the player-state flag. Route SoH's Normal1
+(and eventually other CAM_FUNC callers) through the seam. When the
+port takes over at Kakariko, |Δeye|→0.
+
+The 418-line FUN_00239fd8 body port is now NOT needed to close
+|Δeye|. The Normal1 body is essentially at parity with SoH via the
+shared code path — Camera_CalcAtDefault (Δ-A) is the sole functional
+divergence identified. The Δ-B data-table tweaks (fov 55, dMin/dMax
+halved) affect view feel and eye distance ratio but not Y drift.
+
+Corollary: the earlier scaffold in soh3d Shipwright/soh/src/zelda3d/
+behaviors/camera/normal1.cpp is over-scoped — the port should target
+at_default.cpp instead. Normal1Behavior::update can stay a no-op
+delegate.
+
+Constants decoded (all pc-relative from FUN_00338ac8):
+    338bec: 0x00000000 = 0.0f   (default s16, and default
+                                  posOffsetTarget.x/z)
+    338bfc: 0xbc23d70a = -0.01f (s16 scale factor)
+    338c00: 0x3e4ccccd = 0.2f   (LERPCeilVec3f rate — matches SoH's
+                                  0.2f literal in z_camera.c:926,932)
+    338bf8: 0x000029b8 (ptr to a global whose slot is indexed by
+                       camera->player — a per-Player state map)
+
+
   Delta B resolution — either read sCameraSettings[2].modes[0].values
   offline from the ROM (short[] at DAT_0023a348 + 2*8+4 → +0*8+4), or
   resolve DAT_0023a34c to see if it's the reference-height constant.
