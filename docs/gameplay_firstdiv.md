@@ -279,24 +279,80 @@ concurrently drives Az Link from (1, 0, 95) → (0.8, 14, 135.5).
 Firstdiv d3 correctly reports `player-pos |Δpos|=103.17`. Both engines
 respond to input; both engines' Player_Update paths run.
 
+## Sign-convention resolved (2026-07-03 follow-up)
+
+Direction probe (`scratch/direction_probe.py`) confirmed empirically at
+Link's House:
+
+- Player spawn matches at (+1, 0, +95) on both engines.
+- Camera basis eye/at/up matches byte-for-byte on both engines.
+- Matched-convention forward stick (`soh_input 0 0 +127` +
+  `analog 0 -32000`) walks BOTH engines +Z ~36–40 units in 60 frames
+  (`scratch/direction_matched.py`).
+
+So the polarity difference is purely at the input layer:
+
+    SoH OSContPad stick_y positive = "up on N64 stick" = forward
+    Az  RETRO_DEVICE_ID_ANALOG_Y negative = "up on screen" = forward
+
+No world axis is flipped. But the compare tool now carries a per-axis
+sign-flip descriptor (`AZ_POS_{X,Y,Z}_SIGN_FLIP`,
+`AZ_CAM_{X,Y,Z}_SIGN_FLIP`) applied in d3/d5/d7. All flags are false
+today; a future per-axis flip is a one-line change at one seam instead
+of ad-hoc per test.
+
+`scratch/drive.py` encodes the per-engine polarity as symbolic actions
+(`walk_forward(h)`, `walk_backward(h)`, `stop(h)`, `step_both(h, n)`),
+so tests express intent instead of native masks.
+
+## Per-frame firstdiv under matched drive
+
+`scratch/perframe_firstdiv.py` runs `compare firstdiv` after each frame
+of a scripted 60-frame forward walk. First real Player-physics port
+gaps named at Link's House (60 frames post-warp):
+
+| Frame | SoH pos           | Az pos            | \|Δpos\| |
+|-------|-------------------|-------------------|--------|
+| 00    | (1.0, 0.0, 95.0)  | (1.0, 0.0, 95.0)  | 0.00   |
+| 01    | (1.0, 0.0, 95.0)  | (1.0, 0.0, 95.0)  | 0.00   |
+| 02    | (1.0, 0.0, 98.0)  | (1.0, 0.0, 95.0)  | 3.00   |
+| 03    | (1.1,14.0,104.0)  | (1.0, 0.0, 95.0)  | 16.64  |
+| 05    | (1.2,14.0,119.0)  | (1.0, 0.0, 96.3)  | 26.64  |
+| 08    | (1.0,14.0,131.0)  | (1.0, 0.0, 99.0)  | 34.89  |
+| 11    | (0.8,14.0,131.0)  | (1.1,14.0,108.0)  | 22.97  |
+| 21    | (1.0,14.0,131.0)  | (1.4,14.0,133.0)  | 2.09   |
+| 22–59 | (1.0,14.0,131.0)  | (~1.0,14,135.5)   | ~4.5   |
+
+Two distinct port frontiers, both first-frame reported:
+
+1. **Player-locomotion speed**. SoH Link starts translating at
+   frame [02] (Δz=+3 in one frame); Az at frame [05] (Δz=+1.3). SoH
+   climbs the porch step (Y=14) by frame [03]; Az takes until frame
+   [11]. Under the standing SoH3D "1.5× pos/frame @ 30 fps to
+   compensate for 20 fps update logic" convention (from the motion-
+   parity harness), the ratio is closer to 3× at the acceleration
+   phase — not just a frame-rate scaling, so a real Player_Update
+   port gap exists here.
+2. **Wall-stop divergence**. SoH stops at Z=131 by frame [08]; Az at
+   Z=135.5 by frame [21]. Persistent 4.5-unit \|Δpos\| for the rest
+   of the sweep — different collision geometry between OoT N64's and
+   OoT3D's Link's-House interior at the north wall.
+
+Both are legitimate Player/collision port work but land after the
+sign-convention scaffold, not as a blocker for the compare tool.
+
 ## Next-session frontiers
 
-1. **Sign-convention wrapper.** Az's analog Y is libretro-native (up
-   negative), SoH's stick_y is N64-native (matches libretro sign, but
-   camera convention may flip the visible result). The Session
-   recipe above shows Az moving to +Z while SoH moves to -Z for the
-   "same" stick input — one of them is going backwards. A Python
-   helper in `scratch/` should map a symbolic action (`walk_forward`,
-   `walk_left`, `turn_right`) to both engines' native masks so the
-   test writer doesn't have to reason about it each time.
-2. **Time-domain firstdiv with matched driving.** Once the sign
-   wrapper lands, run compare firstdiv per-frame across a scripted
-   drive (30 frames forward, 30 frames right, 30 frames turn, 30
-   frames stop). First real per-frame divergence in d3/d4/d7 is a
-   Player physics/animation port gap — the primary parity signal.
-3. **Sweep across more scenes** to confirm d5 mainCamera offset
-   (0x1B8) works for follow/fixed/cutscene camera settings.
-4. **d8 = envCtx lighting** (already have `SohState_Lighting`) —
+1. **Player_Update port work.** The per-frame sweep names the SoH-vs-
+   Az speed and step-up divergence at Link's House. Port work should
+   start here — the OoT3D Player_Update decomp already lives in
+   `docs/player_port.md`; wiring it into SoH3D is what closes the
+   |Δpos| the sweep exposes.
+2. **Sweep across more scenes** to confirm d5 mainCamera offset
+   (0x1B8) works for follow/fixed/cutscene camera settings and to
+   see whether the Link's-House wall-stop divergence is specific to
+   this scene or reproduces at Kokiri Forest / Hyrule Field.
+3. **d8 = envCtx lighting** (already have `SohState_Lighting`) —
    port parity of scene lighting settings.
 
 ## Aside: RNG determinism for autonomous actors
@@ -311,3 +367,9 @@ future session as workflow-first infrastructure work.
 
 - `scratch/gameplay_firstdiv.py` — repro script; still gitignored under
   scratch/ per project convention.
+- `scratch/direction_probe.py`, `scratch/direction_matched.py` — the
+  two experiments that confirmed sign-convention resolution
+  (2026-07-03).
+- `scratch/drive.py` — symbolic per-engine input wrapper.
+- `scratch/perframe_firstdiv.py` — per-frame firstdiv sweep under
+  scripted forward-walk.
