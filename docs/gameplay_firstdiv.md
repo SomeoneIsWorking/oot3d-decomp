@@ -389,20 +389,34 @@ Steady-state ratio at game frames [05-06] locks at 1.50 — the documented
 30fps compensation factor — matching parity. **Top speed matches** across
 engines.
 
-The residual real Player-physics gap is in the **acceleration curve
-during startup**: SoH's Player_UpdateCommon reaches speedXZ=5 by game
-frame [04], Az reaches Δpos=5 by game frame [05]. SoH's per-game-frame
-speedXZ increment is ~2/frame during 0→2; Az's is ~1.3/frame. That's
-a real Player_Update constant divergence (~1.5× faster acceleration on
-SoH) but it's small and needs Az-side speedXZ readback for direct
-comparison instead of Δpos math.
+The residual "~1.5× startup acceleration" was resolved too. RE'd Az's
+Player.speedXZ offset by memory scan (`scratch/az_speedxz_scan.py`,
+2026-07-03): actor+0x068 in the OoT3D Actor struct, same byte offset
+as SoH's N64 Actor.speedXZ. Direct compare (`scratch/accel_direct.py`):
+
+| gf | SoH speedXZ | Az speedXZ | ΔSoH | ΔAz  | SoH accel(u/s²) | Az accel(u/s²) |
+|----|-------------|------------|------|------|-----------------|----------------|
+| 02 | 2.00        | 1.33       | +2.0 | +1.33 | **40.00**       | **40.00**      |
+| 03 | 4.00        | 2.67       | +2.0 | +1.33 | 40.00           | 39.99          |
+| 04 | 5.00 (cap)  | 4.00       | +1.0 | +1.33 | 20.00           | 40.00          |
+| 05 | 5.00        | 5.00 (cap) | +0.0 | +1.00 | 0.00            | 30.00          |
+| 06+| 5.00        | 5.00       | ...  | ...   |                 |                |
+
+SoH's Player_Update runs at 20 fps, Az's at 30 fps. Per-game-frame
+speedXZ increment × Player_Update tick rate = real-time acceleration =
+**40 units/sec² on both engines**. Top walking speed matches at 5.0.
+No Player port gap in the walking-accel constant.
 
 ## Next-session frontiers
 
-1. **RE Az-side Player.speedXZ offset.** With Actor.speedXZ readable on
-   both engines, per-game-frame acceleration comparison becomes direct
-   (no Δpos-vs-Δpos ratio bookkeeping). Ghidra decomp task on the OoT3D
-   Player struct.
+1. **Player rotation-during-startup.** d4 during the walk-forward sweep
+   showed Az's Player.rot.y jumping to ~+32700 during the first game
+   frames while SoH's stayed at rest. Link at Link's House spawns
+   facing -Z (toward the door). Stick_y=+127 = forward = +Z, needs a
+   180° yaw flip. Az's Player flips over the first ~2 game frames;
+   SoH's flip cadence differs. Read via `az_playerinfo`-style probe
+   after RE'ing Actor.world.rot on Az (should be at fixed offset from
+   Player base — same 0x24 offset used by ACTOR_ROT_OFF).
 2. **Sweep across more scenes** to confirm d5 mainCamera offset works
    for follow/fixed/cutscene camera settings.
 3. **d8 = envCtx lighting** (already have `SohState_Lighting`) — port
@@ -433,5 +447,9 @@ future session as workflow-first infrastructure work.
   identified the wall-stop divergence as scene-collision, not Player.
 - `scratch/speed_perframe.py`, `scratch/speed_gameframe.py` — per-
   frame speed decomposition that identified the "3×" as harness ticking
-  mismatch + known 30fps compensation, and named the residual startup
-  acceleration Player_Update divergence.
+  mismatch + known 30fps compensation.
+- `scratch/az_speedxz_scan.py` — RE'd Az Player.speedXZ offset
+  (actor+0x068) via memory scan for the acceleration signature.
+- `scratch/accel_direct.py` — direct per-frame speedXZ compare that
+  proved real-time walking acceleration is 40 units/sec² on both
+  engines. No Player port gap in the walking-accel constant.
