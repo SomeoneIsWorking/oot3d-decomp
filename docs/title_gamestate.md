@@ -426,3 +426,47 @@ pose stream is already useful.
   Reference DB for specific .data VAs.
 - `tools/ghidra_scripts/FindRangeRefs.py` — same, but for a whole VA
   range at once (faster than N calls to the single-VA form).
+
+## Actor identity CONFIRMED — the pose table is EPONA's
+
+Landed the compare loop in the soh3d harness (see soh3d commit
+`2c34c07`). SoH3D's own asset-loader emits during title-demo:
+
+```
+[Zelda3D] auto-loaded model 2006 (/actor/zelda_horse.zar):
+  cmb 'Model/epona.cmb' of 1, height=9239.5, bones=25 (skinned->skip)
+```
+
+**25 bones = the 25 entries at 0x005642D0.** The mystery pose table is
+Epona's SkelAnime joint transforms, statically pre-allocated as an
+optimization because Epona is present for the entire title-demo loop.
+No SkeletonHeader hunt was needed in the OoT3D executable's `.rodata`
+because the skeleton definition lives inside the ZAR archive
+(`zelda_horse.zar → Model/epona.cmb`), not in code.
+
+On the SoH3D side at title, `compare titleactors` reports the Player
+(Link) skelAnime instead of Epona — because SoH3D flags Epona's model
+as `skinned->skip` and doesn't run its N64 SkelAnime pipeline for her.
+Direct pose-level A/B between the two engines therefore needs one of:
+
+1. Wire SoH3D to expose a live Epona SkelAnime at title (drop the
+   `skinned->skip` short-circuit for the horse — maybe just for the
+   duration of the compare pass).
+2. Continue the same alignment for Link's own SkelAnime pose stream:
+   locate Link's dedicated pose table (a *second* hardcoded base
+   somewhere in `.data`) with the same static movw/movt+pool scan we
+   used here, then compare Link↔Link.
+
+Path 2 is the same technique reused, so the writer-hunt primitive from
+this session composes for every pre-allocated title actor.
+
+### Session outcome — SkelAnime-parity primitives now in place
+- Writer chain fully RE'd: FUN_003204a4 → FUN_00347550 → FUN_002bb1cc →
+  FUN_0036b4ec (the SkelAnime_Update-equivalent at 130 call sites).
+- Pose format known: 36-byte {Vec3 pos, Vec3 rot(rad), Vec3 scale} —
+  floats, not the N64's Vec3s.
+- Read-side accessor in the harness (`titleactors`) + compare sub
+  (`compare titleactors`) both work.
+- Scanner (`tools/find_indexed_writers.py`) is the reusable primitive
+  for finding writers of any VA range where Ghidra's static Reference
+  DB misses (movw/movt-materialized bases + register-indexed stores).
