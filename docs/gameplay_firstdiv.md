@@ -41,13 +41,25 @@ d1 gamestate:    az=play soh=play
 d2 sceneNum:     az=0x0034 soh=0x0034
 d3 player pos:   az=(1.0,0.0,95.0) soh=(1.0,0.0,95.0) |Δ|=0.00
 d4 player rot:   az=(0,-32767,0) soh=(0,-32768,0) |Δaxis0..2|=(0,1,0)
-d5 camera basis: az=TODO(play-cam not RE'd) soh_eye=(0.0,34.0,0.0) soh_at=(1.0,34.0,100.9) camId=0 fov=60.0
-firstdiv: none — play-mode d1..d4 matched (d5 az-side pending RE)
+d5 camera basis: az_eye=(0.0,34.0,0.0) soh_eye=(0.0,34.0,0.0) |Δeye|=0.00 |Δat|=0.03 |Δup|=0.0000  soh_camId=0 fov=60.0
+d6 actor count:  az=5 soh=4 | cat2=1/1 cat6=1/1 cat7=3/2
+firstdiv: actor-count total az=5 soh=4; cat2=1/1 cat6=1/1 cat7=3/2 — per-cat az/soh — investigate room-load timing vs missing-actor port gap
 ```
 
 d3 player position is **exact** (1.0, 0.0, 95.0) on both sides. d4 player
 rotation Y differs by 1 binary-angle unit (32767 vs 32768) — rounding, not
-a port gap. d1/d2/d3/d4 all pass; the anim-data floor is escaped.
+a port gap. d5 camera basis matches at |Δeye|=0.00 |Δat|=0.03 |Δup|=0.0000
+(the 0.03 at-delta is float rounding on the target-pos). **d1..d5 all
+pass.**
+
+**d6 names the first real port gap:** SoH is missing one cat=7
+(ACTORCAT_ITEMACTION / En_Item00) at Link's House — Azahar has 3
+En_Item00 pickups, SoH spawns only 2. The missing one is at pos
+(0.0, 20.0, 120.0) per the fuller `compare actors` dump. Could be a
+save-collected-state divergence (Az's save may have that item collected
+but SoH spawns fresh because it has no matching flag), or a real
+spawn-list port gap. This is the anim-data-floor-escape payoff: a
+concrete, quantitative divergence to chase next session.
 
 ## What changed in the harness
 
@@ -61,45 +73,65 @@ a port gap. d1/d2/d3/d4 all pass; the anim-data floor is escaped.
   (player pos, player rot, TODO-marked camera basis) instead of the
   title-only pose/limb-count checks.
 
-## Next work — d5 Azahar play-mode camera
+## d5 Azahar play-mode camera — RE'd
 
-The remaining TODO is the Azahar-side play-mode active camera. SoH exposes it
-via `SohState_Camera` (`gPlayState->cameraPtrs[gPlayState->activeCamId]`).
-Azahar needs the equivalent RE:
+Located by live memory scan (`scratch/scan_azcam.py`-style probe): dump
+128 KB starting at gPlayState (0x0871e840 at Link's House loadstate) and
+scan for eye=(0.0, 34.0, 0.0) as three consecutive f32 at 4-byte
+alignment. Three hits inside PlayState:
 
-1. Find OoT3D's `PlayState::cameraPtrs` offset. On N64/SoH it's inside the
-   PlayState struct; on 3DS it may be at a different offset due to the 64-bit
-   pointer size shift.
-2. Find OoT3D's `PlayState::activeCamId` (or equivalent — could be an index or
-   a direct pointer to the active Camera).
-3. In the Azahar Camera struct (once located), read `eye`, `at`, `up`, `fov`.
-   Same shape as SoH's (Vec3f × 3 + fov).
-4. Add both offsets to the constants block in `main.cpp` and extend the d5
-   play-mode branch of `CompareFirstDivImpl` to read+compare Az camera basis
-   against SoH's.
+- **PlayState+0x1B8: mainCamera** — eye, at, up packed EYE→AT→UP
+  (GREZZO reordered vs N64's AT→EYE→UP layout).
+- PlayState+0x3E4 and +0x408 — matching Vec3f-triple blocks, likely
+  subCameras or eyeNext-style redundant copies.
 
-Anchor: at Link's House Az frame 60 post-load, the SoH camera reads
-`eye=(0.0, 34.0, 0.0) at=(1.04, 34.03, 100.90)`. Azahar's play camera should
-land at the same values — matching values in `.data` or on the heap will be
-diagnostic for locating the cameraPtrs field.
-
-Alternative: decompile OoT3D's `Play_Init` (already anchored per this doc's
-"Play_Main @ 0x0045238c" line) and read the camera-init calls; they'll
-reference the cameraPtrs slot directly.
-
-## Actor count mismatch — small remaining divergence
-
-`compare actors` at Link's House frame 60 post-load shows:
+Verified at Link's House frame 60:
 
 ```
-3ds: 5 actors  (Player + En_Kusa + En_Item00 x2 + En_Item00)
-soh: 4 actors  (Player + En_Kusa + En_Item00 + En_Item00)
+ps+0x1B8: eye = (0.000, 34.000, 0.000)
+ps+0x1C4: at  = (1.064, 34.010, 100.885)
+ps+0x1D0: up  = (0.000, 1.000, 0.000)
 ```
 
-SoH is missing one En_Item00 (id 0x0185) at pos (0.0, 20.0, 120.0). Could be
-a room-load timing difference (SoH hasn't finished spawning yet) or a legit
-port gap. Not surfaced by firstdiv yet — d6 actor-count would be a natural
-next-dimension check. Deferred.
+matches SoH's `SohState_Camera` output byte-for-byte modulo FP rounding.
+Constants added to `main.cpp`: `PLAY_CAM_EYE_OFF = 0x1B8`,
+`PLAY_CAM_AT_OFF = 0x1C4`, `PLAY_CAM_UP_OFF = 0x1D0`.
+
+## d6 actor count — first real port gap
+
+Extended firstdiv with total-actor-count + per-category deltas across
+all 12 ACTORCAT_* categories. At Link's House frame 60:
+
+- Azahar: 5 total (cat2=Player=1, cat6=En_Kusa=1, cat7=En_Item00=3)
+- SoH:    4 total (cat2=1, cat6=1, cat7=**2**)
+
+The missing SoH actor is at pos (0.0, 20.0, 120.0). Root cause is
+undiagnosed — two candidates:
+
+1. **Save-flag divergence.** Azahar's savestate carries scene-flag
+   bits (this item as "not yet collected"). SoH boots without those
+   flags, so it either doesn't spawn a pre-collected item (opposite of
+   the observation) OR does spawn one Az stripped (matches the
+   observation). Would need to compare `gSaveContext.sceneFlags` for
+   scene 0x34.
+2. **Actor-spawn list divergence.** OoT3D room 0 of SCENE_LINKS_HOUSE
+   has 3 En_Item00 entries in its actor spawn list; SoH's ported
+   spawn table has 2 for the same room. Would need to diff the ZAR /
+   OTR room actor lists.
+
+Investigation deferred to the next session — this is the intended
+handoff-forward artifact of the doctrine loop, not a workflow blocker.
+
+## Next-session frontiers
+
+1. Diagnose d6 actor gap. Fetch scene 0x34 room 0 actor list on both
+   sides and diff. First is quick to check; second is authoritative.
+2. Advance to a different gameplay scene to confirm d1..d5 stability
+   (Kokiri Forest 0x55, Hyrule Field 0x51, Kakariko 0x52). Would
+   validate the d5 mainCamera offset (0x1B8) across scenes with
+   different camera settings (fixed vs follow vs cutscene).
+3. Chain further dimensions: d7 = envCtx lighting (already have
+   `SohState_Lighting`), d8 = active room number.
 
 ## Session artifacts
 
