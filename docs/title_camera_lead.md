@@ -101,3 +101,51 @@ d5 emits |Δeye| / |Δdir| / |Δup| and reports firstdiv when
 |Δeye| > 200 (unlikely for the current spline). d4 stays the
 named divergence at title, which is correct — d4's residual is
 the anim-data floor (documented in prior session).
+
+## Title-cam PORT LANDED (soh3d 17221301) + accessor + spline-drift confirmed
+
+**Ship-path port** (soh3d 17221301) replaces zelda3d.c's guessed
+title-cam constants (`kZelda3dTitleEye = (800,80,3000)` etc.) with
+RE-derived shot-1 values from this doc:
+    kZelda3dTitleEye = (-4071.49, 57.81, 5217.30)
+    kZelda3dTitleAt  = (-4521.49, 142.81, 4328.30)  // eye + dir*1000
+    kZelda3dTitleUp  = (   0.212,  0.977,  -0.014)
+
+Plus two supporting fixes without which the override never fired
+in the harness:
+- Zelda3D_ReplPoll no longer early-returns before the camera
+  override block when ZELDA3D_REPL env is unset (harness case).
+- Zelda3D_ApplyTitleCam now propagates to Camera->eye/at/up (not
+  just play->view) so SohState_Camera sees the ported basis.
+- csCtx.state != IDLE gate dropped — SoH's title cs cycles
+  through IDLE moments between shots.
+
+Before → after on Kakariko-style title-parity sweep:
+
+    |Δeye| : 92.09 → 2.19
+    |Δdir| : 1.3573 → 0.0005
+    |Δup|  : 0.1074 → 0.0006
+
+**Accessor scaffold** (soh3d 600a1ddd): the 0x005BE6D4 read is now
+`Az_ReadTitleCameraBasis(&basis)` returning a typed
+`struct Az3dsTitleCameraBasis { float eye[3], dir[3], up[3]; }`.
+Firstdiv output emits a dedicated `title-cam:` line distinct from
+other divergence classes.
+
+**Spline-drift verified empirically** (soh3d c3ebcf2a): the 2.19u
+residual is NOT float rounding — it's shot-1's spline continuously
+moving at 0.036 u/frame (~3.6 u/100 frames) along a linear X+/Z+
+path. SoH is frozen on one specific point on that path (the
+frame-400 sample); Az moves along it. Confirmed via
+scratch/title_residual_probe.py sampling live basis across a 45-
+frame window:
+    tick  0: eye=(-4070.31, 57.81, 5219.15)  |Δ vs frozen|=2.19
+    tick 45: eye=(-4069.44, 57.81, 5220.50)  |Δ|=3.80
+    Δ/frame ≈ 0.036 (linear)
+
+Consequence: closing the 2.19u residual to sub-0.5u would require
+either per-frame injection from Az's live basis (Az-coupled, not
+shippable) or porting the OoT3D title-cam spline evaluator itself
+(FUN_003705a0 candidate per doc §33 — still open). The current
+static port is accepted as parity-close-enough; residual is a
+documented authoring artifact, not a bug.
