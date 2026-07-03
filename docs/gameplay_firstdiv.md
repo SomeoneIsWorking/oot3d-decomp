@@ -514,9 +514,41 @@ work: turns "N sweep-noise items to visually skim past every session"
 into "one policy encoded once, next real divergence stands out
 immediately".
 
+### Actor.bgCheckFlags RE'd at Actor+0x0090
+
+3-state wall-walk scan (`scratch/az_bgflags_scan.py`,
+`scratch/az_bgflags_confirm.py`, 2026-07-03) at Link's House:
+
+| State                    | Actor+0x0090 |
+|--------------------------|--------------|
+| A rest (standing)        | `0x0081`     |
+| B walking-into-wall      | `0x0289`     |
+| C stick released         | `0x0081`     |
+
+Matches SoH-N64's `Actor.bgCheckFlags` bit pattern byte-for-byte
+(z64actor.h:237, :277-288):
+
+- `0x001` on the ground
+- `0x008` touching a wall
+- `0x080` similar-to-ground with no velocity check
+- `0x200` player-only bit
+
+GREZZO shifted the slot from N64's `0x088` by +8 bytes on 3DS —
+probably one extra pointer/f32 inserted earlier in Actor. Wired into
+`CompareFirstDivImpl` (soh3d `adb9ae4`); d3 collision-wall classifier
+now reads bgCheckFlags on BOTH engines and origin_az names the RE'd
+slot instead of admitting "needs Az-side RE".
+
 ## Next-session frontiers
 
-1. **Encode the sign-blind policy above in `CompareFirstDivImpl`.** Item
+1. **Writer-PC + guest-native stack trace attachment via Azahar
+   Memory hooks.** The origin scaffold now names WHICH field the
+   classification came from; the next primitive to layer is WHICH
+   guest instruction wrote that field. Azahar's Memory system has
+   write hooks — wire one to capture the ARM PC at write-time,
+   attach to `DivDecision.origin_pc`. This closes the "workflow-
+   first: manual chase of writer identity" loop that b50560b named.
+2. **Encode the sign-blind policy above in `CompareFirstDivImpl`.** Item
    #1 (SoH 1.5× rate) and item #4 (Wonder_Talk2 filter) are cheap and
    collapse most of the current sweep noise. Items #2/#3 need a
    wall-touching state read; the accessor already exists
