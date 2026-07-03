@@ -926,3 +926,43 @@ future session as workflow-first infrastructure work.
 - `scratch/rot_direct.py` — direct yaw compare that proved both
   engines flip 180° in a single game frame to within 2 s16 units. No
   Player port gap in the yaw update.
+
+### End-to-end dispatch-chain verification (2026-07-03, manager substrate check)
+
+Manager flagged: the az_cam probe reads Camera.setting/mode fields, but the
+inference "setting=2 mode=0 → CAM_FUNC_NORM1 → Camera_Normal1" implicitly
+assumed OoT3D's sCameraSettings/CameraModes layout matches SoH's enum
+ordering. Walking the full runtime chain (soh3d
+scratch/probe_camera_dispatch.py) resolves it directly:
+
+    sCameraFuncTable base @ 0x002d8c20 → 0x00517260
+    sCameraSettings  base @ 0x002d88c8 → 0x00516ff0
+
+    Kakariko live: cameraPtrs[MAIN_CAM] = 0x0871eba4
+      → setting=2 mode=0 status=1
+
+    Dispatch chain:
+      sCameraSettings[2].modes           = 0x0051937c
+      sCamSetNormal1Modes[0].funcIdx     = 2
+      sCameraFuncTable[2]                = 0x00239fd8
+                                       ↑
+      MATCH Camera_Normal1 (independent of SoH enum assumption)
+
+sCamSetNormal1Modes[18] = funcIdx 2 also points at 0x00239fd8 (a fallback
+slot). funcIdx 1 = 0x00239fcc (Grezzo's Camera_Normal0 return-1 stub)
+does not appear in any mode of setting=2 — the NORMAL1 setting never
+dispatches to Camera_Normal0.
+
+Note: the writer-PC substrate (soh3d 0e5f64c + 165dd6e) captures
+0x002d92a4 for the view.eye write at Camera_Update's tail
+(func_800AA358-inlined). That PC is a fixed Camera_Update location, NOT
+the mode function's PC — it fires every frame regardless of which mode
+runs, and does not by itself identify Camera_Normal1. The dispatch-chain
+walk above is what pins the mode function.
+
+Refinement to the substrate for future arcs: watch camera->eye directly
+(cam_ptr + 0x8C), NOT play->view.eye (PS + 0x1B8) — the mode function
+writes camera->eye, and its writer PC lands inside the mode function's
+own address range (0x00239fd8..0x0023AC28 for Camera_Normal1). The
+current harness d5 probe watches play->view.eye and so always attributes
+to Camera_Update's tail. Small extension.
