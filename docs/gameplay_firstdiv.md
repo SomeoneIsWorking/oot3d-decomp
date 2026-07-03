@@ -1084,11 +1084,12 @@ THE ACTUAL Y-DIVERGENCE — an extra block at 338b6c..338b8c
 Immediately after the posOffset LERP, before building atTarget:
 
     338b6c: r0 = [r4, #0xd8]        ; r0 = camera->player
-    338b70: r1 = [pc, #0x80]        ; r1 = &<global_state_table>  (=0x000029b8)
-    338b74: r1 = [r1, r0]           ; r1 = *(&<global> + player)
-                                    ; (indexed by pointer — reads a per-player
-                                    ; state word; likely
-                                    ; gPlayState->actorCtx or similar)
+    338b70: r1 = [pc, #0x80]        ; r1 = 0x000029b8 (an OFFSET, not
+                                    ; an address — constant is small)
+    338b74: r1 = [r1, r0]           ; r1 = *(u32*)(r0 + r1)
+                                    ;     = *(u32*)(camera->player + 0x29b8)
+                                    ; — a per-Player state word inside
+                                    ; the 3DS-extended Player struct
     338b78: tst r1, #0x100          ; test bit 8
     338b7c: beq 338b90              ; skip if bit clear (s16 stays 0.0f)
     338b80: r0 += 0x1400            ; r0 = camera->player + 0x1400
@@ -1130,10 +1131,11 @@ probe to confirm live).
 Next iteration frontier — TWO concrete steps
 
 Step 1 (verify): Add a harness probe reading
-    (a) the player-state word at *(<global 0x29b8> + camera->player)
-    (b) player[+0x1760] as f32
-  at Kakariko idle, and print. Confirm bit 0x100 set and value in the
-  2000-3000 range.
+    (a) *(u32*)(camera->player + 0x29b8) — the state word; expect bit
+        0x100 set
+    (b) *(f32*)(camera->player + 0x1760) — the Y-bias magnitude;
+        expect ~2500 (so that *-0.01 = -25)
+  at Kakariko idle.
 
 Step 2 (port): Port Camera_CalcAtDefault into a
 zelda3d/behaviors/camera/at_default.cpp shared module, wiring the extra
@@ -1158,8 +1160,70 @@ Constants decoded (all pc-relative from FUN_00338ac8):
     338bfc: 0xbc23d70a = -0.01f (s16 scale factor)
     338c00: 0x3e4ccccd = 0.2f   (LERPCeilVec3f rate — matches SoH's
                                   0.2f literal in z_camera.c:926,932)
-    338bf8: 0x000029b8 (ptr to a global whose slot is indexed by
-                       camera->player — a per-Player state map)
+    338bf8: 0x000029b8 (a small OFFSET, indexes into Player struct
+                       via `ldr r1, [r1, r0]`)
+
+──────────────────────────────────────────────────────────────────────
+Δ-A empirical FALSIFICATION at Kakariko (harness probe, same session)
+──────────────────────────────────────────────────────────────────────
+
+Wired the two-field probe into the harness az_cam block (soh3d
+commit follows). Kakariko live:
+
+    az_deltaA: player=0x098f4010 state[+0x29B8]=0x04000000
+      bit0x100=0 ybias[+0x1760]=0.00 → extraAtY=0.00
+      (predicts Δat.y=-0.00; observed |Δeye|~25)
+
+state[+0x29B8] = 0x04000000 — bit 0x100 is CLEAR at Kakariko-idle,
+and ybias is 0 anyway. The Δ-A extra-Y block DOES NOT FIRE in this
+scenario. It's still a real structural divergence with SoH (relevant
+when that flag is set — likely climbing/pulling/riding), but it is
+NOT the source of the 25-unit Y drift observed at Kakariko-idle.
+
+So the Kakariko |Δeye|=25 Y drift is caused by SOMETHING ELSE.
+Candidates (ranked by likelihood, still unverified):
+
+  1. Player_GetHeight return differs. SoH returns 68 for adult, 44
+     for child + a 0/32 state adjustment
+     (Shipwright/soh/src/code/z_player.c). OoT3D's FUN_00367ef0
+     mirrors this same 44/68/+32 shape (hand-disasm'd separately).
+     If the two engines classify Link's age or state differently at
+     this save-state, that's the drift. LinkAge check inside
+     Player_GetHeight is against `*(<global>+4)` — the "linkAge" or
+     "adultState" flag. Different linkAge → 24-unit height diff
+     (68-44=24, close to the 25-unit drift).
+
+  2. posOffset LERP rate divergence — SoH's yOffsetUpdateRate is
+     dynamic (LERP'd from PCT(OREG(3))). If OoT3D's rate constants
+     differ, transient state deltas can accumulate. Steady-state
+     shouldn't drift, so unlikely.
+
+  3. A different divergence UPSTREAM of Camera_CalcAtDefault — e.g.
+     extraYOffset (spA0) fed from FUN_00239fd8 differs. Ghidra
+     showed spA0 in FUN_00239fd8 also derived from norm1->yOffset
+     * (swing factor); yOffset was 0 in both engines' data so this
+     should match.
+
+Next-iteration frontier revised:
+
+- Extend the harness probe to also print
+    (a) Link age / adult flag on both sides
+    (b) Player_GetHeight return on both sides (add a soh_playerheight
+        REPL command in soh3d.c, and read *(camera->player + <linkAge
+        field>) on Az)
+  before touching any port. The Δ-A block is confirmed inert here,
+  so the port unit is NOT Camera_CalcAtDefault. Focus shifts to
+  Player_GetHeight parity — a much smaller landing.
+
+CORROLLARY / correction of prior iteration's plan:
+
+- Do NOT port Camera_CalcAtDefault yet. Δ-A is a code divergence but
+  not a Kakariko divergence. It matters for scenes/states where bit
+  0x100 fires (climbing/wall/pulling states) — still port-worthy but
+  NOT the immediate |Δeye|→0 unblocker.
+- Do NOT port the 418-line Camera_Normal1 body either. Only after
+  Player_GetHeight parity is confirmed should the next candidate
+  divergence be sought.
 
 
   Delta B resolution — either read sCameraSettings[2].modes[0].values
