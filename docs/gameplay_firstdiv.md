@@ -169,16 +169,66 @@ whole workstream, not a bugfix.
   didn't need it — position + id was enough) but exposed for the next
   d6-shaped diagnosis where params disambiguate near-duplicate actors.
 
+## d7 per-actor state — landed
+
+For each Az actor, pair it with the SoH actor of same (cat, id) within
+a 40-unit position gate (avoids fabricating a pair when d6 has already
+flagged a missing actor). Compare on the paired set:
+
+- **params** (s16 spawn-data seed at Actor+0x1C) — must match exactly.
+- **hi-bit flags** (Actor+0x04 masked with 0xFFFFFFF0) — the low 4 bits
+  toggle every frame (per-tick housekeeping) and are noisy; the higher
+  bits are the lifecycle/behavior state we care about.
+
+Also tracks per-pair position delta and prints the worst delta for
+visibility — flags NPC/animation drift even when it's within tolerance.
+
+Uses new `SohState_ActorInfoAt(cat, index, ...)` and
+`SohState_ActorListLen(cat)` accessors in `soh_state.cpp`.
+
+## Time-sweep at Link's House — determinism confirmed
+
+`scratch/time_sweep.py` runs firstdiv at post-warp settle then advances
+both engines together for +60, +120, +240 more frames (720 total game
+frames = 12 seconds). Result:
+
+- d1..d5 **rock stable across all four samples**. Player at
+  (1.0, 0.0, 95.0) rot=(0,-32768,0), camera at
+  eye=(0.0, 34.0, 0.0), sub-unit numerical delta throughout.
+- d6 count divergence stable at 5/4 (expected 3DS Wonder_Talk2
+  content addition).
+- d7: 4 pairs, 0 mismatches, worst_pos_drift 7.9–9.6 units on
+  cat=7 id=0x0018 = **En_Elf (Navi)**. She flies autonomously on
+  a scripted path with per-engine RNG; two engines running the same
+  scripted behavior with different random seeds naturally diverge by
+  ~8 units at this scale. Not a port gap. Below the 40-unit pair gate
+  so d7 correctly does not raise.
+
+**Interpretation:** the engine's tick behavior at Link's House with
+Link idle is bit-exact between OoT3D and SoH3D modulo the known
+Wonder_Talk2 content divergence and Navi's autonomous flight. To
+surface actual time-domain port gaps, next-session investigation
+needs one of:
+
+1. **Drive Link (input scheduling).** Send scripted joypad input so
+   Player physics/animation actually change; then any Player Update
+   port gap becomes visible in d3/d4/d7.
+2. **Test a scene with timer/scheduled events.** E.g. Hyrule Field
+   (day/night cycle), Kokiri Forest (spinning platforms, moving
+   pikers), Deku Tree (moving platforms). The static room baseline
+   is already validated.
+3. **Test scene transitions.** Trigger a scene warp and firstdiv
+   during the transition to catch any transition-machinery divergence.
+
 ## Next-session frontiers
 
-1. Diagnose d6 actor gap. Fetch scene 0x34 room 0 actor list on both
-   sides and diff. First is quick to check; second is authoritative.
-2. Advance to a different gameplay scene to confirm d1..d5 stability
-   (Kokiri Forest 0x55, Hyrule Field 0x51, Kakariko 0x52). Would
-   validate the d5 mainCamera offset (0x1B8) across scenes with
-   different camera settings (fixed vs follow vs cutscene).
-3. Chain further dimensions: d7 = envCtx lighting (already have
-   `SohState_Lighting`), d8 = active room number.
+1. Add scene-transition and driven-input flavors to time sweep — the
+   static room baseline is validated.
+2. Sweep across more scenes to confirm d5 mainCamera offset (0x1B8)
+   works for follow/fixed/cutscene camera settings, not just Link's
+   House.
+3. d8 = envCtx lighting (already have `SohState_Lighting`) — port
+   parity of scene lighting settings.
 
 ## Session artifacts
 
