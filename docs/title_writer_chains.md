@@ -392,10 +392,24 @@ static const float kZelda3dTitleArriveDist   = 8.0f;    /* threshold */
   FUN_00461324 needed; the current PathFollow port's handling of
   scriptedDelta (reads it, always sees 0, applies zero bias) is
   correct for the entire title-demo.
-- **FUN_00418B88 shot-advancement RE** (task #7). 1564-line 5-shot
-  dispatcher; RE'ing shot-transition conditions unlocks per-shot cam
-  basis parity. The 5 matrix producers (`FUN_003009D4`, `FUN_0041BD10`,
-  `FUN_00300C58`, `FUN_00300AA8`) are per-shot camera kernels.
+- **FUN_00418B88 shot-advancement RE** (task #7). **RESOLVED 2026-07-03.**
+  The initial hypothesis (5 producer sites = 5 shots) was WRONG. Empirical
+  scan via soh3d/scratch/shot_boundary_scan.py (60 samples × 40M ARM11
+  ticks = 2.4B tick sweep of title-demo playback, with deterministic
+  az_run_until anchors) shows the title-cam basis is EFFECTIVELY STATIC
+  across the entire observed range:
+      eye drifts   10u total from (-4070.8, 57.8, 5218.4) → (-4065.0, 57.8, 5227.4)
+      dir static at (-0.450,  0.085, -0.889)   (3-dp precision, no change)
+      up  static at ( 0.212,  0.977, -0.013)   (3-dp precision, no change)
+  Only the RIDER position moves — from (-5898.0, 59.8, 5091.6) to
+  (-4900.9, 79.5, 5668.5) across the same span (~1200u of drift). The
+  5 producer sites within FUN_00418B88 are a per-frame sequential basis
+  pipeline (each overwrites the same cam struct slot at param_1+0x41,
+  final wins), NOT a per-shot dispatcher. There is no per-shot cam
+  basis to port; the 17221301 shot-1 hardcode holds for the whole
+  playback. The remaining title parity residual is entirely the
+  moving-rider-vs-static-hardcode drift, addressable via the full
+  PathFollow integrator port (soh3d task #12).
 - **Multi-shot title parity harness** (task #8). Compare harness
   currently samples settled shot 1 only. Multi-frame sampling across
   playback identifies which subsequent shots need port beyond shot 1.
