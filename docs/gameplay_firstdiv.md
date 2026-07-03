@@ -1225,6 +1225,63 @@ CORROLLARY / correction of prior iteration's plan:
   Player_GetHeight parity is confirmed should the next candidate
   divergence be sought.
 
+──────────────────────────────────────────────────────────────────────
+ROOT CAUSE — spurious divergence (2026-07-03, session close)
+──────────────────────────────────────────────────────────────────────
+
+Wired the height/age probe. Kakariko live:
+
+    az_height: linkAge[0x58795C]=1 pstate[+0x1710]=0x00000000
+      → Player_GetHeight=44.0
+
+SoH's Player_GetHeight (z_actor.c:1402) has the same 44/68 formula
+(LINK_IS_ADULT=(linkAge==0) → 68, else 44; +32 on horse). Since the
+sweep does soh_boot + soh_warp 0xBB, SoH boots to its default which
+is ADULT Link — gSaveContext.linkAge = 0 → SoH's
+Player_GetHeight = 68.
+
+  68 − 44 = 24 = |Δat| observed at Kakariko (24.10)
+
+The 25-unit |Δeye| drift is NOT a camera-code divergence. It's a
+sweep-setup parity break: OoT3D loads oot3d_linkshouse.state (CHILD
+Link) while SoH boots to a fresh state (ADULT Link). Two different
+Links have two different heights, which propagate through the
+IDENTICAL Camera_CalcAtDefault → Camera_Normal1 flow to produce a
+24-unit at.y offset and thus ~25 units of eye.y drift (plus small
+pitch-related XZ drift).
+
+CONCLUSION for the port program:
+
+  Camera_Normal1 (FUN_00239fd8) is at PARITY with SoH's
+  Camera_Normal1 for the modes exercised at Kakariko.
+  Camera_CalcAtDefault (FUN_00338ac8) has a structural Δ-A extra-Y
+  block that fires only when the player-state bit 0x100 is set — an
+  identified real divergence, but not exercised at Kakariko-idle.
+
+  No 418-line port is needed to close this apparent Δeye. Fix the
+  harness parity setup instead: either
+    (a) load a child-age SoH save equivalent to
+        oot3d_linkshouse.state via a SoH savestate/soh_setage
+        REPL, so both engines start with linkAge=1 before the warp;
+    (b) OR use an adult-age Azahar savestate matched to whatever
+        SoH's default boot state is.
+  Then re-run the Kakariko sweep; expect |Δeye|→~0.
+
+  Prior "port frontier" framings (Δ-A resolution above; the handoff's
+  Δ-A + Δ-B analysis; the CameraBehavior/Normal1Behavior scaffold in
+  soh3d) were all downstream of an unrecognized setup asymmetry.
+  This is the actual first-divergence class at Kakariko.
+
+Falsification chain resolved. The Normal1 port arc IS closed — but
+by a different mechanism than the handoff envisioned. When a real
+Camera_Normal1 divergence surfaces in a future scene at matched
+LinkAge, the FUN_00239fd8 body port can begin from a genuine
+observation.
+
+The Δ-A structural finding (extra Y block in FUN_00338ac8 gated on
+player-state bit 0x100) remains valid as documented; it just isn't
+what caused this particular sweep's |Δeye|.
+
 
   Delta B resolution — either read sCameraSettings[2].modes[0].values
   offline from the ROM (short[] at DAT_0023a348 + 2*8+4 → +0*8+4), or
