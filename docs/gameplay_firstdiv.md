@@ -407,18 +407,48 @@ speedXZ increment × Player_Update tick rate = real-time acceleration =
 **40 units/sec² on both engines**. Top walking speed matches at 5.0.
 No Player port gap in the walking-accel constant.
 
+### Rotation-during-startup resolved: Actor.world.rot decoupled from Player yaw
+
+Direct probe (`scratch/rot_direct.py`) initially confirmed the reported
+d4 divergence: SoH's `Actor.world.rot.y` (at 0x14+2) flips from -32768
+to +108 on the first walk-forward frame, but Az's same-offset field
+stays at -32767. Az's Link IS moving +Z though, so OoT3D must track
+live facing yaw in a different field.
+
+Memory scan (`scratch/az_playeryaw_scan.py`) for s16 offsets flipping
+±180°→0° during walk startup found **actor+0x036** as the live yaw
+slot:
+
+| gf | SoH Actor.rot.y | Az +0x036 |
+|----|-----------------|-----------|
+| 00 | -32768          | -32767    |
+| 01 | +108            | +110      |
+| 02+| +108 (stationary)| +110      |
+
+Both engines flip 180° in a single game frame, targeting the same yaw
+within 2 binary-angle units (float rounding on stick→angle math). No
+Player_Update port gap — d4's apparent divergence was reading the
+wrong field on Az.
+
+GREZZO decoupled `Actor.world.rot.y` from the live-facing yaw. On 3DS,
+0x14+2 stores the initial spawn rotation and stays STATIC through
+gameplay; the live yaw lives at Player-owned offset 0x36 (not part of
+the base Actor struct's `world.rot`). N64's Player_UpdateCommon writes
+both together via `Actor.world.rot.y`; OoT3D keeps them separate.
+
+Post-flip yaw drift at game frame [07]+ is a downstream effect of the
+scene-collision divergence (SoH hits the Z=131 wall and triggers
+wall-slide yaw; Az still has ~4.5u ahead before its Z=135.5 wall) —
+not an independent Player port gap.
+
 ## Next-session frontiers
 
-1. **Player rotation-during-startup.** d4 during the walk-forward sweep
-   showed Az's Player.rot.y jumping to ~+32700 during the first game
-   frames while SoH's stayed at rest. Link at Link's House spawns
-   facing -Z (toward the door). Stick_y=+127 = forward = +Z, needs a
-   180° yaw flip. Az's Player flips over the first ~2 game frames;
-   SoH's flip cadence differs. Read via `az_playerinfo`-style probe
-   after RE'ing Actor.world.rot on Az (should be at fixed offset from
-   Player base — same 0x24 offset used by ACTOR_ROT_OFF).
-2. **Sweep across more scenes** to confirm d5 mainCamera offset works
-   for follow/fixed/cutscene camera settings.
+1. **Update d4 in firstdiv to read Az's live yaw at +0x036 instead of
+   Actor+0x14+2.** Currently the compare tool reports a fake ~32700
+   rotation divergence at every startup because it reads the static
+   spawn-rot slot on Az. One-line change.
+2. **Sweep across more scenes** to confirm d5 mainCamera offset (0x1B8)
+   and the yaw slot (+0x036) are Link's-House-independent.
 3. **d8 = envCtx lighting** (already have `SohState_Lighting`) — port
    parity of scene lighting settings.
 4. **Port OoT3D scene collision** for Link's House (and Kokiri Forest,
@@ -453,3 +483,8 @@ future session as workflow-first infrastructure work.
 - `scratch/accel_direct.py` — direct per-frame speedXZ compare that
   proved real-time walking acceleration is 40 units/sec² on both
   engines. No Player port gap in the walking-accel constant.
+- `scratch/az_playeryaw_scan.py` — RE'd Az live-facing yaw at
+  actor+0x036 (decoupled from world.rot.y on OoT3D).
+- `scratch/rot_direct.py` — direct yaw compare that proved both
+  engines flip 180° in a single game frame to within 2 s16 units. No
+  Player port gap in the yaw update.
