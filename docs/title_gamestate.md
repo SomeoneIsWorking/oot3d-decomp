@@ -504,3 +504,63 @@ characters run through the SkelAnime-retarget path, not the skip
 path. The log now reads
 `bones=25 (skinned=SkelAnime retarget)`, matching reality (see
 soh3d commit `1e4cf1e`).
+
+## Falsification — title-context sub-objects don't lead to Link's anim instance
+
+Walked the title context (0x0050AF34) sub-object chain at +0x14..+0x30
+live at title via the harness. Every sub-object turns out to be a UI
+sprite factory or index-buffer builder — pointers into .rodata/.text
+(`0x080Exxxx`, `0x080Fxxxx`) for texture data, small floats like 256.0
+/ 128.0 for sprite dimensions, `0x00005544` subsystem magic, and index-
+buffer scratch. No pointer to any anim-instance-shaped struct. No `+0x3c`
+float that could be the pose-evaluator's time.
+
+Falsifies manager's direction (2) as posed: "walking the title-context
+heap sub-object chain at +0x14..+0x30 unlocks Link's anim instance."
+The chain unlocks UI sprite state, not gameplay actor state — the two
+subsystems don't intersect at title.
+
+### Structural implication
+
+At title, `gPlayState = 0` (title state is inline in .data, per this
+doc's earlier finding). So there's no PlayState-rooted way to reach
+the actor context. Yet the pose evaluator IS writing 25 float triples
+to 0x005A54D8 per frame — someone owns Link's actor+SkelAnime and
+calls FUN_002bb1cc → FUN_003204a4 on it every tick.
+
+That "someone" must be a distinct opening-mode dispatch we haven't
+RE'd yet. In N64 OoT it's `Opening_Main`/`TitleSetup_Main`; on 3DS
+GREZZO refactored the title path (the finding at the top of this
+doc) and the equivalent lives... unknown. Candidate attack vectors:
+
+1. **Heap-pointer inventory diff.** Scan .data at title vs Link's-
+   House for u32 words that ARE heap pointers (0x08xxxxxx range) and
+   change between the two states. The opening-mode context pointer
+   would appear here.
+2. **Reverse from the pose table.** FUN_003204a4 has 5 callers; find
+   which one runs during title (breakpoint / watchpoint on the pool
+   literal load), trace back one frame to the actor whose SkelAnime
+   drove that call, then trace THAT actor's storage.
+3. **Cutscene-manager global.** N64 OoT has a `gCutsceneContext`
+   analogue for scripted demos. 3DS likely has one too, holding the
+   current-cutscene-frame time. Its .data slot would be visible in
+   the same heap-pointer inventory as #1.
+
+### Deterministic result via the compare tool (from 105727c)
+
+`compare firstdiv` after `force titletime 100`:
+```
+force titletime 100 → az=101 soh=101 (both writes committed)
+d4 rot delta:    worst=32723 (soh limb 14 axis 2) az_bin=-12303 soh_bin=20420
+d4 mean |Δ|:     axis0=10977 axis1=9235 axis2=17577  half-turn hits=1/63
+```
+
+Compared to baseline (0x0054CC3C tick, no sync):
+```
+d4 mean |Δ|:     axis0=11047 axis1=9125 axis2=17478  half-turn hits=2/63
+```
+
+Statistically indistinguishable — cursor write has no effect on the
+pose stream. 0x0054CC3C is a bystander counter (probably a UI/HUD
+telemetry tick), not the anim-eval master time. The next RE round
+should hunt via the heap-pointer inventory attack above.
