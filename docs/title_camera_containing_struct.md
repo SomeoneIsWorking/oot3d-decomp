@@ -80,6 +80,30 @@ over 300 frames). Candidate write mechanisms:
    `docs/title_actor_world_pos.md` for the actor slot. Guaranteed to
    catch the writer at emu runtime; not tried yet.
 
+## Candidate writers decomp'd — all red herrings
+
+Batch-decomp'd the four scanner-surfaced writer fns via Ghidra 12.0.4
+(`build/decomp/002ff5d4.c`, `00471b84.c`, `004592d0.c`, `00465b34.c`):
+
+- **FUN_002FF5D4** (80 bytes): tiny one-shot — `*(u32*)(0x5BE5B8 + 0xFC) = 0` after a lock-guarded call. A flag clear, not a Vec3f writer.
+- **FUN_00449420** (1268 bytes): scene-transition dispatcher — writes ONE word at `+0x164` (`= *(u32*)(param_1 + 0x1B0)`, a single s32 from Play state), not the 3 Vec3f basis at `+0x11C..+0x140`.
+- **FUN_00471B84** (1840 bytes): matrix-setup fn — writes `param_1[0x3F]` = base+0xFC (a projection-matrix scratch field) along with dozens of matrix-cell floats. Doesn't touch the camera basis (+0x11C region).
+- **FUN_00465B34** (460 bytes): **table initializer** — populates a hardcoded 18-entry × 16-byte lookup table at `0x005AFBC4` (probably a sfx/particle table) with literal constants from `DAT_00465D14..DAT_00465D40`. One-shot at boot, not per-frame. Also NOT the writer of `0x005AFFB0` — it stops writing well before that offset.
+
+**Conclusion**: NONE of the four scanner-surfaced writer candidates are the camera-basis-eye or actor-world-pos writers. All are either flag-clears, single-field bit copies, matrix scratch, or one-shot table inits.
+
+The actual writers use a mechanism the constant-tracker can't see:
+- A Vec3f-taking helper whose destination is `add rDst, base_ptr, #0x11C` where `base_ptr` came from a heap chain / callee-arg — the scanner has no visibility into either.
+- OR a bulk memcpy pattern where the dest pointer is loaded via `ldr rDst, [rSomeCtx, #imm]` from a runtime state block.
+
+## Follow-up attacks (deferred)
+
+1. **Callee-arg xref graph.** Find all callers of Ghidra-inferred "sink" functions (memcpy-like or Vec3f-copy-like) whose first argument at the call site evaluates to `0x005BE5B8 + 0x11C` = `0x005BE6D4`. This needs a smarter scanner that follows arg-setup blocks BACKWARD from `bl` sites.
+2. **JIT memory-write watchpoint.** Attach Azahar's dynarmic hook to `0x005BE6D4..0x005BE6D8` and dump the writer PC at first hit. Guaranteed and cheap.
+3. **Ghidra callgraph over `gGlobalCtx = 0x005BE5B8`.** All 398 pool-literal sites deref this struct — filter to those that pass `(0x5BE5B8 + 0x11C)` as an arg. Same idea as #1 but leveraging Ghidra's Reference DB.
+
+Attack (2) is the most robust and least likely to keep chasing red herrings.
+
 ## Tool committed
 
 `tools/ghidra_scripts/FindMovwMovtWriters.py` — new; runs in ~10s over
