@@ -383,9 +383,15 @@ static const float kZelda3dTitleArriveDist   = 8.0f;    /* threshold */
 
 ### Follow-on scope items (not shot-1 close blockers) — see kanban tasks
 
-- **scriptedDelta across shots** (task #6). Shot 1 has scriptedDelta==0
-  (empirically); shots 2-N may write it via FUN_00461324 (identified
-  writer at LR=0x004617AC). Probe once multi-shot harness exists.
+- **scriptedDelta across shots** (task #6). **RESOLVED 2026-07-03** via
+  scratch/scripteddelta_probe_shots.py using the az_run_until deterministic
+  advance: 11 tick bands covering the FULL title-demo playback (pre-title
+  through shot 5, 100M..2400M ticks post-boot) each fire 32 writes from
+  FUN_00461324 @ PC=0x004617A4 with data=0x0 across ALL bands. The
+  writer unconditionally zeros scriptedDelta every frame. No RE of
+  FUN_00461324 needed; the current PathFollow port's handling of
+  scriptedDelta (reads it, always sees 0, applies zero bias) is
+  correct for the entire title-demo.
 - **FUN_00418B88 shot-advancement RE** (task #7). 1564-line 5-shot
   dispatcher; RE'ing shot-transition conditions unlocks per-shot cam
   basis parity. The 5 matrix producers (`FUN_003009D4`, `FUN_0041BD10`,
