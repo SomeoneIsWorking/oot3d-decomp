@@ -539,15 +539,47 @@ probably one extra pointer/f32 inserted earlier in Actor. Wired into
 now reads bgCheckFlags on BOTH engines and origin_az names the RE'd
 slot instead of admitting "needs Az-side RE".
 
+### Writer-PC watchhook landed (soh3d 0e5f64c)
+
+Layered on top of Azahar's `MemorySystem::RegisterWatchpoint` — the
+harness modifies memory.cpp's `MemoryWatchpoint` case (documented
+patch in `tools/soh3d_harness/AZAHAR_PATCH.md` since Azahar/ is
+gitignored) to call a weak-linked `Soh3d_OnMemoryWrite` hook, which
+records `(vaddr, size, data, arm_pc, arm_lr, cycles)` into a per-range
+ring buffer. REPL commands: `watch <addr> [size]` / `unwatch` /
+`watches` / `hits` / `hitclear`.
+
+**End-to-end verified** at Link's House (`scratch/watch_bgflags.py`):
+watching `Actor+0x0090` (bgCheckFlags) during walk-into-wall captures
+the exact guest PC at each write:
+
+| data   | pc          | lr          | interpretation                         |
+|--------|-------------|-------------|----------------------------------------|
+| 0x0081 | 0x00376420  | 0x00375970  | rest write                             |
+| 0x0289 | 0x00376420  | 0x00375970  | at wall: bit 0x08 set                  |
+| 0x0209 | 0x003764f8  | 0x0032e1c8  | ground bit cleared transient           |
+| 0x0289 | 0x003764f8  | 0x0032e1c8  | re-set                                 |
+| 0x0089 | 0x0032f274  | 0x0049f968  | wall bit cleared briefly               |
+| **0x0289** | **0x0032f328** | **0x0031976c** | **wall bit SET (touch-detected)** |
+
+Ghidra jump to `0x0032f328` lands directly on OoT3D's wall-touch-
+detected handler. Same primitive works for ANY watched address —
+speedXZ, yaw, actor spawns, whatever.
+
 ## Next-session frontiers
 
-1. **Writer-PC + guest-native stack trace attachment via Azahar
-   Memory hooks.** The origin scaffold now names WHICH field the
-   classification came from; the next primitive to layer is WHICH
-   guest instruction wrote that field. Azahar's Memory system has
-   write hooks — wire one to capture the ARM PC at write-time,
-   attach to `DivDecision.origin_pc`. This closes the "workflow-
-   first: manual chase of writer identity" loop that b50560b named.
+1. **Wire writer-PC auto-attach to classified divergences.** When d3
+   classifies collision-wall, the classifier can query
+   `hits(Actor+0x0090)` and print the guest PC that set the wall bit
+   on the classification line itself. `DivDecision.origin_pc` becomes
+   a live field, no manual query needed. Same shape for d5 camera
+   basis, d7 actor-state — every classified divergence carries the
+   writer PC of its underlying field.
+2. **Guest-native stack unwinding.** Currently we capture PC + LR (one
+   frame). For deeper call chains, walk r11 (fp) if the guest binary
+   uses frame pointers. OoT3D probably has -fomit-frame-pointer so
+   this may need heuristic unwinding (scanning back for `push {..,lr}`
+   instructions). Bounded extension of the substrate.
 2. **Encode the sign-blind policy above in `CompareFirstDivImpl`.** Item
    #1 (SoH 1.5× rate) and item #4 (Wonder_Talk2 filter) are cheap and
    collapse most of the current sweep noise. Items #2/#3 need a
