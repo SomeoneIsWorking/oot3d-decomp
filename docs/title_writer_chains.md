@@ -231,6 +231,52 @@ of those three are the demo-actor dispatch primitives — and those are
 what should get ported into `zelda3d.c` to drive SoH's title-demo
 Player state analogously.
 
+### Demo-input writers IDENTIFIED (via `scratch/title_demo_dispatch_hunt.py`)
+
+Ran the 3-scalar watchpoint on the game actor:
+
+```
+=== yaw @ actor+0x36 (5 hits) ===
+  pc=0x00332718   →  FUN_003326F0  (Actor_TurnToPoint)
+  data = 0x2A9D ↔ 0x2AA5   (oscillating ~135°)
+
+=== speed_xz @ actor+0x6C (5 hits) ===
+  pc=0x003CF450   →  FUN_003CF3C4  (PathFollow_Update)
+  data = 0x41000000 = 8.0f  (CONSTANT)
+
+=== scriptedDelta @ actor+0xA4..+0xB0 (15 hits) ===
+  pc=0x004617A4   →  FUN_00461324  (large; deliberately zeroes delta)
+  data = 0x00000000  (ALWAYS ZERO — no cutscene bias in this shot)
+```
+
+**The "title-demo spline" is a WAYPOINT PATH** — not a Bézier curve,
+not a matrix keyframe stream. `PathFollow_Update` reads s16 x/y/z
+waypoint coords from a path-node struct at +0x18/+0x1C/+0x20, turns
+the actor toward it via `Actor_TurnToPoint`, sets constant speed 8.0f,
+and integrates through `Actor_MoveXZByYawSpeed` each frame.
+
+Both primitives are hand-authored in `src/code/z_actor.c` (this session).
+
+### Port target — minimum viable
+
+To reproduce Az's title-demo rider trajectory in SoH:
+1. **Extract the waypoint table.** Dump the path node that Grezzo's
+   demo dispatch passes as `path_node` to `PathFollow_Update` — probably
+   a small array of s16 x/y/z triples in `.data` or `.rodata`.
+2. **Extract kPathSpeed and kMaxYawStep** — DAT_003CF4F8 / DAT_003CF4F4.
+3. Port `Actor_TurnToPoint` + `PathFollow_Update` + `Actor_MoveXZByYawSpeed`
+   into `soh3d/Shipwright/soh/src/zelda3d/zelda3d.c` (bodies are already
+   authored in oot3d-decomp `src/code/z_actor.c`).
+4. Drive SoH's title-demo Player state through the same integrator.
+
+Total port surface: ~3 functions (already RE'd + hand-authored),
+~O(10-100) waypoint triples in a static table, 3 f32 constants.
+Small enough for a single session. Collapses `|Δpos|=6529u`.
+
+For `|Δeye|=0.22u` (cam-basis residual): the cam basis eye tracks the
+demo rider through the camera dispatcher chain. Once the rider path
+is at parity, the cam basis should follow to <5u without further work.
+
 ## Full cam-basis call chain
 
 Walked upward from `FUN_004235B8` via Ghidra's Reference DB call xrefs

@@ -62,4 +62,64 @@
  */
 void Actor_MoveXZByYawSpeed(void* actor);
 
+/*
+ * Actor_TurnToPoint — FUN_003326F0.
+ *
+ * Turn `actor->world.rot.y` toward the horizontal bearing from
+ * `actor->world.pos` to `target`, capped at `max_step` binary-angle
+ * units per frame:
+ *
+ *   target_yaw = Math_Atan2S(target.z - actor->world.pos.z,
+ *                             target.x - actor->world.pos.x)
+ *   diff = target_yaw - actor->world.rot.y
+ *   diff = clamp(diff, -max_step, +max_step)
+ *   actor->world.rot.y  += diff
+ *   actor->rot.y_mirror  = actor->world.rot.y   // duplicate at +0xBE
+ *
+ * Standard N64-OoT-style Actor_TurnToPoint / Math_SmoothStepToS-shape
+ * primitive. VERIFIED via JIT memory-write watchpoint on the title-
+ * demo rider's yaw at actor+0x36 (all 5 writes attribute to this fn).
+ */
+void Actor_TurnToPoint(void* actor, const Vec3f* target, s32 max_step);
+
+/*
+ * PathFollow_Update — FUN_003CF3C4.
+ *
+ * The Grezzo demo-actor path follower — reads the CURRENT waypoint
+ * from a path node struct, turns toward it, and moves at a constant
+ * speed until arrival:
+ *
+ *   Vec3f target = {
+ *     s16_to_f32(*(s16*)(path_node + 0x18)),   // waypoint.x
+ *     s16_to_f32(*(s16*)(path_node + 0x1C)),   // waypoint.y
+ *     s16_to_f32(*(s16*)(path_node + 0x20))    // waypoint.z
+ *   };
+ *   f32 dist = length(actor->world.pos - target);
+ *   if (dist < 8.0f) {                       // arrival: DAT_003CF500 = 0
+ *       actor->world.pos = target;
+ *       actor->speed_xz  = 0.0f;
+ *   } else {
+ *       Actor_TurnToPoint(actor, &target, kMaxYawStep /* DAT_003CF4F4 */);
+ *       actor->speed_xz = kPathSpeed;          // DAT_003CF4F8 = 8.0f
+ *       // ... plus audio-sfx side effects at actor + 0x1C4
+ *   }
+ *
+ * VERIFIED via JIT memory-write watchpoint on the title-demo rider's
+ * speed_xz at actor+0x6C (all 5 writes attribute to this fn's
+ * `actor->speed_xz = kPathSpeed` line, with data == 0x41000000 == 8.0f).
+ *
+ * The path_node struct holds s16 waypoint coordinates and probably
+ * neighbour pointers for waypoint chaining. Fields walked so far:
+ *
+ *   path_node + 0x18   s16  waypoint.x
+ *   path_node + 0x1C   s16  waypoint.y
+ *   path_node + 0x20   s16  waypoint.z
+ *
+ * This IS the effective "title-demo spline". Not a Bézier/keyframe
+ * curve — a linear-interpolation waypoint chain + this per-frame
+ * follower. Porting into SoH's title-cam analogue is a small data
+ * table + this integrator.
+ */
+void PathFollow_Update(void* actor, void* param_2, void* path_node);
+
 #endif /* OOT3D_Z_ACTOR_H */
