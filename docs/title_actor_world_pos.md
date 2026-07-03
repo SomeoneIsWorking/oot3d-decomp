@@ -119,6 +119,45 @@ scan-derived slot; the |Δ| = 6529u vs SoH is a real divergence surface
 coord than 3DS's refactored title spline). This is the first-ever
 title-actor cross-engine world-pos delta computed by the harness.
 
+## Writer-chain hunt — negative result (dead-end recorded)
+
+Applied the same `tools/find_indexed_writers.py` primitive that closed the
+Table A/B writer chains to the world-pos slot and its containing struct:
+
+```
+find_indexed_writers.py --lo 0x005AFFB0 --hi 0x005AFFBC     → 0 hits
+find_indexed_writers.py --lo 0x005AFF80 --hi 0x005AFFE0     → 0 hits
+find_indexed_writers.py --lo 0x005AFF80 --hi 0x005B0000     → 0 hits
+```
+
+And a direct pool-literal scan of `code.bin` for `u32 == 0x005AFFB0`,
+`0x005AFF84`, `0x005AFFA0`, `0x005AFF8C` — all zero. No `.text`
+instruction materializes any of these addresses via movw/movt OR via a
+pool constant.
+
+This is DIFFERENT from Table A/B's writer chain, which surfaced via a
+single pool literal one-stride before the table (`0x003208DC = 0x005642D0`).
+Here the struct base has to be reached through an even more indirect
+route — likely a pointer stored in a higher-level state block whose base
+is itself computed. Candidate paths for the next attack:
+
+1. **Heap-side pointer inventory** — dump `.data` at title and look for
+   any u32 word equal to `0x005AFF80` / `0x005AFF84` / `0x005AFFB0`. If a
+   parent struct holds a pointer to this node, its slot surfaces here.
+2. **JIT memory-write watchpoint** — attach a dynarmic write hook on any
+   byte in `0x005AFFB0..0x005AFFBC` and dump the ARM PC. Guaranteed to
+   reach the writer on the first frame the demo actively runs.
+3. **The list-node ptrs at -0x2C/-0x28 self-reference** — this is a
+   `head_ptr == list_head == list_head->next` idiom (empty list). The
+   list-management code (add/remove/iterate) is where the writers live.
+   Cross-reference with any other statically-allocated struct in `.data`
+   that has the same self-referential 12-byte prefix — those are sibling
+   nodes belonging to the same list class, and their shared write path
+   is the writer chain we want.
+
+Deferred until one of these attacks lands. The world-pos accessor is
+independent of the writer identity.
+
 ## What this closes
 
 `docs/title_gamestate.md` §"Where the camera + actor state IS" open item — camera state was previously closed (`title_camera_lead.md`); this closes the actor-state twin. The remaining open item is the writer chain that OWNS this slot (which fn per frame does `str rN, [rBase, #imm]` with base = 0x005AFFB0). Attack vector is the same as the pose-table writer chain — `soh3d/tools/find_indexed_writers.py` retargeted to `[0x005AFF80, 0x005AFFE0)`.
