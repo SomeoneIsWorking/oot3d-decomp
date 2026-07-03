@@ -37,6 +37,15 @@ BRANCH_MNEMONICS = set([
     "tbb", "tbh", "svc", "hvc", "smc",
 ])
 
+def _looks_like_reg(x):
+    try:
+        nm = x.getName()
+    except Exception:
+        return False
+    if nm is None: return False
+    s = nm.lower()
+    return s.startswith("r") or s in ("sp", "lr", "pc", "ip", "fp", "sl", "sb")
+
 def op_reg(op):
     # Given an Object[] operand's Register-like element, return its name
     # lowercased; else None.
@@ -140,15 +149,20 @@ for fn in fn_it:
                     reg_const.pop(rN, None)
             continue
 
-        # add rD, rS, #imm  (best-effort: only handle 3-operand form)
+        # add rD, rS, #imm  (best-effort: only handle 3-operand form).
+        # For shifted-register forms like `add r5, fp, r0, lsl #5`, the third
+        # operand contains a Register — treat as non-const and drop rD.
         if mn == "add":
             rD = ins.getRegister(0); rS = ins.getRegister(1)
             if rD is not None and rS is not None:
                 s = rS.getName().lower()
+                objs = ins.getOpObjects(2)
+                has_reg = any(_looks_like_reg(x) for x in objs)
                 v = None
-                for x in ins.getOpObjects(2):
-                    v = imm_val(x)
-                    if v is not None: break
+                if not has_reg:
+                    for x in objs:
+                        v = imm_val(x)
+                        if v is not None: break
                 if v is not None and s in reg_const:
                     reg_const[rD.getName().lower()] = (reg_const[s] + v) & 0xFFFFFFFF
                 else:
@@ -161,10 +175,13 @@ for fn in fn_it:
             rD = ins.getRegister(0); rS = ins.getRegister(1)
             if rD is not None and rS is not None:
                 s = rS.getName().lower()
+                objs = ins.getOpObjects(2)
+                has_reg = any(_looks_like_reg(x) for x in objs)
                 v = None
-                for x in ins.getOpObjects(2):
-                    v = imm_val(x)
-                    if v is not None: break
+                if not has_reg:
+                    for x in objs:
+                        v = imm_val(x)
+                        if v is not None: break
                 if v is not None and s in reg_const:
                     reg_const[rD.getName().lower()] = (reg_const[s] - v) & 0xFFFFFFFF
                 else:
