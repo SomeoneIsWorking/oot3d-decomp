@@ -660,14 +660,36 @@ Kokiri Forest, Hyrule Field, Kakariko Village in sequence via
 
 Related commits: 57f7ee48 (substrate + tp yaw), 4382960f (d5 auto-attach).
 
-## Next-session frontiers
-2. **Ghidra-jump az_pc=0x002d92a4 in the OoT3D binary.** Decompile the
-   containing function via DecompDump.py (decomp-port skill). It will
-   be a camera-update site — probably `Camera_Update`, a specific
-   camera-type update (there are ~40 in OoT), or a mainCamera copy in
-   `Play_UpdateMainCamera`. Once decomped, wire it into SoH's camera
-   pipeline as a real port, and re-run the Kakariko sweep to see
-   |Δeye| collapse.
+## FUN_002d84c4 (containing PC 0x002d92a4) — decomped, awaits identification
+
+Ghidra-decomped: `build/decomp/002d84c4.c` (623 lines, 22KB C). Signature
+`void FUN_002d84c4(undefined2 *param_1, int param_2)`. Function spans
+0x002d84c4..0x002d9360 (3740B). PC 0x002d92a4 sits ~93% through, in the
+"commit results" tail region — classic pattern for a Camera update
+function writing its computed eye/at/up back to the Camera struct.
+
+`param_2` has fields at +0x80, +0x8c, +0xd4, +0xd8, +0xdc, +0x188,
++0x1a2 → looks like a Camera struct. `param_1` is written to by the
+function (Vec3f output). The captured writer PC wrote `eye_off=+8` of
+PlayState.mainCamera.eye — value 0x4484cc26 (~1062.4, matches Kakariko
+Link Z=1062). So this function is the (or a) main-camera update.
+
+Callees include `FUN_00367e60`, `FUN_004796f8`, `FUN_00355804`,
+`FUN_00371738`, `FUN_00372474`, `FUN_002d052c`, `FUN_00374be8` — walking
+these will disambiguate whether this is `Camera_Update` proper or a
+camera-mode-specific update (there are ~40 in OoT N64).
+
+### Next-session frontiers
+2. **Identify FUN_002d84c4 vs SoH N64's `Camera_Update` / one of the
+   camera-mode functions** (`Camera_Free0`, `Camera_Normal0/1/2`,
+   `Camera_Follow*`, etc.). Cross-reference by structure/callees.
+   Kakariko default camera on Link's House exit is
+   `SCENE_CAM_SET_NORMAL0`, so `Camera_Normal0` is a strong candidate.
+2. **Port the divergent piece.** Once identified, diff FUN_002d84c4's
+   logic against SoH's N64 version; the delta is what's driving the
+   28-unit eye-Y drift. Land the port faithfully as a proper module
+   (per the "port to OOP behaviour modules" project directive), not
+   as a soh3d.c patch. Re-run Kakariko sweep to verify |Δeye|→0.
 2. **Guest-native stack unwinding.** Currently we capture PC + LR (one
    frame). For deeper call chains, walk r11 (fp) if the guest binary
    uses frame pointers. OoT3D probably has -fomit-frame-pointer so
