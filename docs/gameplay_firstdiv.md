@@ -660,7 +660,104 @@ Kokiri Forest, Hyrule Field, Kakariko Village in sequence via
 
 Related commits: 57f7ee48 (substrate + tp yaw), 4382960f (d5 auto-attach).
 
-## FUN_002d84c4 (containing PC 0x002d92a4) — decomped, awaits identification
+## FUN_002d84c4 = Camera_Update — IDENTIFIED (2026-07-03)
+
+Cross-referenced against SoH N64 `Camera_Update` at
+`Shipwright/soh/src/code/z_camera.c:7470`. Structural match is unambiguous:
+
+| OoT3D FUN_002d84c4                                           | SoH N64 Camera_Update (z_camera.c:7470)                                          |
+|--------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `if (*(short*)(param_2+0x188)==0) goto tail-return`          | `if (camera->status == CAM_STAT_CUT) return camera->inputDir`                    |
+| `iVar11 = *(*(param_2+0xd4)+0xa54)+0xd8` → sOOBTimer holder  | `sOOBTimer` (module-static)                                                       |
+| `FUN_00331764(auStack_e4); FUN_00371738(&local_ac,…,0x12)`   | `Actor_GetWorldPosShapeRot(&curPlayerPosRot, &camera->player->actor)`             |
+| `FUN_00367e60(&local_ac, param_2+0xdc)` → `param_2+0x120`    | `OLib_Vec3fDistXZ(&curPlayerPosRot.pos, &camera->playerPosRot.pos)` → `xzSpeed`   |
+| Vec3 diff into `param_2+0x138/13c/140`                        | `camera->playerPosDelta.{x,y,z} = curPlayer.pos - camera->playerPosRot.pos`       |
+| Bit tests on `param_2+0x194` (bits 0x1/0x4/0x200/0x400/…)     | Tests on `camera->unk_14C` (same bits, same order)                                |
+| `if (iVar1+0x9c < 200) sCameraFuncTable[…][…][…](param_2)`    | `if (sOOBTimer < 200) sCameraFunctions[funcIdx](camera)`                          |
+| Indirect dispatch on setting/mode at line 217–219             | `sCameraFunctions[sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx](camera)` @ z_camera.c:7581 |
+| `if (*(short*)(param_2+0x188)==3) goto tail-return`           | `if (camera->status == 3) return camera->inputDir`                                |
+| Quake-branch: offset eye/at, `FUN_00372474`, `FUN_00343858`   | `Quake_Calc`, `OLib_Vec3fDiffToVecSphGeo`, `Camera_CalcUpFromPitchYawRoll`        |
+| Tail: `*param_1 = *(param_2+0x17c)` (Vec3s inputDir out)      | `return camera->inputDir` (Vec3s from `camera+0x17C` on N64)                      |
+
+### Derived Camera-struct field map (OoT3D)
+
+`param_2` is `Camera*`. The layout preserves the N64 shape past the initial
+Vec3f/Vec3s fields, with float fields at the same offsets:
+
+| Offset | Field                                              | Evidence                                                               |
+|--------|----------------------------------------------------|------------------------------------------------------------------------|
+| 0x080  | `at` — Vec3f                                       | `FUN_00372474(auStack_98, param_2+0x80, param_2+0x8c)` (at, eye pair)   |
+| 0x08C  | `eye` — Vec3f                                      | same pair; harness writer PC 0x002d92a4 wrote `eye_off=+8` = eye.z      |
+| 0x098  | (Vec3f, likely `up` or `sph`)                       | 3 f32 writes from `local_80/7c/78`                                     |
+| 0x0B0  | `eyeNext` (or delta base) — Vec3f                  | writes `local_c4/c0/bc` on the "at-adjust" branch                       |
+| 0x0BC  | (Vec3f offset used by shake path)                  | referenced by `param_2+0xbc/c0/c8/cc` in the case-1/12/15 arm           |
+| 0x0D4  | `play` — `PlayState*`                              | `*(param_2+0xd4)+0xa54` chains to sCameraContext                        |
+| 0x0D8  | `player` — `Player*`                               | early-out `if (*(param_2+0xd8) != 0)` gates full update                 |
+| 0x0DC  | `playerPosRot.pos` — Vec3f                         | subtract vs `local_ac` (curPlayer pos) → `playerPosDelta`               |
+| 0x120  | `xzSpeed` — f32                                    | store site of `FUN_00367e60` result (Vec3fDistXZ)                       |
+| 0x128  | `speedRatio` — f32                                 | stored from `FUN_00355804(xzSpeed / …)`                                 |
+| 0x138  | `playerPosDelta` — Vec3f                           | 3-way subtract at +0x138/13c/140                                        |
+| 0x144  | `waterYPos` (or similar) — f32                     | `fVar14 = *(param_2+0x144)` in normal branch                            |
+| 0x14C  | (Vec3f floor normal) — Vec3f                       | writes at +0x150/154/158 on `Camera_GetDataIdxForPoly`-shaped block     |
+| 0x188  | `status` — s16                                     | early-return on 0; special-cases 1, 3, 7                                |
+| 0x18A  | `setting` — u8 (in low byte of u16)                | `*(param_2+0x18a) & 0xff` indexes camera-setting jump table             |
+| 0x18C  | `mode` — u8 (in low byte of u16)                   | `*(param_2+0x18c) & 0xff` indexes cameraModes[]                         |
+| 0x18E  | `bgCheckId` — s16                                  | written from `local_90` after `Camera_GetDataIdxForPoly`                |
+| 0x194  | `unk_14C` — u16 (bitflags 0x1/0x2/0x4/0x40/…)      | bit-wise tests match SoH's `camera->unk_14C`                            |
+| 0x198  | `roll` — s16                                       | used as pitch-input to quake/CalcUp branch                              |
+| 0x19A  | `paramFlags` — u16                                 | `if (uVar4 == 0)` early-out on paramFlags                               |
+| 0x19E  | `nextCamDataIdx` — s16                             | set to `-1` when `unk_14C & 4 == 0`                                    |
+| 0x1A0  | `nextBGCheckId` — s16                              | stored alongside `bgCheckId` on data-idx switch                         |
+| 0x17C  | `inputDir` — Vec3s (pitch/yaw/roll s16)            | function returns `*param_1 = *(param_2+0x17c)` etc                     |
+
+This map is derivable from the N64 struct once you know FUN_002d84c4 is
+`Camera_Update`, and matches the field-order + spacing of `Camera` in the
+N64 code exactly (N64 `Camera` and OoT3D `Camera` share layout in this
+region — no 8-byte-pointer shift because the pointer-fields are already
+past 0x140 in this struct).
+
+### Where the 28-unit Δeye comes from — NOT Camera_Update itself
+
+Camera_Update writes at/eye only in two paths:
+  1. The tail Quake-Calc block copies at/eye into a *local* `viewEye` for
+     the view transform (not back into `camera->eye`).
+  2. The at-adjust block near line 292–306 writes `local_74/68` locals,
+     not camera state.
+
+The actual `camera->eye` mutation happens INSIDE the
+`sCameraFunctions[funcIdx]` indirect call (line 217–219). That is
+`Camera_Normal0` (or whichever mode is active) — where the N64 sets
+`camera->eyeNext` from spherical maths and `camera->eye = eyeNext`.
+
+Kakariko Village default is `SCENE_CAM_SET_NORMAL0` (per SoH scene table),
+mode `CAM_MODE_NORMAL` → funcIdx `CAM_FUNC_NORMAL0` → `Camera_Normal0`
+(`Shipwright/soh/src/code/z_camera.c:2089`). Strong prior: that's the
+divergent function.
+
+### Refined port plan
+
+Port target is **`Camera_Normal0`** (or the specific mode function active
+at the divergence frame), NOT the whole 3740-byte Camera_Update. Camera_Update
+itself matches N64 structurally too closely to be the cause of a 28-unit
+eye-Y delta at rest; the delta lives in mode-specific eye-computation math
+(spring constants, at-offset, pitch-clamp, eye-height defaults).
+
+Concrete next step for the port loop:
+1. **Extend the substrate to expose OoT3D active setting/mode/funcIdx**
+   at the divergence frame (read `mainCamera+0x18a/18c` on the Az side).
+   The offsets are RE'd above.
+2. **Confirm mode identity at Kakariko** — expect
+   `SCENE_CAM_SET_NORMAL0/CAM_MODE_NORMAL/CAM_FUNC_NORMAL0`.
+3. **Find the OoT3D address of that mode function** by walking Ghidra's
+   xrefs from `sCameraFuncTable` (or the dispatch expression's data
+   pointer `DAT_002d8c20`).
+4. **Decomp it, diff against `Camera_Normal0`, port only the delta.**
+   Structure as `Shipwright/soh/src/soh3d/behaviors/camera/normal0.cpp`
+   under a `CameraBehavior` base + id-dispatched registry (per project
+   rule). Fall through to legacy N64 code for camera modes not yet
+   migrated.
+
+## FUN_002d84c4 raw decomp — original notes
 
 Ghidra-decomped: `build/decomp/002d84c4.c` (623 lines, 22KB C). Signature
 `void FUN_002d84c4(undefined2 *param_1, int param_2)`. Function spans
