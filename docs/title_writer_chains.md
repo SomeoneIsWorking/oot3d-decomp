@@ -262,8 +262,9 @@ Both primitives are hand-authored in `src/code/z_actor.c` (this session).
 To reproduce Az's title-demo rider trajectory in SoH:
 1. **Extract the waypoint table.** Dump the path node that Grezzo's
    demo dispatch passes as `path_node` to `PathFollow_Update` — probably
-   a small array of s16 x/y/z triples in `.data` or `.rodata`.
-2. **Extract kPathSpeed and kMaxYawStep** — DAT_003CF4F8 / DAT_003CF4F4.
+   a small array of **s32** x/y/z triples (see disasm below) in `.data`
+   or `.rodata`.
+2. **Extract kPathSpeed and kMaxYawStep** — DONE, see below.
 3. Port `Actor_TurnToPoint` + `PathFollow_Update` + `Actor_MoveXZByYawSpeed`
    into `soh3d/Shipwright/soh/src/zelda3d/zelda3d.c` (bodies are already
    authored in oot3d-decomp `src/code/z_actor.c`).
@@ -272,6 +273,128 @@ To reproduce Az's title-demo rider trajectory in SoH:
 Total port surface: ~3 functions (already RE'd + hand-authored),
 ~O(10-100) waypoint triples in a static table, 3 f32 constants.
 Small enough for a single session. Collapses `|Δpos|=6529u`.
+
+### Constants pinned — from static ROM pool at 0x003CF4F0..0x003CF514
+
+Read via Ghidra `ReadWord.py` from the code pool at the end of
+`PathFollow_Update`:
+
+| VA | value | role |
+|---|---|---|
+| `DAT_003CF4F0` | `0x3EE66667` (0.45f) | kAudioDistScale (audio side effect — not needed for pos parity) |
+| `DAT_003CF4F4` | `0x0000010B` (267) | **kMaxYawStep = 267 binang units/frame** |
+| `DAT_003CF4F8` | `0x41000000` (8.0f) | **kPathSpeed = 8.0f** ✓ matches JIT watchpoint observation |
+| `DAT_003CF4FC` | `0x40666667` (3.6f) | audio-driver f32 constant |
+| `DAT_003CF500` | `0x00000000` (0) | arrival snap speed (`actor.speed_xz = 0`) |
+| `DAT_003CF504` | `0x00001094` (4244) | actor+K flag byte offset (mute-flag check) |
+
+Arrival threshold is `dist <= 8.0f` — the fn does `vsqrt` then bit-
+compares f32 against `0x41000000` (`cmp r1, #0x41000000`). NOT
+`dist² < 8²`; the sqrt is done first.
+
+### Waypoint coord width — DISASM-CONFIRMED s32 (not s16)
+
+Ghidra decomp's `VectorSignedToFloat(...)` reads suggested s16 but the
+disasm at `0x003CF3D4..0x003CF408` is unambiguous:
+
+```
+003cf3d4  ldr r0,[r2,#0x18]        ; whole u32 at path_node+0x18
+003cf3dc  vmov s0,r0
+003cf3e0  vcvt.f32.s32 s2,s0       ; convert 32-bit signed int to float
+003cf3e4  vstr.32 s2,[sp,#0xc]     ; store as local target.x
+   (same pattern for +0x1C and +0x20)
+```
+
+Path-node coords are **s32** — Grezzo widened them from N64 Vec3s to
+s32 (or the layout is actually integer game-coords scaled by 1). Any
+port must read them as `(f32)(s32)`, NOT `(f32)(s16)`.
+
+Hand-authored `oot3d-decomp/src/code/z_actor.c` PathFollow_Update
+body was corrected (was s16) — the corrected version is the
+port-source truth.
+
+### path_node pointer — investigation status (this session)
+
+**Static approach hit a dead end.** `FindDataWriters` on `0x00526DE8`
+(the sole .data slot holding the pointer `0x003CF3C4`) returned 0 refs.
+`ListCallers` on `0x003CF3C4` returned only that .data slot. No BL from
+compiled code points at PathFollow_Update. It is dispatched via a
+function pointer loaded through a base + immediate offset that Ghidra's
+Reference DB does not surface as a xref.
+
+**Dynamic path_node candidate = `0x098f4010`** (stored in actor+0x128
+of the settled title-demo rider actor at `0x09906A80`). Confirmed via
+the poke test in
+`soh3d/scratch/confirm_pathnode_by_poke.py`: writing s16 target to
+`0x098f4010 + 0x18/0x1C/0x20` shifted the actor's yaw by Δ=+3010 (60
+frames), way above natural oscillation noise of ±8. Other candidates
+(3616-family Path header at `0x087224AC`, misc. heap ptrs) gave Δ=0.
+
+**Not yet verified.** The struct at `0x098f4010` reads `+0x18=0`,
+`+0x1C=0x03020FFF` (=50401279 as s32; ~3.83e-37 as f32),
+`+0x20=0` — the y-coord of `50401279` is not a sane game-world value.
+Two possibilities:
+
+- (a) The actor's caller `PathFollow_Update(actor, play, path_node)`
+  uses `path_node = something OTHER than 0x098f4010`, and the poke
+  test's yaw shift was a side effect (the actor state block at
+  actor+0x1C4 references audio/anim tables at various offsets — poking
+  a nearby heap struct may indirectly disrupt state).
+- (b) Grezzo Path uses a different layout than assumed (maybe
+  `+0x18/1C/20` are packed differently, or the "path node" pointer the
+  caller passes has base offset shift).
+
+**Blocker resolution — arc handoff.** Extended `watchhook.cpp` this
+session to capture `r0..r3, sp` at every write hit. That data was
+captured on the yaw-mirror write inside `Actor_TurnToPoint` but by
+that PC the registers have been reused (r1 held the caller's
+`&target` before, but the yaw-mirror store reuses r1). To pin
+path_node cleanly, ONE of these approaches will work in the next arc:
+
+1. **Watch a stack VA in FUN_003CF3C4's frame** — specifically the
+   `[sp, #0xc]` slot where `target.x` gets written at PC=0x003CF3E4.
+   That store is a MEMORY write to the stack page; if the watchpoint
+   fires we'll see r2=path_node (r2 is untouched between fn entry
+   and this insn). SP is dynamic per-thread but stable for a given
+   demo-rider thread; sample it once via the newly-added `sp`
+   capture on ANY write inside FUN_003CF3C4, then register a watch
+   on that stack VA.
+2. **Add a code-exec breakpoint API to the harness** — a fresh
+   Azahar patch (like MemoryWatchpoint but on instruction fetch)
+   would fire at PC=0x003CF3C4 (fn entry) where r0..r3 hold the
+   args verbatim. Bigger patch than option 1 but reusable for any
+   future entry-arg capture.
+
+### Constants required for zelda3d.c port (this arc's shipping table)
+
+Once path_node coords are dumped, hardcode these in
+`Shipwright/soh/src/zelda3d/zelda3d.c` (following commit `17221301`'s
+title-cam PORT pattern):
+
+```c
+static const int32_t kZelda3dTitlePath[][3] = {
+    /* ... dumped s32 waypoints ... */
+};
+static const int   kZelda3dTitlePathCount    = ...;
+static const float kZelda3dTitlePathSpeed    = 8.0f;    /* 0x41000000 */
+static const int   kZelda3dTitleMaxYawStep   = 267;     /* 0x0000010B */
+static const float kZelda3dTitleArriveDist   = 8.0f;    /* threshold */
+```
+
+### Follow-on scope items (not shot-1 close blockers) — see kanban tasks
+
+- **scriptedDelta across shots** (task #6). Shot 1 has scriptedDelta==0
+  (empirically); shots 2-N may write it via FUN_00461324 (identified
+  writer at LR=0x004617AC). Probe once multi-shot harness exists.
+- **FUN_00418B88 shot-advancement RE** (task #7). 1564-line 5-shot
+  dispatcher; RE'ing shot-transition conditions unlocks per-shot cam
+  basis parity. The 5 matrix producers (`FUN_003009D4`, `FUN_0041BD10`,
+  `FUN_00300C58`, `FUN_00300AA8`) are per-shot camera kernels.
+- **Multi-shot title parity harness** (task #8). Compare harness
+  currently samples settled shot 1 only. Multi-frame sampling across
+  playback identifies which subsequent shots need port beyond shot 1.
+
+Shot-1 arc close ≠ title-parity close.
 
 For `|Δeye|=0.22u` (cam-basis residual): the cam basis eye tracks the
 demo rider through the camera dispatcher chain. Once the rider path

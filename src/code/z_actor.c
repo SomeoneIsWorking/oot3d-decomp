@@ -136,7 +136,10 @@ void Actor_TurnToPoint(void* actor, const Vec3f* target, s32 max_step) {
  * the effective "title-demo spline driver".
  *
  * Structural sequence:
- *   1. Decode target Vec3f from s16 waypoint coords at path_node+0x18/1C/20.
+ *   1. Decode target Vec3f from **s32** waypoint coords at path_node+0x18/1C/20.
+ *      Verified via disasm 0x003cf3d4..0x003cf408: `ldr r0,[r2,#0x18]` +
+ *      `vmov s0,r0` + `vcvt.f32.s32 s2,s0`. NOT s16 as an earlier draft
+ *      assumed — Grezzo widened path-node coords from N64 Vec3s to s32.
  *   2. Compute distance from actor->world.pos to target.
  *   3. If dist < 8.0f  →  snap to target, speed = 0 (arrived).
  *      Else           →  Actor_TurnToPoint(actor, &target, kMaxYawStep),
@@ -157,9 +160,10 @@ void PathFollow_Update(void* actor, void* param_2, void* path_node) {
     u8* node = (u8*)path_node;
 
     Vec3f target;
-    target.x = (f32)(*(s16*)(node + 0x18));
-    target.y = (f32)(*(s16*)(node + 0x1C));
-    target.z = (f32)(*(s16*)(node + 0x20));
+    /* WHOLE s32 → f32, not just low s16 — see body comment above. */
+    target.x = (f32)(*(s32*)(node + 0x18));
+    target.y = (f32)(*(s32*)(node + 0x1C));
+    target.z = (f32)(*(s32*)(node + 0x20));
 
     f32 dx = *(f32*)(base + ACTOR_WORLD_POS_X_OFF) - target.x;
     f32 dy = *(f32*)(base + ACTOR_WORLD_POS_Y_OFF) - target.y;
