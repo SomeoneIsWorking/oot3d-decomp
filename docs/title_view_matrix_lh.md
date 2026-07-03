@@ -1,5 +1,32 @@
 # OoT3D uses LEFT-HANDED view matrix convention
 
+**Update 2026-07-03 later:** the memory layout at TITLE_CAM_BASIS_VA
+is different from what earlier RE assumed. The writer is
+FUN_004235B8 @ 0x004235B8 (JIT-caught, PC=0x004235D4). Layout:
+
+  0x005BE6D4..+0x08 = eye
+  0x005BE6E0..+0x08 = **RIGHT axis** (not "dir" — RE doc was wrong)
+  0x005BE6EC..+0x14 = UP axis
+  0x005BE6F8..+0x20 = **at−eye direction** (RH viewing direction —
+                       NEGATED LH forward, since basis[6..8] =
+                       -scratch[2,6,10] then normalized)
+
+The vector at 0x005BE6F8 = (-0.868, +0.195, +0.458) is the ACTUAL
+title-cam look direction. Was mis-dismissed as "last basis word" in
+title_camera_containing_struct.md. It's the semantic forward.
+
+The stored basis is derived by INVERTING the LH view matrix
+FUN_002d9e68 builds. So the LH convention of FUN_002d9e68 is still
+correct; it's the interpretation of the stored basis that was wrong.
+
+See `title_basis_writer_jit_solved.md` for the writer chain.
+
+---
+
+## Original body (LookAt fn — unchanged):
+
+
+
 ## Ground truth: FUN_002d9e68 decomp
 
 Decompiled via Ghidra 12.0.4 headless (`build/decomp/002d9e68.c`):
