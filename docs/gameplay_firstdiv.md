@@ -734,6 +734,58 @@ mode `CAM_MODE_NORMAL` → funcIdx `CAM_FUNC_NORMAL0` → `Camera_Normal0`
 (`Shipwright/soh/src/code/z_camera.c:2089`). Strong prior: that's the
 divergent function.
 
+### Update (2026-07-03, later): actual OoT3D setting at Kakariko is CAM_SET_NORMAL1
+
+Extended the harness with a pointer-chase probe (`soh3d 28f24f23`) that
+follows `cameraPtrs[MAIN_CAM] = *(u32*)(PS+0xA54)` and reads Camera's
+setting/mode/status. Stable readout on Kakariko:
+
+    az_cam: cam@0x0871eba4 setting=2 mode=0 status=7
+
+That is `CAM_SET_NORMAL1` (=2), `CAM_MODE_NORMAL` (=0), `CAM_STAT_ACTIVE` (=7).
+
+Via `sCamSetNormal1Modes[0]` (z_camera_data.inc:1170) this dispatches to
+funcIdx **`CAM_FUNC_NORM1`** → **`Camera_Normal1`** (z_camera.c:1538) —
+NOT Camera_Normal0. Kakariko applies the NORMAL1 profile (fixed
+distance/pitch/yaw defaults) rather than the free NORMAL0 profile.
+
+Two prior mistakes worth naming:
+1. The scan-derived assumption that Camera is embedded at `PS+0x12C`
+   was wrong. mainCamera is heap-allocated; the eye triple at PS+0x1B8
+   is `play->view.eye` (view-basis copy), matching SoH's `SohState_Camera`
+   which also returns view.eye — that's why the initial harness scan
+   found them agreeing byte-for-byte.
+2. The scene-table default `SCENE_CAM_SET_NORMAL0` describes the *initial*
+   setting field a scene supplies; the *live* runtime setting can be
+   different. Kakariko lives on NORMAL1 during normal gameplay.
+
+### Refined port target: Camera_Normal1
+
+Camera_Normal1 (z_camera.c:1538) is a ~230-line camera-mode function with
+its own spring constants (`Camera_LERPCeilVec3f` on `atLERPStepScale`,
+yaw/pitch update rates), its own `at`-derivation from playerPosRot, and
+its own eye-height defaults from `sCamSetNormal1Modes[0].values` (the
+CAM_DATA_* record). Any of the following would explain the 28-unit
+eye-Y drift:
+- Different `Camera_CalcDefaultPitch` clamp (yOffset ceiling).
+- Different eye-height default (`Camera_CalcAtDefault` yOffset).
+- Different spring rate on `atLERPStepScale`.
+- Different NORMAL1-specific `norm1.unk_14` or `norm1.pitchTarget`.
+
+Next step in the port loop:
+1. Locate OoT3D's Camera_Normal1 in Ghidra: walk sCameraFuncTable at
+   `DAT_002d8c20` with funcIdx `CAM_FUNC_NORM1` (need to also RE the
+   OoT3D CAM_FUNC_NORM1 constant value — likely the same as N64, but
+   confirm).
+2. Ghidra decomp Camera_Normal1's OoT3D address.
+3. Diff against `Camera_Normal1` in `Shipwright/soh/src/code/z_camera.c:1538`.
+4. Port the delta as
+   `Shipwright/soh/src/soh3d/behaviors/camera/normal1.cpp` under a
+   `CameraBehavior` base + funcIdx-dispatched registry (per project
+   rule — no more soh3d.c dumping ground). Fall through to legacy N64
+   `Camera_Normal1` for the code paths not-yet-ported.
+5. Re-run Kakariko sweep to verify |Δeye|→0.
+
 ### Refined port plan
 
 Port target is **`Camera_Normal0`** (or the specific mode function active
