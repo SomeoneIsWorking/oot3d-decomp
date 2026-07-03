@@ -273,3 +273,80 @@ Alternatively use Azahar's JIT hook to log the writers directly (fast
 path: attach a memory watchpoint on 0x0054AD04 in the JIT, dump the
 ARM PC at each write, translate PC → static VA → Ghidra fn). That's
 guaranteed to reach the demo-tick fn on the first frame.
+
+## MAJOR — the title-demo pose table lives at 0x005642F4
+
+Runtime `.data` diff (frames N vs N+300) surfaces a table of **24
+contiguous 36-byte pose entries** starting at VA `0x005642F4`. Each
+entry:
+
+```c
+struct TitlePose {   // 36 bytes / 9 floats
+    Vec3f pos;    // world position
+    Vec3f rot;    // rotation (radians)
+    Vec3f scale;  // always (1.0, 1.0, 1.0) at title
+};
+```
+
+Detection method (see soh3d/tools/soh3d_harness dumprange +
+scratch/gamestate_re/data_dt_*.bin): scan all 4-byte-aligned VAs
+whose word at `+0x18..+0x20` reads `1.0, 1.0, 1.0` in BOTH the frame-A
+and frame-B snapshots — the scale-vec3 marker. Contiguous 36-byte
+strides identify the table.
+
+### Recorded live poses (frame 400 vs 700, |v|=units per frame)
+
+```
+idx      VA                pos.A               pos.B300           |v|
+  0 005642f4 (  -51.2, 344.7, 974.4) (  28.6,-489.6,979.7) 2.79
+  1 00564318 ( 1707.1, 146.1,   0.0) (1743.1, 146.1,  0.0) 0.12
+  2 0056433c ( 2309.0,1058.5, 833.5) (2435.6, 899.5,838.9) 0.68
+  3 00564360 ( 1188.1,-138.7,   5.2) (1154.3,-330.0, -2.7) 0.65
+  4 00564384 ( 1417.9,   0.0,   0.0) (1417.9,   0.0,  0.0) 0.00  (limb-like)
+  5 005643a8 ( 1726.9,   0.0,   0.0) (1726.9,   0.0,  0.0) 0.00  (limb-like)
+  6 005643cc ( 2179.0,-230.1,   0.0) (2221.9,-230.1,  0.0) 0.14
+  7..8  static limb-like (Y=Z=0, X!=0)
+  9 00564438 ( 2409.6,1065.1,-841.2) (2650.7, 995.4,-829.8) 0.84
+ 10 0056445c ( 1028.3,-619.6,   6.2) (1184.3,-196.6, -1.7) 1.50
+ 11..12 static limb-like
+ 13 005644c8 ( 1128.5,-2335.2,-43.6) (1139.8,-2447.9,-32.4) 0.38
+ 14 005644ec (  633.2,-274.3,-465.3) ( 720.8,-983.9,-486.3) 2.38  ← fast
+ 15..17 static limb-like
+ 18 0056457c ( -748.4,-260.4,-465.3) ( -660.9,-987.5,-486.3) 2.44  ← fast, mirror of 14
+ 19..21 static limb-like
+ 22 0056460c (  -50.3, 482.9,-1382.4)(   27.8,-186.9,-1357.8) 2.25  ← fast
+ 23 static limb-like
+```
+
+Rows 0 / 14 / 18 / 22 have the largest per-frame motion (~2+ units/frame)
+and world-scale coordinates — those are the top candidates for the
+CAMERA eye/target/up triplet + the Link/Epona actor for the demo.
+Rows with pos=(X, 0, 0) look like skeleton-limb children — the pos
+becomes a scalar bone length, siblings are 0. That fits SkelAnime.
+
+### Writers — open (deferred)
+
+Ghidra reference database returns 0 direct u32 refs to any offset in
+the table. Writers must use register-indexed stores (a struct base
+loaded once in a header, then per-entry stores via `str rX, [rBase, #imm]`).
+Attacks that would find them:
+
+1. **movw/movt scan** — a Ghidra script that finds all instructions
+   materializing a constant in `[0x00564000, 0x00565000]` via movw+movt
+   pairs (not pool literals), then reports their enclosing fns.
+2. **JIT memory-write watchpoint** — hook Azahar's dynarmic to trap
+   writes to `0x005642F4..0x00564654`, dump the ARM PC of the writer,
+   translate PC→static VA→Ghidra fn. Guaranteed to reach the demo tick
+   on the first frame.
+
+### Read-side integration (LANDED)
+
+`tools/soh3d_harness/main.cpp` exposes:
+- `TITLE_POSE_TABLE_VA=0x005642F4`, `TITLE_POSE_COUNT=24`, `TITLE_POSE_STRIDE=36`
+- `titleactors` REPL cmd: streams `ok titleactors 24\n<24 lines>\nok end`,
+  each line = idx / VA / pos / rot / scale.
+
+Enough to build a `compare titleactors` sub that A/B's SoH3D's title
+actor set against these live values — waiting on identifying WHICH
+SoH3D actor corresponds to each 3DS pose index (Link, Epona, then the
+scenery quads / camera anchors).
