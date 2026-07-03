@@ -142,3 +142,93 @@ the 3ds side — just add the 3ds branch there.
   workaround — that's a different goal (arbitrary-scene parity), not
   title parity. Loadstate is the RE-driven way; already have
   `linkhouse.state`.
+
+## UPDATE 2026-07-03 — the title context IS in .data. Prior conclusion falsified.
+
+Live harness read at title (`r32 0x0050afa0 → 0x00000051`) proves the earlier
+"no `.data` slot holds the title state" was wrong. The title context struct
+sits INLINE in `.data` starting at VA `0x0050AF34` — the SAME slot that
+holds `gPlayState` during real Play. The single slot is OVERLOADED:
+- **Play mode:** `*0x0050AF34` = heap pointer (e.g. `0x0871e840`).
+- **Title mode:** the value at `*0x0050AF34` is field `+0x00` of the inline
+  struct (read as 0 during title-demo, since it's not written by init).
+
+The init function is **`FUN_0046ac98`** (RE'd from `build/decomp/0046ac98.c`):
+its pool `DAT_0046b064 = 0x0050AF34` is used as an int base, not a pointer,
+and it writes `sceneNum = 0x51` at `+0x6c`, `activeFlag = 1` at `+0x78`,
+plus a sequence of sub-object pointers at `+0x14..+0x30`.
+
+Live memory dump at title (harness `mem 0x0050af34 0x180`) matches the
+init exactly:
+
+```
++000:  00000000 08001754 080ebf5c 080ec490   ← +0x04..+0x0C: heap ptrs
++010:  00000000 08001784 08002030 08001e58   ← +0x14..+0x1C: sub-objs
++020:  08001eac 08001f00 08001f50 08001fe0   ← +0x20..+0x2C
++030:  08001c38 00000000 …                    ← +0x30
++050:  00000000 ffffffff 00000000 00000000   ← +0x54 = -1 sentinel
++060:  00000000 00000000 00000000 00000051   ← +0x6c = sceneNum 0x51
++070:  00000000 00000000 00000001 00000000   ← +0x78 = active flag
++080..+17f: floats (UI element rectangles, not camera coords)
+```
+
+Confirmed via `soh3d_harness` at 400 emu frames post-boot with
+`SOH3D_HARNESS_HEADLESS=1`.
+
+### Field map so far
+| Off  | Value in title  | Meaning                                     |
+|------|-----------------|---------------------------------------------|
+| +00  | 0               | overloaded (heap ptr in Play, 0 in title)   |
+| +04  | 0x08001754      | ptr to graphics-submission handle (alloc 0x20 by FUN_0046ac98) |
+| +08  | 0x080ebf5c      | derived buffer ptr                          |
+| +0C  | 0x080ec490      | derived buffer ptr                          |
+| +14  | 0x08001784      | sub-object: sprite factory (FUN_002f8ee4 alloc 0x474) |
+| +18  | 0x08002030      | sub-object: sprite factory (FUN_002f8ee4 alloc 0x474) |
+| +1C  | 0x08001e58      | sub-object: sprite factory (FUN_002db6a0 alloc 0x14, mode=4) |
+| +20  | 0x08001eac      | sub-object: sprite factory (FUN_002db6a0 alloc 0x14, mode=4) |
+| +24  | 0x08001f00      | sub-object: 16-quad sprite batch (FUN_002d2190 alloc 0x10) |
+| +28  | 0x08001f50      | sub-object: 25-quad sprite batch (FUN_002d1e30 alloc 0x50) |
+| +2C  | 0x08001fe0      | sub-object: sprite batch (FUN_002d1af8 alloc 0x10) |
+| +30  | 0x08001c38      | sub-object: sprite batch (FUN_002f2448 alloc 0x38, 7 var, 4 y) |
+| +54  | 0xFFFFFFFF      | init sentinel (init'd as -1)                |
+| +6c  | 0x00000051      | sceneNum (N64 SCENE_TESTROOM = title/demo)  |
+| +78  | 0x00000001      | active flag                                 |
+| +80+ | floats          | UI rects (positions/scales), NOT camera     |
+
+### Ruled OUT
+- Sub-objects at +0x14..+0x30 are UI sprite factories (quad-index
+  generation, texture batch setup), not camera/actor state. Decompiled
+  their constructors (FUN_002f8ee4, FUN_002db6a0, FUN_002d2190,
+  FUN_002d1e30, FUN_002d1af8, FUN_002f2448) — all follow the same
+  sprite-batch shape.
+- Immediate siblings that `FUN_0045596c` calls after `FUN_0046ac98`
+  (FUN_0046b534, FUN_004670e4, FUN_004673c0, FUN_0046ac10,
+  FUN_00467ce0, FUN_00467684, FUN_0046837c, FUN_00467fa8) all init
+  SEPARATE `.data` subsystems (each has its own DAT_XX base pointer;
+  e.g. FUN_0046ac10 → 0x00506cb0). None extend the title struct.
+
+### Where the camera + actor state IS
+Still open. Candidates:
+1. A cutscene-playback subsystem keyframe blob in `.rodata`, driven by
+   a subsystem context we haven't RE'd yet. The Hyrule-field flyover
+   pattern (Link + Epona on a spline) matches this.
+2. A heap-allocated GameState-adjacent struct pointed to by ONE of the
+   `+0x14..+0x30` sub-objects (which we've only characterized at their
+   allocated size, not walked their fields).
+3. A cutscene "actor list" analogous to the N64 `CutsceneContext`
+   linked from a different `.data` base.
+
+Next probe: run the harness for N vs N+300 frames and identify which
+`.data` fields tick monotonically at 1/frame — one of them will point
+into the demo cursor, and its code writer is Graph_ThreadEntry's
+title dispatch.
+
+## Harness integration
+`tools/soh3d_harness/main.cpp` now exposes:
+- `TITLE_CTX_VA`, `TITLE_SCENE_OFF` (0x6c), `TITLE_ACTIVE_OFF` (0x78)
+- `TitleActive()` — true when scene==0x51 AND active flag set
+- `CompareSceneImpl` branches: prints `3ds: sceneNum=0x0051 (title,
+  inline ctx @ 0x0050af34)` when title is active instead of `n/a`.
+
+Once the camera keyframe path is RE'd, `CompareCameraImpl` and
+`CompareActorsImpl` gain equivalent title branches.
