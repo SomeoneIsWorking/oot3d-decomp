@@ -102,6 +102,23 @@ The self-referential list-node pointers at -44/-40 and the code+data pointer tri
 - Harness accessor `Az_ReadTitleLinkPos` mirrors the 600a1ddd shape (typed struct + memory-safe read via `mem.Read32OrNullopt`).
 - `CompareFirstDivImpl` title-actor block replaces its diagnostic-only limb-local dump with a real |Δpos| metric between Az's slot and SoH's Player world.pos.
 
+## Live verification (soh3d harness d7888d5d)
+
+After the harness accessor landed, `title_parity_check.py` at the settled title
+frame (soh_step ≈ 1000, shot 1) prints:
+
+```
+title-actor: az_world=(-6008.8, 46.6, 5027.5)
+             soh_world=(-670.0, -122.5, 8782.5)  |Δ|=6529.3
+title-cam:  |Δeye|=0.22  |Δdir|=0.0005  |Δup|=0.0006
+```
+
+Az's world.pos reads at world-scale Hyrule Field coordinates matching the
+scan-derived slot; the |Δ| = 6529u vs SoH is a real divergence surface
+(SoH inherits the N64 title path where Link starts at a different world
+coord than 3DS's refactored title spline). This is the first-ever
+title-actor cross-engine world-pos delta computed by the harness.
+
 ## What this closes
 
 `docs/title_gamestate.md` §"Where the camera + actor state IS" open item — camera state was previously closed (`title_camera_lead.md`); this closes the actor-state twin. The remaining open item is the writer chain that OWNS this slot (which fn per frame does `str rN, [rBase, #imm]` with base = 0x005AFFB0). Attack vector is the same as the pose-table writer chain — `soh3d/tools/find_indexed_writers.py` retargeted to `[0x005AFF80, 0x005AFFE0)`.
