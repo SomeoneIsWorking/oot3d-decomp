@@ -170,9 +170,67 @@ game-actor's own storage, not this audio copy — whoever writes
   bind time — that's the pointer to the game-actor's world.pos slot.
   Which is the SPLINE the demo-actor rides.
 
-## Next attack
+## Full cam-basis call chain
 
-Filter the 398 pool literals to `0x005BE5B8` (containing struct base)
-to those instructions where the enclosing function also emits
-`bl 0x004235B8`. Same primitive but composed on Ghidra's Reference
-DB. Small extension of `FindMovwMovtWriters.py`.
+Walked upward from `FUN_004235B8` via Ghidra's Reference DB call xrefs
+(`tools/ghidra_scripts/ListCallers.py`, new this session):
+
+```
+FUN_00416208   (no static callers — invoked via function pointer,
+                   registered in some state/update table)
+    ↓ bl 0x00418B88
+FUN_00418B88   (dispatcher — 1564-line decomp, big camera controller)
+    ↓ 5x bl 0x0030120C, each preceded by a distinct matrix producer
+FUN_0030120C   (wrapper — writes 9 basis words at param_1 + 0x24..+0x44,
+                after invoking the extractor)
+    ↓ bl 0x004235B8
+FUN_004235B8   Camera_ViewMatrixToBasis
+    ↓ bl 0x0034A80C
+FUN_0034A80C   4x3 matrix inverse
+```
+
+`FUN_0030120C` is called at 5 distinct sites in `FUN_00418B88`, each
+using a different local view-matrix buffer. The matrix producers
+called immediately before each `FUN_0030120C` are:
+
+- `FUN_003009D4` — line 653 → `&local_458`
+- `FUN_0041BD10` — line 684 → `auStack_8b8`
+- `FUN_00300C58` — line 688 → `auStack_8e8` (and again line 695 → `auStack_8b8`)
+- `FUN_00300AA8` — line 638 (setup), and line 698
+
+These are the FIVE matrix-producing kernels. Whichever ones drive the
+title-demo shot 1 (versus other camera modes) is where the SPLINE
+lives — porting arc for closing the |Δeye|=0.22u residual.
+
+`FUN_00418B88`'s first arg (`param_1`) is the camera struct; all 5
+`FUN_0030120C` calls pass `param_1 + 0x41` (= `param_1_bytes + 0x104`)
+as the dest. That means `camStruct + 0x104 + 0x24 = camStruct + 0x128`
+holds the basis start (= our `0x005BE6D4`). Therefore
+`camStruct = 0x005BE6D4 - 0x128 = 0x005BE5AC` — a slightly different
+anchor than the `0x005BE5B8` global that surfaced with 398 pool refs
+(12 bytes offset). The camera struct is a member of the bigger state
+block that starts at `0x005BE5B8 - 0xC = 0x005BE5AC`, or the two
+structs are neighbours in .data with distinct roles.
+
+## Next attack (deferred — next session)
+
+1. **Ghidra-decomp the 5 matrix producers**
+   (`FUN_003009D4`, `FUN_0041BD10`, `FUN_00300C58`, `FUN_00300AA8`)
+   and characterize each — LERP, spline eval, lookAt, projection, etc.
+2. **Identify which one runs during title shot 1** — inspect
+   `FUN_00418B88`'s dispatch conditions (the switches/branches around
+   each call site) and correlate with the camera-mode byte at some
+   `camStruct + K` offset.
+3. Port that specific producer + its keyframe data (probably a small
+   `.rodata` array) into `soh3d/Shipwright/soh/src/zelda3d/zelda3d.c`,
+   feeding a per-frame view matrix into a ported `Camera_ViewMatrixToBasis`.
+4. Re-run `title_parity_check.py`. Expect |Δeye| → ~0.
+
+## Tools added this session
+
+- `tools/ghidra_scripts/ListCallers.py` — list all bl/blx xrefs to a
+  target VA. Composes with `DecompDump.py` to walk call graphs upward.
+  Env: `OOT3D_CALL_TARGET` (hex).
+- `tools/ghidra_scripts/FindMovwMovtWriters.py` — earlier this session;
+  Ghidra-side per-function reg→const scanner (shift-vs-imm bug fixed).
+
