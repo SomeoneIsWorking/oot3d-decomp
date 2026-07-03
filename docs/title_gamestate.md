@@ -208,7 +208,23 @@ Confirmed via `soh3d_harness` at 400 emu frames post-boot with
   e.g. FUN_0046ac10 → 0x00506cb0). None extend the title struct.
 
 ### Where the camera + actor state IS
-Still open. Candidates:
+
+- **Camera**: `0x005BE6D4` {Vec3f eye, Vec3f dir, Vec3f up}. Closed by
+  `docs/title_camera_lead.md` + soh3d port 17221301 + accessor 600a1ddd.
+- **Rider (Epona+Link) world.pos**: `0x005AFFB0` Vec3f. Closed by
+  `docs/title_actor_world_pos.md` + z_title_demo.c/.h + soh3d harness
+  `Az_ReadTitleLinkPos` accessor. The rider world-pos slot is a member
+  of a lightweight demo-actor / callback-node struct (self-referential
+  list-node pointers at -0x2C/-0x28), NOT an N64-shape `Actor`.
+
+Deferred (still open):
+1. The writer chain owning `0x005AFFB0` (evaluator that ticks pos.x/z
+   ~3.4 / 1.96 units/frame during the shot-1 gallop). Attack: retarget
+   `soh3d/tools/find_indexed_writers.py` to `[0x005AFF80, 0x005AFFE0)`.
+2. The rest of the demo-actor node fields at ±0x30 around the world-pos
+   slot (see `docs/title_actor_world_pos.md` "struct-shape context").
+
+Original candidates (kept for context, superseded above):
 1. A cutscene-playback subsystem keyframe blob in `.rodata`, driven by
    a subsystem context we haven't RE'd yet. The Hyrule-field flyover
    pattern (Link + Epona on a spline) matches this.
