@@ -192,12 +192,20 @@ Constant pool (all pc-relative from the instructions above):
 
 ## Callee identifications
 
-| VA          | Purpose                            | N64 twin                                    |
-|-------------|------------------------------------|---------------------------------------------|
-| 0x00367ef0  | Player_GetHeight                   | z_actor.c:1402                              |
-| 0x00367e88  | Camera_CalcSlopeYAdj-analog        | z_camera.c func_800420C0 / equivalent       |
-| 0x00355804  | OLib_ClampMaxDist-analog           | OLib_ClampMaxDist                           |
-| 0x00367df4  | Camera_LERPCeilVec3f-analog        | Camera_LERPCeilVec3f                        |
+| VA          | Purpose                            | N64 twin              | Hand-decomp doc           |
+|-------------|------------------------------------|-----------------------|---------------------------|
+| 0x00367ef0  | Player_GetHeight                   | z_actor.c:1402        | this doc (bottom)         |
+| 0x00367e88  | Camera_CalcSlopeYAdj               | z_camera.c:893        | camera_math_helpers.md    |
+| 0x00355804  | OLib_ClampMaxDist                  | z_olib.c:46           | camera_math_helpers.md    |
+| 0x00367df4  | Camera_LERPCeilVec3f               | z_camera.c:153        | camera_math_helpers.md    |
+| 0x00355780  | Camera_LERPCeilF (via LERPVec3f)   | z_camera.c:77         | camera_math_helpers.md    |
+| 0x00342e8c  | OLib_Vec3fToVecSphGeo (via SlopeY) | OLib_Vec3fToVecSphGeo | camera_math_helpers.md    |
+| 0x00338f60  | Math_CosS (via SlopeY)             | Math_CosS             | camera_math_helpers.md    |
+
+**Every callee in this tree is now hand-decomp'd and confirmed at
+parity with SoH.** Any observed CAM_FUNC_NORM1 divergence must live
+in the mode body itself or in upstream inputs (Player_GetHeight
+result, playerPosRot, floorNorm) — not in the shared plumbing.
 
 ## Δ-A activation — when does the extra Y bias fire?
 
