@@ -966,3 +966,78 @@ writes camera->eye, and its writer PC lands inside the mode function's
 own address range (0x00239fd8..0x0023AC28 for Camera_Normal1). The
 current harness d5 probe watches play->view.eye and so always attributes
 to Camera_Update's tail. Small extension.
+
+──────────────────────────────────────────────────────────────────────
+Substrate refinement + Delta B empirical data (2026-07-03)
+──────────────────────────────────────────────────────────────────────
+
+Landed in soh3d (this session):
+
+  1. az_cam watch target refined from PS+0x1B8 → cam_ptr+0x8C. New writer
+     PC at Kakariko d5 = 0x00367e54 (was 0x002d92a4, Camera_Update tail).
+     0x00367e54 is inside a math helper called by Camera_Normal1's
+     FUN_00372448 chain (Camera_Vec3fVecSphGeoAdd-analog, writes eye
+     through &local_70). Confirms the write path is INSIDE the mode
+     function's callee set.
+
+  2. az_norm1 probe (Delta B): reads Camera+0x00..+0x22 (Normal1 params
+     inline, since OoT3D folds paramData into Camera) whenever
+     setting=2/mode=0. Kakariko live values:
+
+        yOff=0.00 dMin=92.8 dMax=185.6 unk_0C=12.00 unk_10=20.00
+        unk_14=0.4000 fov=55.0 atLERP=0.6000 pitchTgt=1820 flags=0x0003
+
+     Compared to SoH's raw data table CAM_FUNCDATA_NORM1(0, 200, 400, 10,
+     12, 20, 40, 60, 60, 0x0003), the RUNTIME divergences are:
+
+       • fov 55 vs 60 — Grezzo lowered the target FOV. Does not drive
+         |Δeye| (FOV is projection-only), but is a real Δ.
+
+       • dMin/dMax at 92.8:185.6 — preserves the 1:2 ratio (200:400) but
+         at ~46% of SoH's raw. Two candidate explanations:
+           (a) OoT3D's data table has (0, 100, 200, ...) — Grezzo halved
+               the eye-distance targets.
+           (b) The height-scale formula (playerHeight * (1 + PCT * (1 -
+               68/playerHeight))) uses a different reference height in
+               OoT3D. The decomp shows DAT_0023a34c in that role (line
+               84-86 of build/decomp/00239fd8.c); SoH hardcodes 68.
+         Distinguishing these needs (a) an offline dump of
+         sCameraSettings[2].modes[0].values shorts, or (b) resolving
+         DAT_0023a34c.
+
+       • pitchTgt=1820 = DEGF_TO_BINANG(10) — matches SoH.
+
+  3. |Δeye|=28 root cause is NOT the data table:
+       SoH Kakariko camera:  eye=(-2635.6, 238.9, 1062.0)
+       OoT3D Kakariko:       eye=(-2624.3, 214.0, 1062.9)
+       Link (both):          pos=(-2450.4, 138.1, 1062.0)
+
+     XZ distance eye→Link is ~185 for SoH and ~176 for OoT3D — a ~5%
+     radial difference plausibly explained by the dMin/dMax scale
+     divergence. But the DOMINANT term is eye.y: SoH 239 vs OoT3D 214, a
+     25-unit vertical drift.
+
+     Y drift is set by at.y (eye = at + eyeAdjustment; eyeAdjustment.y is
+     tiny at pitch=10°). at.y is set by Camera_CalcAtDefault. That's
+     Delta A in the handoff: OoT3D FUN_00338ac8(param_1, auStack_80,
+     flags&1) is 3-arg where SoH's Camera_CalcAtDefault(camera,
+     &atEyeNextGeo, spA0, flags&1) is 4-arg. The dropped `spA0`
+     (yOffset-with-swing blend, ~0..-40 range) plus the different height
+     accumulation formula inside FUN_00338ac8 is the likely 25-unit
+     source.
+
+Next-iteration frontier:
+
+  Delta A resolution — decompile FUN_00338ac8 via the decomp-port
+  pipeline, port it into the Zelda3D Normal1Behavior (or a shared
+  Camera_CalcAtDefault Zelda3D module — probably reused by other camera
+  modes too). Then close |Δeye|. This is a MUCH smaller RE task than
+  porting all 418 lines of FUN_00239fd8 in one arc — Camera_Normal1's
+  body reduces to Camera_CalcAtDefault + a handful of LERPs that are
+  already at parity via the shared code path.
+
+  Delta B resolution — either read sCameraSettings[2].modes[0].values
+  offline from the ROM (short[] at DAT_0023a348 + 2*8+4 → +0*8+4), or
+  resolve DAT_0023a34c to see if it's the reference-height constant.
+  Not urgent — Δ-B alone doesn't close |Δeye|.
+
