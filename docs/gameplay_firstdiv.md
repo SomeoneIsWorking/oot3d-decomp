@@ -759,6 +759,40 @@ Two prior mistakes worth naming:
    setting field a scene supplies; the *live* runtime setting can be
    different. Kakariko lives on NORMAL1 during normal gameplay.
 
+### Located: OoT3D Camera_Normal1 = FUN_00239fd8
+
+The Ghidra literal `DAT_002d8c20` in Camera_Update's indirect-dispatch
+expression is an ARM literal-pool word holding the sCameraFuncTable base
+pointer. Live-peeked via harness (`scratch/find_camera_norm1.py`):
+
+    *(u32*)0x002d8c20 = 0x00517260  ← sCameraFuncTable base
+    sCameraFuncTable[CAM_FUNC_NORM1=2] = 0x00239fd8  ← Camera_Normal1
+
+Also noteworthy: `sCameraFuncTable[CAM_FUNC_NORM0=1] = 0x00239fcc` is an
+8-byte stub that just `return 1;` — Grezzo removed Camera_Normal0 as a
+distinct implementation. This is consistent with the RE finding that
+Kakariko (and other outdoor scenes) actually run under NORMAL1 rather
+than NORMAL0 despite scene-table defaults.
+
+sCameraFuncTable dump (first 20 entries):
+
+    [ 0] 0x00000000  CAM_FUNC_NONE
+    [ 1] 0x00239fcc  CAM_FUNC_NORM0 stub (returns 1)
+    [ 2] 0x00239fd8  CAM_FUNC_NORM1 ← port target, ~3152 bytes
+    [ 3] 0x0023ac98  CAM_FUNC_NORM2
+    [ 4] 0x0023b428  CAM_FUNC_NORM3
+    [ 5] 0x0023bc68  CAM_FUNC_NORM4
+    [ 6] 0x00275670  CAM_FUNC_PARA0
+    ...
+
+Ghidra-decomped to `build/decomp/00239fd8.c` (418 lines, 15.3 KB). Field
+accesses confirm the same Camera struct offsets seen in Camera_Update:
+`param_1[0x20]=at`, `param_1[0x23]=eye`, `param_1[0x35]=play`,
+`param_1[0x36]=player`, `+0x18A=setting`, `+0x18C=mode` (via `param_1+99`).
+The function reads its own setting/mode into a CAM_DATA_* record via
+`DAT_0023a348 + setting * 8 + 4` (sCameraSettings base) — canonical
+Camera_Normal* pattern.
+
 ### Refined port target: Camera_Normal1
 
 Camera_Normal1 (z_camera.c:1538) is a ~230-line camera-mode function with
