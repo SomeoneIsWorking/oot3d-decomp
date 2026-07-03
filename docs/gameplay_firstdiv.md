@@ -566,15 +566,32 @@ Ghidra jump to `0x0032f328` lands directly on OoT3D's wall-touch-
 detected handler. Same primitive works for ANY watched address —
 speedXZ, yaw, actor spawns, whatever.
 
-## Next-session frontiers
+### Auto-attach writer PC — landed (soh3d 165dd6e)
 
-1. **Wire writer-PC auto-attach to classified divergences.** When d3
-   classifies collision-wall, the classifier can query
-   `hits(Actor+0x0090)` and print the guest PC that set the wall bit
-   on the classification line itself. `DivDecision.origin_pc` becomes
-   a live field, no manual query needed. Same shape for d5 camera
-   basis, d7 actor-state — every classified divergence carries the
-   writer PC of its underlying field.
+`CompareFirstDivImpl` now auto-registers a watchpoint on
+`Az.Player.Actor+0x0090` once per scene load, and when d3 classifies
+DEFERRED (collision-wall) queries `Soh3d_WatchGetLatestMatching` for the
+most recent write with bit `0x08` set. The classification line itself
+carries the writer PC — no manual `hits` query.
+
+End-to-end verified at Link's House frame [50] with both engines walled:
+
+```
+d3 classified: DEFERRED (collision-wall) —
+  soh_v=0.48 az_v=5.00 soh_bgW=1 az_bgW=1
+  origin: az=Player Actor+0x0090 bgCheckFlags & 0x008
+          soh=Actor.bgCheckFlags & 0x008 (z64actor.h:237, :281)
+  writer: az_pc=0x0032f334 lr=0x0031976c data=0x0289
+          — Ghidra-jump this PC for OoT3D's wall-touch handler
+```
+
+**Full RE-first loop CLOSED with zero manual steps**: divergence
+surface → classifier tag → RE'd field origin → guest writer PC → Ghidra
+jump → OoT3D source function. Same substrate wires trivially to future
+speedXZ / yaw / lighting divergences — the classifier just needs to
+know which RE'd field to query.
+
+## Next-session frontiers
 2. **Guest-native stack unwinding.** Currently we capture PC + LR (one
    frame). For deeper call chains, walk r11 (fp) if the guest binary
    uses frame pointers. OoT3D probably has -fomit-frame-pointer so
