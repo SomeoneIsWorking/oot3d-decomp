@@ -10,7 +10,7 @@ void FUN_0031ff30(undefined4 *param_1)
   iVar1 = FUN_00454028(iVar1 + 0x38);
   iVar1 = FUN_002d49d0(iVar1 + 0x154);
   iVar1 = FUN_002d4900(iVar1 + 0x21c);
-  *(undefined *)(iVar1 + 0xd8) = 0;
+  *(undefined1 *)(iVar1 + 0xd8) = 0;
   return;
 }
 
