@@ -470,3 +470,37 @@ this session composes for every pre-allocated title actor.
 - Scanner (`tools/find_indexed_writers.py`) is the reusable primitive
   for finding writers of any VA range where Ghidra's static Reference
   DB misses (movw/movt-materialized bases + register-indexed stores).
+
+## Manager-task follow-through: 2nd pose table + log-tag correction
+
+Applied the same primitive to find the sibling actor's SkelAnime table:
+
+**Table B: `0x005A54D8`, 25 entries, stride 0x24.** Writer chain:
+FUN_002bd9ec → FUN_00347550. Structurally identical to Epona's chain.
+`DAT_002bdd38 = 0x005A54D8` is the base; the loop alternates keyframe-
+mask (2 vs 3) by whether the current entry index matches
+`*(actor+0x4)+0x75`. So one designated limb gets full pos+rot updates
+per frame; the rest are rot-only.
+
+Same limb count (25) as Epona; entry 1 also has a very high Y
+(pos.y=7875, cf. Epona entry 0 at 5789) — the rider-on-steed pattern
+where a mount-attachment root sits above ground. This is likely
+Link's title-demo pose skeleton — the OoT3D Link model has extra
+mount-attachment joints beyond the base ~21-limb skeleton.
+
+Harness exposes both via `titleactors [a|b]`; the primitive
+(`tools/find_indexed_writers.py`) generalizes to any future
+statically-pre-allocated pose table.
+
+## Correction — the SoH "skinned->skip" log tag was misleading
+
+While closing this task the SoH-side log line
+`bones=25 (skinned->skip)` turned out to be a stale label. The tag
+was appended whenever a model had >1 bone; the ACTUAL skip decision
+is made later, in `Zelda3D_AutoModelSkinned`'s callers in
+`zelda3d.c`, where skip fires only when `!Zelda3D_N64AnimEnabled()`
+or `!gZelda3dAnimLive`. With the default `ZELDA3D_N64ANIM=1`, skinned
+characters run through the SkelAnime-retarget path, not the skip
+path. The log now reads
+`bones=25 (skinned=SkelAnime retarget)`, matching reality (see
+soh3d commit `1e4cf1e`).
