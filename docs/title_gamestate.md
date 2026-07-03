@@ -92,7 +92,7 @@ Setup ready at `<repo>/`:
 - `build/decomp/functions.csv` — 8266 functions.
 - Ghidra 12 project at `build/ghidra/oot3d.gpr` — analyzed.
 - `tools/ghidra_scripts/DecompDump.py` — headless decomp; run via
-  `OOT3D_REPO=$PWD DECOMP_TARGETS=<targets.txt> <ghidra>/support/analyzeHeadless build/ghidra oot3d -process code.bin -noanalysis -scriptPath tools/ghidra_scripts -postScript DecompDump.py`
+  `OOT3D_REPO=$PWD DECOMP_TARGETS=<targets.txt> analyzeHeadless build/ghidra oot3d -process code.bin -noanalysis -scriptPath tools/ghidra_scripts -postScript DecompDump.py`
 
 Confirmed Play anchor from earlier RE:
 `Play_Main @ 0x0045238c` (matches header `[0x0871e840 + 4]`).

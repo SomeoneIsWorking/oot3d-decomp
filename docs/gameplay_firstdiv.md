@@ -1037,15 +1037,17 @@ Next-iteration frontier:
   already at parity via the shared code path.
 
 ──────────────────────────────────────────────────────────────────────
-Δ-A resolution (2026-07-03, hand-disasm — Ghidra project unavailable)
-──────────────────────────────────────────────────────────────────────
+Δ-A resolution (2026-07-03, hand-disasm — Ghidra version mismatch, since resolved)
+─────────────────────────────────────────────────────────────────────────────────
 
-DecompDump was blocked (Ghidra project at build/ghidra/oot3d.rep/
-was created by a newer Ghidra than the installed 11.0.3 — same on both
-/opt/ghidra_11.0.3_PUBLIC and /opt/ghidra symlinks — so
-analyzeHeadless refused to open it). Fell back to raw disassembly of
-FUN_00338ac8 via tools/disasm.py (capstone ARM). Function is small
-(0x338ac8..0x338bec = 0x124 bytes, ~73 insts). Full trace below.
+At the time DecompDump was blocked — the Ghidra project at
+build/ghidra/oot3d.rep/ was created by a newer Ghidra than the then-
+installed 11.0.3 and analyzeHeadless refused to open it. Fell back to
+raw disassembly of FUN_00338ac8 via tools/disasm.py (capstone ARM).
+Function is small (0x338ac8..0x338bec = 0x124 bytes, ~73 insts). Full
+trace below. (Historical note: Ghidra 12.0.4 has since been installed
+and `analyzeHeadless` is now on `$PATH` — decompiler is again the
+default; hand-disasm only for spot-verify.)
 
 FALSIFICATION OF HANDOFF'S Δ-A HYPOTHESIS
 

@@ -116,7 +116,7 @@ gActorOverlayTable@0x50CD84, ACTOR_EN_SA=0x146. Full notes: scratch/align/saria_
    callees (player-subsystem funcs whose twins are findable by adjacency). Extract:
    `grep -rhoE 'FUN_[0-9a-f]{6,8}' build/decomp/*.c | sort -u`, subtract already-decompiled.
 3. **Decompile the ring** in ONE Ghidra run (Ghidra is single-lock — never run two in parallel):
-   `OOT3D_REPO=$PWD DECOMP_TARGETS=scratch/sweep/<ring>_targets.txt /opt/ghidra_11.0.3_PUBLIC/support/analyzeHeadless build/ghidra oot3d -process code.bin -noanalysis -scriptPath tools/ghidra_scripts -postScript DecompDump.py`
+   `OOT3D_REPO=$PWD DECOMP_TARGETS=scratch/sweep/<ring>_targets.txt analyzeHeadless build/ghidra oot3d -process code.bin -noanalysis -scriptPath tools/ghidra_scripts -postScript DecompDump.py`
 4. **Align in parallel** (read-only, no Ghidra): partition the ring into batches; one agent per batch
    produces a compact `addr | N64 twin | FAITHFUL/DIVERGENT/UNMATCHED | note` table
    (`scratch/sweep/SWEEP_CONTRACT.md` is the agent contract). Deep notes only for DIVERGENT funcs.

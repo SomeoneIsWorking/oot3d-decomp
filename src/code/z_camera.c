@@ -1,10 +1,11 @@
 /**
  * OoT3D z_camera — hand-decomp'd bodies.
  *
- * Ghidra is currently unavailable on the workstation (build/ghidra project
- * was created by a newer Ghidra than the installed 11.0.3; analyzeHeadless
- * refuses to open it — install-newer vs rebuild-workspace decision awaits
- * user). Fallback: tools/disasm.py (capstone ARM linear disassembly).
+ * These bodies were authored while Ghidra was unavailable (project was
+ * created by a newer Ghidra than the then-installed 11.0.3). Ghidra 12.0.4
+ * has since been installed and `analyzeHeadless` is on `$PATH` — the
+ * decompiler is again the default for new RE arcs; hand-disasm here stays
+ * (already verified) and applies for spot-verify only.
  *
  * Naming convention matches N64 zeldaret/oot z_camera.c so per-function
  * diffs against the twin work by inspection. Provenance for every body

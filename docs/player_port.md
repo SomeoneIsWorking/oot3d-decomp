@@ -28,7 +28,7 @@ So we do NOT decompile blind ARM: for each OoT3D function we (1) Ghidra-decompil
 (4) port the OoT3D behavior into SoH3D's Player path. The divergences ARE the fixes.
 
 ## Tooling (the decompilation surface)
-- **Ghidra 11.0.3** (`/opt/ghidra_11.0.3_PUBLIC`) — headless project at `build/ghidra/oot3d`
+- **Ghidra** (`analyzeHeadless` on `$PATH`) — headless project at `build/ghidra/oot3d`
   (gitignored). Import: `code.bin`, `ARM:LE:32:Cortex`, base `0x00100000`. This is the only
   reliable function-boundary + C decompiler for this mixed ARM/Thumb-2 image (capstone linear
   sweeps desync — see static_decomp.md).
