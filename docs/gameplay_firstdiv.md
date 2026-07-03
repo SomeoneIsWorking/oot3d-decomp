@@ -97,30 +97,77 @@ matches SoH's `SohState_Camera` output byte-for-byte modulo FP rounding.
 Constants added to `main.cpp`: `PLAY_CAM_EYE_OFF = 0x1B8`,
 `PLAY_CAM_AT_OFF = 0x1C4`, `PLAY_CAM_UP_OFF = 0x1D0`.
 
-## d6 actor count — first real port gap
+## d6 actor count — diagnosed
 
 Extended firstdiv with total-actor-count + per-category deltas across
 all 12 ACTORCAT_* categories. At Link's House frame 60:
 
-- Azahar: 5 total (cat2=Player=1, cat6=En_Kusa=1, cat7=En_Item00=3)
+- Azahar: 5 total (cat2=Player=1, cat6=En_Kusa=1, cat7=**3**)
 - SoH:    4 total (cat2=1, cat6=1, cat7=**2**)
 
-The missing SoH actor is at pos (0.0, 20.0, 120.0). Root cause is
-undiagnosed — two candidates:
+Initial reading called the extra cat7 actor an "En_Item00" from the ID
+being `0x0185`. That was wrong — `actor_table.h:402` maps
+`0x0185 = En_Wonder_Talk2` (invisible textbox trigger for tutorial /
+"?" popups), not En_Item00 (which is `0x0015`). The other cat7
+non-Wonder_Talk2 is `0x0018 = En_Elf` (Navi) in both engines.
 
-1. **Save-flag divergence.** Azahar's savestate carries scene-flag
-   bits (this item as "not yet collected"). SoH boots without those
-   flags, so it either doesn't spawn a pre-collected item (opposite of
-   the observation) OR does spawn one Az stripped (matches the
-   observation). Would need to compare `gSaveContext.sceneFlags` for
-   scene 0x34.
-2. **Actor-spawn list divergence.** OoT3D room 0 of SCENE_LINKS_HOUSE
-   has 3 En_Item00 entries in its actor spawn list; SoH's ported
-   spawn table has 2 for the same room. Would need to diff the ZAR /
-   OTR room actor lists.
+Full cat7 dump:
 
-Investigation deferred to the next session — this is the intended
-handoff-forward artifact of the doctrine loop, not a workflow blocker.
+```
+Az  cat=7:  [0] 0x0185 pos=(  0.0, 20.0, 120.0) params=0x8f7f   ← SoH is MISSING this
+            [1] 0x0185 pos=( 78.0, 38.0, 116.0) params=0x8abf   ← both have it
+            [2] 0x0018 pos=(  1.0, 50.0,  95.0) params=0x0000   ← Navi, both have it
+SoH cat=7:  [0] 0x0185 pos=( 78.0, 38.0, 116.0)                 ← matches Az [1]
+            [1] 0x0018 pos=( -3.4, 56.4,  90.9)                 ← matches Az [2] (Navi flying)
+```
+
+**Root cause: 3DS content addition, NOT a SoH port gap.**
+
+En_Wonder_Talk2 is a scene actor — spawned from the room's actor spawn
+list in the room header. SoH loads room binaries **extracted from the
+N64 ROM at build time** (via `Shipwright/soh/assets/scenes/indoors/
+link_home/link_home_room_0.h`'s OTR-path DLs; the room binary is
+authoritative). SoH's spawn of exactly 1 En_Wonder_Talk2 means the N64
+Link's House room 0 has 1 in its actor list. Azahar running the OoT3D
+ROM shows 2. **GREZZO added a second Wonder_Talk2 at (0, 20, 120) to
+OoT3D's Link's House** — a tutorial trigger for the 3DS onboarding /
+touch-screen instructions.
+
+Rule out both prior candidates:
+
+1. **Save-flag divergence (ruled out).** Wonder_Talk2 checks
+   `Flags_GetSwitch(play, switchFlag)` to despawn if triggered; SoH is
+   loading a fresh scene with no scene switch flags set, so nothing
+   would suppress spawn. Az's params 0x8f7f decodes to
+   `switchFlag=0x3F baseMsgId=0x3D talkMode=2` — flag 0x3F is
+   never-triggered convention, so the check is a no-op both ways.
+2. **Actor-spawn list divergence (CONFIRMED, and it's the ROM's
+   fault, not the port's).** The two ROMs have different room binaries.
+   SoH is faithful to N64; nothing to fix on the port.
+
+## What this means for the project
+
+This is not a "port gap to close" but a **design-decision surface**:
+whether SoH3D — which renders OoT3D models/world but runs on the SoH
+N64 engine — should also port OoT3D's tutorial-trigger additions. The
+memory note on project vision says the target is a "definitive edition
+done the user's way, NOT SoH" with "no rando" and clean PC-game code;
+3DS onboarding tutorials feel out-of-scope for a PC-native definitive
+edition, so leaving them off is defensible.
+
+If they SHOULD be ported: the 3DS-specific actor additions per scene
+would need to be dumped from Azahar's live actor tables across scenes,
+translated into SoH-side room-spawn overrides, and wired into
+`gPlayState->numActors` /`Actor_Spawn` at scene-init time. That's a
+whole workstream, not a bugfix.
+
+## Diagnostic infra added
+
+- **`SohState_ActorParamsAt(cat, index)`** in `soh_state.cpp` — returns
+  the s16 params of the Nth actor in a category's list, or 0x7FFFFFFF
+  if not found. Not yet wired into firstdiv (this session's diagnosis
+  didn't need it — position + id was enough) but exposed for the next
+  d6-shaped diagnosis where params disambiguate near-duplicate actors.
 
 ## Next-session frontiers
 
