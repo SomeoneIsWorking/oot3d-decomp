@@ -449,6 +449,41 @@ the fix, per-frame `|Δrot.y|` under matched forward walk drops from
 ~32700 (fake, was reading spawn value) to `+0,+2` (s16 rounding parity)
 across all pre-wall-hit game frames.
 
+## Sign-blind policy encoded in the compare tool
+
+Landed in soh3d `dec3049`. `CompareFirstDivImpl` now classifies each
+would-be firstdiv report into one of three classes:
+
+- `Unclassified` — a real port gap that should surface in the sweep.
+- `PermanentNoise` — will NEVER be a port target; silence forever.
+- `DeferredPortTarget` — IS a real port target, but scoped to a
+  different arc (scene-collision porting). Silenced NOW so the sweep
+  advances past the wall plateau, distinguished from PermanentNoise so
+  it's not forgotten.
+
+Concrete classifiers:
+
+| Dim | Classifier                     | Class            | Detected via                      |
+|-----|--------------------------------|------------------|-----------------------------------|
+| d3  | `rate-comp`                    | PermanentNoise   | `abs(soh_v-az_v)<2 && both>0.1`   |
+| d3  | `collision-wall`               | DeferredPortTarget | SoH `bgCheckFlags & 0x008`      |
+| d4  | `collision-wall-downstream`    | (inherits d3)    | d3 was DeferredPortTarget         |
+| d5  | `(d3-tag)-downstream`          | (inherits d3)    | d3 classified + `|Δeye|` tight    |
+| d6  | `wonder_talk2`                 | PermanentNoise   | Az has +N id=0x0185 = total delta |
+| d7  | `navi-rng`                     | PermanentNoise   | worst pair is cat=7 id=0x0018     |
+
+Reporting: classified divergences print `d<n> classified: <CLASS> (<tag>)`
+inline on the dimension's own line but skip `fd.report`. When only
+classified items were found, `firstdiv: none — all 7 play-mode
+dimensions matched` fires, signaling "sweep is clean, advance".
+
+Result at Link's House frame [19] under matched forward walk:
+
+  d3 classified: DEFERRED (collision-wall) — soh_bgW=1
+  d5 classified: DEFERRED (collision-wall-downstream) — |Δat|=12.81
+  d6 classified: NOISE (wonder_talk2) — Az has +1 id=0x0185
+  firstdiv: none — all 7 play-mode dimensions matched
+
 ## Sign-blind policy: project-vision decisions ≠ port bugs
 
 Under matched drive + game-frame alignment + the d4 fix, the surviving
