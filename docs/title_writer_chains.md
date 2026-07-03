@@ -170,6 +170,67 @@ game-actor's own storage, not this audio copy — whoever writes
   bind time — that's the pointer to the game-actor's world.pos slot.
   Which is the SPLINE the demo-actor rides.
 
+## Actor-side spline — UPSTREAM chain located (2026-07-03 late session)
+
+The `SndActor_SetWorldPos` receives its `new_pos` from a pointer stored
+at `snd_actor + 0x84` (`FUN_004647F0` line 29:
+`FUN_0047E314(param_1, *(u32*)(param_1 + 0x84))`). At settled title
+that pointer resolves to `0x09906AA8` in FCRAM heap — a dynamically-
+allocated struct.
+
+Extended `scratch/title_writer_watch.py` → `scratch/title_spline_hunt.py`:
+follow the pointer, watch the target Vec3f, dump writers.
+
+**Live result (5-frame window):**
+
+```
+=== upstream Vec3f @ 0x09906aa8 ===
+  vaddr=0x09906aa8..+8   pc=0x00376888  count=6  (all three xyz)
+  vaddr=0x09906aac       pc=0x004617ac  count=2  (y only)
+  vaddr=0x09906aac       pc=0x003764f8  count=2  (y only, lr=0x0032e1c8)
+
+unique writers: FUN_00376864, FUN_004617XX, FUN_003764F8, ...
+```
+
+Primary writer PC=0x00376888 → enclosing fn **FUN_00376864** = the
+per-frame **Actor_MoveXZByYawSpeed** integrator. Hand-authored in
+`src/code/z_actor.c` this session. See `include/z_actor.h` for the
+Grezzo Actor struct field map derived from its body.
+
+**Struct layout — Grezzo Actor on 3DS:**
+```
++0x28 .. +0x34   Vec3f  world.pos
++0x36            s16    world.rot.y   (binary angle)
++0x60            f32    velocity.x
++0x64            f32    fwdSpeed
++0x68            f32    velocity.z
++0x6C            f32    speed_xz
++0x70            f32    forceMagnitude
++0x74            f32    maxSpeed
++0xA4 .. +0xB0   Vec3f  scriptedDelta   ← the DEMO TRAJECTORY input
+```
+
+Derived from `snd_actor + 0x84 → actor + 0x28` (i.e. actor base at
+`0x09906AA8 - 0x28 = 0x09906A80`). All 6 primary write hits attribute
+to `FUN_00376864`, confirming it's the per-frame kernel — not
+demo-specific, reused by every actor.
+
+**Meaningful implication for the parity port**: the title-demo doesn't
+drive a "spline of world.pos keyframes". It drives:
+1. `actor->rot.y` (yaw)
+2. `actor->speed_xz` (speed)
+3. `actor->scriptedDelta` (per-frame bias vector)
+
+whichever code sets those three at the top of the demo-actor's
+update per frame is the actual "spline". That's a much smaller
+port target — 3 scalars/frame vs a full view-matrix keyframe stream.
+
+Next-arc attack: watch `actor + 0x36` (yaw), `+0x6C` (speed), and
+`+0xA4` (scriptedDelta.x) via the same watchpoint driver. The writers
+of those three are the demo-actor dispatch primitives — and those are
+what should get ported into `zelda3d.c` to drive SoH's title-demo
+Player state analogously.
+
 ## Full cam-basis call chain
 
 Walked upward from `FUN_004235B8` via Ghidra's Reference DB call xrefs
