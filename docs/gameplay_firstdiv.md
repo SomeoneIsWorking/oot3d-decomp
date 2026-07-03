@@ -220,15 +220,92 @@ needs one of:
 3. **Test scene transitions.** Trigger a scene warp and firstdiv
    during the transition to catch any transition-machinery divergence.
 
+## Driven-input pipeline — landed
+
+Scripted joypad+stick injection now works on both engines from the
+harness REPL:
+
+- **Az side:** `input <mask>` (existing) for buttons, new `analog
+  <lx> <ly> [rx] [ry]` for left/right sticks in libretro's s16
+  range. Injection routes through the harness's `InputState` libretro
+  callback, which now handles `RETRO_DEVICE_ANALOG` in addition to
+  `RETRO_DEVICE_JOYPAD`.
+- **SoH side:** new `soh_input <button-mask> [stickX] [stickY]` writes
+  a sticky override. A hook in `graph.c` (right between
+  `GameState_ReqPadData` and `GameState_Update`) applies the override
+  via `SohState_ApplyInputOverride(&gameState->input[0])` so the
+  next-tick input isn't clobbered by PadMgr's SDL poll.
+
+### Two subtle bugs found + fixed during bring-up
+
+1. **Struct-layout skew.** `Shipwright/CMakeLists.txt:187` sets
+   `CONTROLLERBUTTONS_T=uint32_t` via `add_compile_definitions()`,
+   which only applies to targets in that scope and below. The
+   soh3d_harness target lives at `tools/soh3d_harness/` and did NOT
+   inherit the define, so `soh_state.cpp`'s OSContPad had `button` as
+   u16 (from the header's `#ifndef` fallback) while soh_lib code had
+   it as u32 — a 2-byte layout skew. Result: harness writes to
+   `input[0].cur.stick_y` at play+0x2B, Player_Update reads it at
+   play+0x2D, and Link never sees any injection. Fix:
+   `target_compile_definitions(soh3d_harness PRIVATE
+   CONTROLLERBUTTONS_T=uint32_t)` in `harness.cmake`. Diagnosed by
+   printing `&input->cur.stick_y` from both C++ and C sides — same
+   `gPlayState` base pointer, different field offsets.
+2. **`cur` vs `rel` field.** `z_lib.c:func_80077D10` (the stick →
+   magnitude/angle math) reads `input->rel.stick_x/y`, NOT
+   `input->cur.stick_x/y`. `rel` is the deadzone-adjusted value
+   computed by `PadUtils_UpdateRelXY` (deadzone 7, clamp to ±60);
+   overriding `cur` alone leaves `rel` as whatever PadMgr computed
+   before the hook, which is 0 in the harness's headless case. Fix:
+   `SohState_ApplyInputOverride` now also recomputes `rel.stick_x/y`
+   using the same deadzone/clamp math as PadUtils.
+
+### Also unblocked: Navi-intro cutscene
+
+SoH's Link's House spawns the "Navi flies in" intro cutscene by default
+(via `gSaveContext.cutsceneIndex` from the scene setup). Warp fires
+work but Link stays IN_CUTSCENE with input disabled. Fixed by extending
+`SohState_Warp` to set `gSaveContext.gameMode = GAMEMODE_NORMAL` and
+BOTH `cutsceneIndex = 0` and `nextCutsceneIndex = 0xFFEF` (the
+"no override" sentinel that stops `z_play.c:480` from overwriting
+`cutsceneIndex` with a stale value). Link now spawns idle at
+(1, 0, 95) with `stateFlags1=0` — full player control.
+
+### Verified end-to-end
+
+Session recipe: `soh_warp 0xBB` + `soh_input 0 0 -127` for 30 frames
+walks SoH Link from (1, 0, 95) → (13.07, 0, 34.02). `analog 0 -32000`
+concurrently drives Az Link from (1, 0, 95) → (0.8, 14, 135.5).
+Firstdiv d3 correctly reports `player-pos |Δpos|=103.17`. Both engines
+respond to input; both engines' Player_Update paths run.
+
 ## Next-session frontiers
 
-1. Add scene-transition and driven-input flavors to time sweep — the
-   static room baseline is validated.
-2. Sweep across more scenes to confirm d5 mainCamera offset (0x1B8)
-   works for follow/fixed/cutscene camera settings, not just Link's
-   House.
-3. d8 = envCtx lighting (already have `SohState_Lighting`) — port
-   parity of scene lighting settings.
+1. **Sign-convention wrapper.** Az's analog Y is libretro-native (up
+   negative), SoH's stick_y is N64-native (matches libretro sign, but
+   camera convention may flip the visible result). The Session
+   recipe above shows Az moving to +Z while SoH moves to -Z for the
+   "same" stick input — one of them is going backwards. A Python
+   helper in `scratch/` should map a symbolic action (`walk_forward`,
+   `walk_left`, `turn_right`) to both engines' native masks so the
+   test writer doesn't have to reason about it each time.
+2. **Time-domain firstdiv with matched driving.** Once the sign
+   wrapper lands, run compare firstdiv per-frame across a scripted
+   drive (30 frames forward, 30 frames right, 30 frames turn, 30
+   frames stop). First real per-frame divergence in d3/d4/d7 is a
+   Player physics/animation port gap — the primary parity signal.
+3. **Sweep across more scenes** to confirm d5 mainCamera offset
+   (0x1B8) works for follow/fixed/cutscene camera settings.
+4. **d8 = envCtx lighting** (already have `SohState_Lighting`) —
+   port parity of scene lighting settings.
+
+## Aside: RNG determinism for autonomous actors
+
+Navi's 7-9-unit position drift between engines (worst_pos_drift in
+d7) is because both engines use divergent RNG seeds. A scene-load
+hook that pins both engines' RNG streams to the same seed would
+unblock ALL future autonomous-actor comparisons. Deferred to a
+future session as workflow-first infrastructure work.
 
 ## Session artifacts
 
