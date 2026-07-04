@@ -75,11 +75,25 @@ typedef struct EnvironmentContext_3DS {
     f32  sunDirZ;                         /* +0x0C same */
     u8   unk_10;                          /* +0x10 (init 99 by Env_Init) */
     u8   unk_11;                          /* +0x11 (init 99 by Env_Init) */
-    u8   unk_12[0x08];                    /* +0x12 opaque (init zeros) */
+    u8   unk_12[0x03];                    /* +0x12 opaque (init zeros) */
+    u8   skybox1Disable;                  /* +0x15 (WRITTEN by
+                                             Scene_CmdSkyboxDisables
+                                             cmd 0x12 = FUN_00381d18) */
+    u8   skybox2Disable;                  /* +0x16 same */
+    u8   sunMoonDisable;                  /* +0x17 same */
+    u8   skybox1Idx;                      /* +0x18 (WRITTEN by
+                                             Scene_CmdSkyboxSettings
+                                             cmd 0x11 = FUN_0038a164 —
+                                             sets both +0x18 and +0x19 to
+                                             cmd[5]) */
+    u8   skybox2Idx;                      /* +0x19 same */
     u8   unk_1A;                          /* +0x1A (init 0) */
     u8   unk_1B;                          /* +0x1B (init 0) */
     u16  unk_1C;                          /* +0x1C (init 0) */
-    u8   unk_1E[0x03];                    /* +0x1E opaque */
+    u8   unk_1E[0x02];                    /* +0x1E opaque */
+    u8   skyboxUnk20;                     /* +0x20 (WRITTEN by
+                                             Scene_CmdSkyboxSettings
+                                             cmd 0x11 from cmd[6]) */
     u8   timeCursorA;                     /* +0x21 time-index cursor;
                                              Env_Update reads it as the
                                              first index into a time-
@@ -112,7 +126,10 @@ typedef struct EnvironmentContext_3DS {
     u16  unk_82;                          /* +0x82 */
     f32  unk_84;                          /* +0x84 (init uRam0045039c) */
     f32  unk_88;                          /* +0x88 (init uRam0045039c) */
-    f32  unk_8C;                          /* +0x8C (init uRam0045039c) */
+    f32  skyboxScale;                     /* +0x8C float (WRITTEN by
+                                             Scene_CmdSkyboxSettings from
+                                             cmd[7] normalized; init 0
+                                             by Env_Init). */
     u16  unk_90;                          /* +0x90 (init 0x50) */
     u8   unk_92[0x0a];                    /* +0x92 opaque */
     u8   numLightSettings;                /* +0x9C (WRITTEN by

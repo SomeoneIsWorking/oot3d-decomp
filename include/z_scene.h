@@ -69,6 +69,10 @@ extern u32 Scene_CmdCutsceneData     (int segBase, void* play, SceneCmdEntry* cm
 extern u32 Scene_CmdActorList        (int segBase, void* play, SceneCmdEntry* cmd);
 extern u32 Scene_CmdRoomList         (int segBase, void* play, SceneCmdEntry* cmd);
 extern u32 Scene_CmdEntranceList     (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdCamList          (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdExitList         (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdSkyboxDisables   (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdSkyboxSettings   (int segBase, void* play, SceneCmdEntry* cmd);
 
 /* The scene command dispatcher itself (FUN_002e4de4). Reads a
  * command list until it hits SCENE_CMD_END, dispatching each via

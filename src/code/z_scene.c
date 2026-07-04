@@ -176,6 +176,82 @@ u32 Scene_CmdEntranceList(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdCamList  (ZSI cmd 0x02)  VA 0x00378fe0  size 24B
+ *   play + 0x5C14 = segBase + cmd->segAddr  (cam list ptr)
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdCamList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    *(u32*)((u8*)play + 0x5C14) = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdExitList  (ZSI cmd 0x13)  VA 0x002a9e2c  size 24B
+ *   play + 0x5C1C = segBase + cmd->segAddr
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdExitList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    *(u32*)((u8*)play + 0x5C1C) = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdSkyboxDisables  (ZSI cmd 0x12)  VA 0x00381d18  size 36B
+ *
+ *   envCtx.skybox1Disable = cmd[4]  (env + 0x15)
+ *   envCtx.skybox2Disable = cmd[5]  (env + 0x16)
+ *   envCtx.sunMoonDisable = cmd[6]  (env + 0x17)
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdSkyboxDisables(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    EnvironmentContext_3DS* env =
+        (EnvironmentContext_3DS*)((u8*)play + OOT3D_PLAY_ENVCTX_OFFSET);
+    u8* cb = (u8*)cmd;
+    env->skybox1Disable = cb[4];
+    env->skybox2Disable = cb[5];
+    env->sunMoonDisable = cb[6];
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdSkyboxSettings  (ZSI cmd 0x11)  VA 0x0038a164  size 80B
+ *
+ *   *(iRam0038a1b4 + play) = cmd[4]                  // a play offset
+ *                                                    // resolved at runtime
+ *   env->skybox1Idx = env->skybox2Idx = cmd[5]       // env + 0x18, 0x19
+ *   env->skyboxUnk20 = cmd[6]                        // env + 0x20
+ *   env->skyboxScale = cmd[7] > 0 ? (cmd[7]/... scaled) : default_float
+ *
+ * The first store uses `iRam0038a1b4` which resolves to a fixed
+ * play-relative offset at runtime; we don't yet know its value. Left
+ * as an unknown-offset write commented out.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdSkyboxSettings(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    EnvironmentContext_3DS* env =
+        (EnvironmentContext_3DS*)((u8*)play + OOT3D_PLAY_ENVCTX_OFFSET);
+    u8* cb = (u8*)cmd;
+
+    /* *(u8*)((u8*)play + IRAM_0038A1B4_OFF) = cb[4];   pending offset RE */
+
+    env->skybox1Idx  = cb[5];
+    env->skybox2Idx  = cb[5];
+    env->skyboxUnk20 = cb[6];
+
+    if (cb[7] != 0) {
+        env->skyboxScale = (f32)cb[7] * (1.0f / 255.0f);
+        /* Actual scale uses two pool constants (fRam0038a1b8 * cb[7]/255
+         * * fRam0038a1bc). Values still to be resolved; the /255 form
+         * is the shape. */
+    } else {
+        env->skyboxScale = 0.0f;   /* fRam0038a1b8 default */
+    }
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdCutsceneData  (ZSI cmd 0x17)  VA 0x0023449c  size 40B
  *
  * Attaches a cutscene byte-stream to the play struct. cmd->segAddr
@@ -255,6 +331,9 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                 case SCENE_CMD_ACTOR_LIST:           /* 0x01 -> FUN_0023447c */
                     Scene_CmdActorList(segBase, play, cmd);
                     break;
+                case SCENE_CMD_CAM_LIST:             /* 0x02 -> FUN_00378fe0 */
+                    Scene_CmdCamList(segBase, play, cmd);
+                    break;
                 case SCENE_CMD_ROOM_LIST:            /* 0x04 -> FUN_0039ded0 */
                     Scene_CmdRoomList(segBase, play, cmd);
                     break;
@@ -263,6 +342,15 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                     break;
                 case SCENE_CMD_LIGHT_SETTINGS_LIST:  /* 0x0F -> FUN_00379188 */
                     Scene_CmdLightSettingsList(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_SKYBOX_SETTINGS:      /* 0x11 -> FUN_0038a164 */
+                    Scene_CmdSkyboxSettings(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_SKYBOX_DISABLES:      /* 0x12 -> FUN_00381d18 */
+                    Scene_CmdSkyboxDisables(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_EXIT_LIST:            /* 0x13 -> FUN_002a9e2c */
+                    Scene_CmdExitList(segBase, play, cmd);
                     break;
                 case SCENE_CMD_TIME_SETTINGS:        /* 0x10 -> FUN_00217a5c */
                     Scene_CmdTimeSettings(segBase, play, cmd);
