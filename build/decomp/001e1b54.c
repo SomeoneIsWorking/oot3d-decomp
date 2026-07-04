@@ -52,7 +52,7 @@ void FUN_001e1b54(int param_1,int param_2)
       iVar4 = FUN_003738d0(param_2 + 0x208c,param_2,DAT_001e1de8,0,(int)*(short *)(param_1 + 0xbe),0
                            ,(int)(short)(*(ushort *)(iVar4 + 0x4e) | 0x8000),1);
       if (iVar4 != 0) {
-        *(undefined *)(iVar4 + 3) = 0;
+        *(undefined1 *)(iVar4 + 3) = 0;
       }
     }
   }
