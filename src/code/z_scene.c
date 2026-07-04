@@ -252,6 +252,64 @@ u32 Scene_CmdSkyboxSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdSoundSettings  (ZSI cmd 0x15)  VA 0x00273108  size 48B
+ *
+ *   play + 0xa68 = *(u32*)(cmd + 4)     // 3 sound-config words packed
+ *   play + 0xa6c = cmd[2]               // reverb byte
+ *   if (audioMgr[0x558] == 0xff) FUN_0032c5dc(cmd[1])  // set audio state
+ *
+ * iRam00273138 is the audio-manager pool constant; skipped here since
+ * we don't yet name that global.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdSoundSettings(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    u8* pb = (u8*)play;
+    u8* cb = (u8*)cmd;
+    *(u32*)(pb + 0xa68) = *(u32*)(cb + 4);
+    pb[0xa6c] = cb[2];
+    /* audio-state gate call skipped (needs FUN_0032c5dc + audio mgr) */
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdRoomBehavior  (ZSI cmd 0x08)  VA 0x002344c4  size 80B
+ *
+ *   play + 0x4c33 = cmd[1]
+ *   play + 0x4c32 = (s8)cmd[4]                (low byte of segAddr word)
+ *   play + 0x4c35 = bit @ position 23 of the segAddr word
+ *   play + 0x4c37 = bit @ position 22
+ *   play + 0x2b9c = bit @ position 21 (u16)
+ *
+ * The `(cmd[4:8] << 23) >> 31` pattern is Grezzo's compact form for
+ * "extract bit at position (31 - 23) = 8" — i.e. bit 8 of the u32
+ * at cmd+4. Similar for the other bits.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdRoomBehavior(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    u8*  pb = (u8*)play;
+    u8*  cb = (u8*)cmd;
+    u32  w  = *(u32*)(cb + 4);
+    pb[0x4c33] = cb[1];
+    pb[0x4c32] = cb[4];                    /* (char) low byte */
+    pb[0x4c35] = (u8)((w >> 8) & 1u);      /* bit 8 */
+    pb[0x4c37] = (u8)((w >> 9) & 1u);      /* bit 9 */
+    *(u16*)(pb + 0x2b9c) = (u16)((w >> 10) & 1u);  /* bit 10 */
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdUnused9  (ZSI cmd 0x09)  VA 0x00256d48  size 8B
+ *   return 1;
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdUnused9(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase; (void)play; (void)cmd;
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdTransitionActors  (ZSI cmd 0x0E)  VA 0x002985d0  size 32B
  *   play + 0x5b88 = cmd->data1                    // numTransActors
  *   play + 0x5b8c = segBase + cmd->segAddr        // list ptr
@@ -406,6 +464,15 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                     break;
                 case SCENE_CMD_TRANSITION_ACTORS:    /* 0x0E -> FUN_002985d0 */
                     Scene_CmdTransitionActors(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_ROOM_BEHAVIOR:        /* 0x08 -> FUN_002344c4 */
+                    Scene_CmdRoomBehavior(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_SOUND_SETTINGS:       /* 0x15 -> FUN_00273108 */
+                    Scene_CmdSoundSettings(segBase, play, cmd);
+                    break;
+                case 0x09:                            /* unused N64 slot */
+                    Scene_CmdUnused9(segBase, play, cmd);
                     break;
                 case SCENE_CMD_TIME_SETTINGS:        /* 0x10 -> FUN_00217a5c */
                     Scene_CmdTimeSettings(segBase, play, cmd);
