@@ -31,4 +31,27 @@ static inline u32 Cutscene_GetScriptPtr(void* play) {
     return *(u32*)((u8*)play + OOT3D_PLAY_CS_SCRIPT_OFFSET);
 }
 
+/* --- CS runner state machine --- pinned via Actor_UpdateAll decomp
+ *     (build/decomp/002e2e60.c line 70+):
+ *
+ *     if (*(char *)((int)param_1 + 0x7f12) == '\0') { ... }
+ *     switch (*(u8*)((int)param_1 + 0x7f12)) {
+ *         case 1: ...
+ *         case 2: goto LAB_002e3438;
+ *         case 3: ...  // per-frame advance
+ *     }
+ *
+ * NOTE: `param_1` here is Actor_UpdateAll's arg. Whether it's `play`
+ * directly or `play + 0x252C` (an env-parent intermediate) is not
+ * yet independently verified; see debug_journal/2026-07-04-envctx-
+ * basepointer-shift.md for the ambiguity. If param_1 IS play, then
+ * the CS state u8 is at play + 0x7F12 (well inside a typical Play
+ * struct). If it's an inner struct, the offset is relative to that.
+ *
+ * The dispatch table for the CS state machine is at
+ * `iRam002e31b8`-adjacent pool constants. NOT yet decompiled.
+ */
+#define OOT3D_ACTOR_UPDATEALL_CS_STATE_OFFSET 0x7F12  /* u8; UNVERIFIED
+                                                         base (see above) */
+
 #endif /* OOT3D_Z_CUTSCENE_H */
