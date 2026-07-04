@@ -252,6 +252,55 @@ u32 Scene_CmdSkyboxSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdTransitionActors  (ZSI cmd 0x0E)  VA 0x002985d0  size 32B
+ *   play + 0x5b88 = cmd->data1                    // numTransActors
+ *   play + 0x5b8c = segBase + cmd->segAddr        // list ptr
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdTransitionActors(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* pb = (u8*)play;
+    pb[0x5b88] = cmd->data1;
+    *(u32*)(pb + 0x5b8c) = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdPathList  (ZSI cmd 0x0D)  VA 0x002985f0  size 144B
+ *
+ * Walks the path list at (segBase + cmd->segAddr) and RELOCATES each
+ * path's internal pointer from segment-relative to absolute VA (adds
+ * segBase). Path entries are 8 bytes wide; the +4 field is the ptr to
+ * relocate. Count is cmd->data1. First-entry relocation is unrolled
+ * outside the loop (odd-count handling).
+ *
+ * After relocation, stores the path list base into play + 0x5C20 (via
+ * iRam00298680 = 0x5c20 offset add).
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdPathList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8*  pb = (u8*)play;
+    u32  pathListBaseVA = (u32)segBase + cmd->segAddr;
+    u8*  pathListBase = (u8*)(uintptr_t)pathListBaseVA;
+    u8   count = cmd->data1;
+
+    if (count != 0) {
+        u32 i = count & 1u;
+        if (i == 1) {
+            *(u32*)(pathListBase + 4) = *(u32*)(pathListBase + 4) + (u32)segBase;
+        }
+        u32 j = (i == 1) ? 1u : 0u;
+        while (i < count) {
+            *(u32*)(pathListBase + j       * 8 + 4) += (u32)segBase;
+            *(u32*)(pathListBase + (j + 1) * 8 + 4) += (u32)segBase;
+            i += 2;
+            j += 2;
+        }
+    }
+    *(u32*)(pb + OOT3D_PLAY_PATH_LIST_OFFSET) = pathListBaseVA;
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdCutsceneData  (ZSI cmd 0x17)  VA 0x0023449c  size 40B
  *
  * Attaches a cutscene byte-stream to the play struct. cmd->segAddr
@@ -351,6 +400,12 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                     break;
                 case SCENE_CMD_EXIT_LIST:            /* 0x13 -> FUN_002a9e2c */
                     Scene_CmdExitList(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_PATH_LIST:            /* 0x0D -> FUN_002985f0 */
+                    Scene_CmdPathList(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_TRANSITION_ACTORS:    /* 0x0E -> FUN_002985d0 */
+                    Scene_CmdTransitionActors(segBase, play, cmd);
                     break;
                 case SCENE_CMD_TIME_SETTINGS:        /* 0x10 -> FUN_00217a5c */
                     Scene_CmdTimeSettings(segBase, play, cmd);

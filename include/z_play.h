@@ -60,6 +60,11 @@
 #define OOT3D_PLAY_SPAWN_LIST_OFFSET      0x5C0C   /* u32 VA */
 #define OOT3D_PLAY_ACTOR_LIST_OFFSET      0x5C10   /* u32 VA */
 #define OOT3D_PLAY_ENTRANCE_LIST_OFFSET   0x5C18   /* u32 VA */
+#define OOT3D_PLAY_EXIT_LIST_OFFSET       0x5C1C   /* u32 VA (Scene_CmdExitList) */
+#define OOT3D_PLAY_CAM_LIST_OFFSET        0x5C14   /* u32 VA (Scene_CmdCamList) */
+#define OOT3D_PLAY_PATH_LIST_OFFSET       0x5C20   /* u32 VA
+                                                     (Scene_CmdPathList sets
+                                                     this via iRam00298680) */
 #define OOT3D_PLAY_TRANSITION_TRIG_OFFSET 0x5C2D   /* u8 */
 #define OOT3D_PLAY_NEXT_ENTRANCE_OFFSET   0x5C32   /* u16 */
 
