@@ -16,6 +16,7 @@
 #include "z_types.h"
 #include "z_scene.h"
 #include "z_kankyo.h"
+#include "z_cutscene.h"
 
 /* ------------------------------------------------------------------
  * Scene_CmdLightSettingsList  (ZSI cmd 0x0F)  VA 0x00379188  size 32B
@@ -124,6 +125,39 @@ u32 Scene_CmdTimeSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdCutsceneData  (ZSI cmd 0x17)  VA 0x0023449c  size 40B
+ *
+ * Attaches a cutscene byte-stream to the play struct. cmd->segAddr
+ * carries a scene-segment offset; segBase + offset = the absolute VA
+ * of the cutscene bytes.
+ *
+ * Ghidra decomp (build/decomp/0023449c.c):
+ *
+ *   undefined4 FUN_0023449c(int param_1, undefined4 param_2, int param_3) {
+ *       FUN_0037573c(param_2, *(int *)(param_3 + 4) + param_1);
+ *       FUN_00357ea0(param_2);
+ *       return 1;
+ *   }
+ *
+ * FUN_0037573c stashes at play + 0x229C (script ptr) + resets play +
+ * 0x22AC (state) to 0. FUN_00357ea0 is a simple getter (returns
+ * *(play + 0x229C)) — the call here is likely for its
+ * side-effect of triggering a downstream init if it's overloaded.
+ *
+ * N64 twin: `Scene_CommandCutsceneData` in zeldaret/oot z_scene_table.c.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdCutsceneData(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* playBytes = (u8*)play;
+
+    *(u32*)(playBytes + OOT3D_PLAY_CS_SCRIPT_OFFSET) = (u32)(segBase + cmd->segAddr);
+    *(u32*)(playBytes + OOT3D_PLAY_CS_STATE_OFFSET)  = 0;
+    /* FUN_00357ea0 side-effect not ported (it's the getter — pure
+     * function per its decomp; the discarded return is a no-op). */
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_ExecuteCommands  VA 0x002e4de4  size 168B
  *
  * The scene ZSI command dispatch loop. Reads commands from cmdList
@@ -172,6 +206,9 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                     break;
                 case SCENE_CMD_TIME_SETTINGS:        /* 0x10 -> FUN_00217a5c */
                     Scene_CmdTimeSettings(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_CUTSCENE_DATA:        /* 0x17 -> FUN_0023449c */
+                    Scene_CmdCutsceneData(segBase, play, cmd);
                     break;
                 default:
                     /* Not yet hand-ported. Full list of binary VAs in
