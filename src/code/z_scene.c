@@ -252,6 +252,83 @@ u32 Scene_CmdSkyboxSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdCollisionHeader  (ZSI cmd 0x03)  VA 0x00273070  size 152B
+ *
+ * Relocates a scene collision header's internal pointer fields from
+ * segment-offset form to absolute VAs (adds segBase to each). Then
+ * walks the poly list at header+0x24, adding segBase to each entry's
+ * per-poly ptr at +4. Finally kicks off collision-context init.
+ *
+ * Header layout (byte offsets inside the header struct at segBase +
+ * cmd->segAddr):
+ *   +0x00 vertex/poly ptrs
+ *   +0x12 u16 polyLen (per-poly ptr count)
+ *   +0x18 vtx list
+ *   +0x1C poly list
+ *   +0x20 tex data
+ *   +0x24 tex-poly list (poly-ptr entries, 8 bytes each)
+ *   +0x28 special-lookup ptr
+ *
+ * Downstream FUN_001311d0(play + 0xa98) init = the runtime collision
+ * context. Pins play + 0xa98 = collisionCtx.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdCollisionHeader(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)play;
+    u32 headerVA = (u32)segBase + cmd->segAddr;
+    u8* header   = (u8*)(uintptr_t)headerVA;
+    u32 sb       = (u32)segBase;
+
+    *(u32*)(header + 0x18) += sb;
+    *(u32*)(header + 0x1c) += sb;
+    *(u32*)(header + 0x20) += sb;
+    *(u32*)(header + 0x24) += sb;
+    *(u32*)(header + 0x28) += sb;
+
+    u16 polyLen = *(u16*)(header + 0x12);
+    if (polyLen != 0) {
+        u32 polyListVA = *(u32*)(header + 0x24);
+        u8* polyList   = (u8*)(uintptr_t)polyListVA;
+        for (u32 i = 0; i < polyLen; ++i) {
+            u32 entryPtr = *(u32*)(polyList + i * 8 + 4);
+            if (entryPtr != 0) {
+                *(u32*)(polyList + i * 8 + 4) = entryPtr + sb;
+            }
+        }
+    }
+
+    /* Downstream: FUN_001311d0(play + 0xa98)  — collision ctx init.
+     * play + 0xa98 = collisionCtx (locked in via this call site). */
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdLightList  (ZSI cmd 0x0C)  VA 0x002a9ddc  size 80B
+ *
+ * Iterates cmd->data1 lights (each 24 bytes) starting at
+ * segBase + cmd->segAddr. Each is handed to FUN_0034faa8(play,
+ * play + 0xa70, lightBytes) — the per-light init helper.
+ *
+ * Pins play + 0xa70 = lightCtx (a per-scene global-lights sub-ctx).
+ * FUN_0034faa8 not yet ported (needs the light struct RE'd).
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdLightList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* pb = (u8*)play;
+    u32 listBase = (u32)segBase + cmd->segAddr;
+    u8  count = cmd->data1;
+
+    for (u8 i = 0; i < count; ++i) {
+        u32 lightVA = listBase + (u32)i * 24u;
+        /* Downstream: FUN_0034faa8(play, play + 0xa70, lightVA);
+         * TODO: port the per-light init once its struct is RE'd. */
+        (void)lightVA;
+        (void)pb;
+    }
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdWindSettings  (ZSI cmd 0x05)  VA 0x00217c2c  size 56B
  *
  *   env->windDirX     = (s16)(s8)cmd[4]   env + 0x90
@@ -510,6 +587,12 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                     break;
                 case SCENE_CMD_WIND_SETTINGS:        /* 0x05 -> FUN_00217c2c */
                     Scene_CmdWindSettings(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_COLLISION_HEADER:     /* 0x03 -> FUN_00273070 */
+                    Scene_CmdCollisionHeader(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_LIGHT_LIST:           /* 0x0C -> FUN_002a9ddc */
+                    Scene_CmdLightList(segBase, play, cmd);
                     break;
                 case SCENE_CMD_SOUND_SETTINGS:       /* 0x15 -> FUN_00273108 */
                     Scene_CmdSoundSettings(segBase, play, cmd);

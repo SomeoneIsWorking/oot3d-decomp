@@ -62,6 +62,10 @@
 #define OOT3D_PLAY_ENTRANCE_LIST_OFFSET   0x5C18   /* u32 VA */
 #define OOT3D_PLAY_EXIT_LIST_OFFSET       0x5C1C   /* u32 VA (Scene_CmdExitList) */
 #define OOT3D_PLAY_CAM_LIST_OFFSET        0x5C14   /* u32 VA (Scene_CmdCamList) */
+#define OOT3D_PLAY_COLLISION_CTX_OFFSET   0x0A98   /* Scene_CmdCollisionHeader
+                                                     calls FUN_001311d0 on this */
+#define OOT3D_PLAY_LIGHT_CTX_OFFSET       0x0A70   /* Scene_CmdLightList passes
+                                                     this to per-light init */
 #define OOT3D_PLAY_PATH_LIST_OFFSET       0x5C20   /* u32 VA
                                                      (Scene_CmdPathList sets
                                                      this via iRam00298680) */
