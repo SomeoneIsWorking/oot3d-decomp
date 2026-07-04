@@ -66,6 +66,17 @@
                                                      calls FUN_001311d0 on this */
 #define OOT3D_PLAY_LIGHT_CTX_OFFSET       0x0A70   /* Scene_CmdLightList passes
                                                      this to per-light init */
+#define OOT3D_PLAY_ACTOR_CTX_OFFSET       0x208C   /* actorCtx substruct — passed
+                                                     to Scene_CmdObjectList's
+                                                     FUN_00379c3c call */
+#define OOT3D_PLAY_OBJECT_COUNT_OFFSET    0x3A58   /* u8 numObjects (also read
+                                                     by Scene_CmdSpecialFiles) */
+#define OOT3D_PLAY_OBJECT_ARRAY_OFFSET    0x3A5C   /* Object[num] array; each
+                                                     entry is 0x80 bytes wide */
+#define OOT3D_PLAY_PENDING_OBJ_CNT_OFFSET 0x43DC   /* s16 pendingObjects count */
+#define OOT3D_PLAY_PENDING_OBJ_FLAG_OFFSET 0x43DE  /* s16 pendingObjects flag */
+#define OOT3D_PLAY_PENDING_OBJ_ARR_OFFSET 0x43E0   /* pendingObjects array; each
+                                                     entry is 0x70 bytes wide */
 #define OOT3D_PLAY_PATH_LIST_OFFSET       0x5C20   /* u32 VA
                                                      (Scene_CmdPathList sets
                                                      this via iRam00298680) */
