@@ -17,6 +17,7 @@
 #include "z_scene.h"
 #include "z_kankyo.h"
 #include "z_cutscene.h"
+#include "z_play.h"
 
 /* ------------------------------------------------------------------
  * Scene_CmdLightSettingsList  (ZSI cmd 0x0F)  VA 0x00379188  size 32B
@@ -125,6 +126,56 @@ u32 Scene_CmdTimeSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdActorList  (ZSI cmd 0x01)  VA 0x0023447c  size 32B
+ *
+ *   FUN_0023447c(int segBase, int play, int cmd):
+ *       *(u8*)(play + 0x5c03) = *(u8*)(cmd + 1);           // numActors
+ *       *(int*)(play + 0x5c10) = segBase + *(int*)(cmd + 4); // actorList ptr
+ *       return 1;
+ *
+ * Identical shape to Scene_CmdLightSettingsList (parallel struct-init).
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdActorList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* pb = (u8*)play;
+    *(u8 *)(pb + OOT3D_PLAY_NUM_ACTORS_OFFSET)  = cmd->data1;
+    *(u32*)(pb + OOT3D_PLAY_ACTOR_LIST_OFFSET)  = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdRoomList  (ZSI cmd 0x04)  VA 0x0039ded0  size 32B
+ *
+ *   FUN_0039ded0(int segBase, int play, int cmd):
+ *       *(u8*)(play + 0x5c04) = *(u8*)(cmd + 1);            // numRooms
+ *       *(int*)(play + 0x5c08) = segBase + *(int*)(cmd + 4); // roomList ptr
+ *       return 1;
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdRoomList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* pb = (u8*)play;
+    *(u8 *)(pb + OOT3D_PLAY_NUM_ROOMS_OFFSET)   = cmd->data1;
+    *(u32*)(pb + OOT3D_PLAY_ROOM_LIST_OFFSET)   = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdEntranceList  (ZSI cmd 0x06)  VA 0x003791a8  size 24B
+ *
+ *   FUN_003791a8(int segBase, int play, int cmd):
+ *       *(int*)(play + 0x5c18) = segBase + *(int*)(cmd + 4);
+ *       return 1;
+ *
+ * Smallest of the scene handlers — one pointer write.
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdEntranceList(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    u8* pb = (u8*)play;
+    *(u32*)(pb + OOT3D_PLAY_ENTRANCE_LIST_OFFSET) = (u32)(segBase + cmd->segAddr);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdCutsceneData  (ZSI cmd 0x17)  VA 0x0023449c  size 40B
  *
  * Attaches a cutscene byte-stream to the play struct. cmd->segAddr
@@ -201,6 +252,15 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
 
         if (cmd->cmd < SCENE_CMD_MAX) {
             switch (cmd->cmd) {
+                case SCENE_CMD_ACTOR_LIST:           /* 0x01 -> FUN_0023447c */
+                    Scene_CmdActorList(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_ROOM_LIST:            /* 0x04 -> FUN_0039ded0 */
+                    Scene_CmdRoomList(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_ENTRANCE_LIST:        /* 0x06 -> FUN_003791a8 */
+                    Scene_CmdEntranceList(segBase, play, cmd);
+                    break;
                 case SCENE_CMD_LIGHT_SETTINGS_LIST:  /* 0x0F -> FUN_00379188 */
                     Scene_CmdLightSettingsList(segBase, play, cmd);
                     break;
