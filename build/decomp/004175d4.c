@@ -8,7 +8,7 @@ void FUN_004175d4(void)
   int iVar3;
   
   puVar2 = (undefined4 *)FUN_0041ae54();
-  *puVar2 = DAT_00417640;
+  *puVar2 = UNK_00417640;
   iVar3 = FUN_0041f348(puVar2 + 0x14);
   *(undefined4 *)(iVar3 + 0x1c) = 0;
   *(undefined4 *)(iVar3 + 0x20) = 0;
@@ -21,7 +21,7 @@ void FUN_004175d4(void)
   *(undefined4 *)(iVar3 + 0x44) = 0;
   *(undefined4 *)(iVar3 + 0x48) = 0xffffffff;
   *(undefined4 *)(iVar3 + 0x4c) = 0;
-  iVar1 = DAT_00417644;
+  iVar1 = UNK_00417644;
   *(undefined1 *)(iVar3 + -0x4b) = 2;
   *(undefined4 *)(iVar1 + 8) = 0;
   *(int *)(iVar1 + 0x14) = iVar3 + -0x50;

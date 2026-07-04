@@ -52,7 +52,7 @@ undefined4 * FUN_00343280(undefined4 *param_1,uint param_2)
     puVar3 = puVar2;
     if ((uVar1 & 0x40000000) != 0) {
       puVar3 = (undefined4 *)((int)puVar2 + 1);
-      *(undefined *)puVar2 = 0;
+      *(undefined1 *)puVar2 = 0;
     }
     return puVar3;
   }

@@ -3,7 +3,7 @@
 void FUN_004a34d0(int param_1,undefined4 param_2)
 
 {
-  undefined uVar1;
+  undefined1 uVar1;
   int iVar2;
   undefined4 uVar3;
   undefined4 uVar4;
@@ -14,7 +14,7 @@ void FUN_004a34d0(int param_1,undefined4 param_2)
   iVar2 = FUN_0035d260(param_1);
   if (iVar2 != 0) {
     uVar4 = *(undefined4 *)(param_1 + 0x2d0);
-    uVar1 = *(undefined *)(param_1 + 0x2c8);
+    uVar1 = *(undefined1 *)(param_1 + 0x2c8);
     uVar3 = FUN_0034d628(param_1);
     uVar3 = FUN_002bdd54(param_1 + 0x254,uVar3);
     FUN_004ba304(param_2,param_1 + 0x254,uVar3,0,uVar1,uVar4);

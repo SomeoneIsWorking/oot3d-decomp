@@ -16,24 +16,24 @@ int FUN_00347258(undefined4 *param_1)
   undefined4 *puVar11;
   undefined4 *puVar12;
   undefined4 *puVar13;
-  undefined *puVar14;
+  undefined1 *puVar14;
   
   uVar1 = DAT_00347520;
   *param_1 = 0;
-  *(undefined *)((int)param_1 + 10) = 0;
-  *(undefined *)((int)param_1 + 0xb) = 0;
+  *(undefined1 *)((int)param_1 + 10) = 0;
+  *(undefined1 *)((int)param_1 + 0xb) = 0;
   iVar7 = FUN_00350820(param_1 + 0x22,uVar1,0x60,3);
   uVar2 = DAT_00347528;
   uVar1 = DAT_00347524;
   *(undefined4 *)(iVar7 + 0x120) = 0;
   *(undefined4 *)(iVar7 + 0x124) = uVar1;
   *(undefined4 *)(iVar7 + 0x128) = uVar2;
-  *(undefined *)(iVar7 + 300) = 0;
-  *(undefined *)(iVar7 + 0x12d) = 0;
-  *(undefined *)(iVar7 + 0x12e) = 1;
-  *(undefined *)(iVar7 + 0x130) = 0;
-  *(undefined *)(iVar7 + 0x131) = 0;
-  *(undefined *)(iVar7 + 0x132) = 1;
+  *(undefined1 *)(iVar7 + 300) = 0;
+  *(undefined1 *)(iVar7 + 0x12d) = 0;
+  *(undefined1 *)(iVar7 + 0x12e) = 1;
+  *(undefined1 *)(iVar7 + 0x130) = 0;
+  *(undefined1 *)(iVar7 + 0x131) = 0;
+  *(undefined1 *)(iVar7 + 0x132) = 1;
   *(undefined4 *)(iVar7 + 0x134) = 2;
   uVar2 = DAT_0034752c;
   *(undefined2 *)(iVar7 + 0x1a8) = 0;
@@ -77,7 +77,7 @@ int FUN_00347258(undefined4 *param_1)
   puVar12 = (undefined4 *)(iVar7 + -0x78);
   puVar13 = (undefined4 *)(iVar7 + -0x7c);
   iVar10 = 6;
-  puVar14 = (undefined *)(iVar7 + -0x84);
+  puVar14 = (undefined1 *)(iVar7 + -0x84);
   do {
     iVar10 = iVar10 + -1;
     *puVar9 = uVar1;
