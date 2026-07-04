@@ -252,6 +252,46 @@ u32 Scene_CmdSkyboxSettings(int segBase, void* play, SceneCmdEntry* cmd)
 }
 
 /* ------------------------------------------------------------------
+ * Scene_CmdWindSettings  (ZSI cmd 0x05)  VA 0x00217c2c  size 56B
+ *
+ *   env->windDirX     = (s16)(s8)cmd[4]   env + 0x90
+ *   env->windDirY     = (s16)(s8)cmd[5]   env + 0x92
+ *   env->windDirZ     = (s16)(s8)cmd[6]   env + 0x94
+ *   env->windStrength = (f32)cmd[7] / 255.0f  (via VectorUnsignedToFloat)
+ *                                          env + 0x98
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdWindSettings(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    EnvironmentContext_3DS* env =
+        (EnvironmentContext_3DS*)((u8*)play + OOT3D_PLAY_ENVCTX_OFFSET);
+    s8* cb = (s8*)cmd;
+    env->windDirX = (s16)cb[4];
+    env->windDirY = (s16)cb[5];
+    env->windDirZ = (s16)cb[6];
+    env->windStrength = (f32)(u8)cb[7] * (1.0f / 255.0f);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
+ * Scene_CmdEchoSettings  (ZSI cmd 0x16)  VA 0x00256c7c  size 40B
+ *
+ *   *(u8 *)(play + iRam00256ca4=0x4c34) = cmd[6]     // echo byte
+ *   *(u16*)(play + 0x5000)              = *(u16*)(cmd + 2)
+ *   *(u16*)(play + 0x5002)              = *(u16*)(cmd + 4)
+ * ------------------------------------------------------------------ */
+u32 Scene_CmdEchoSettings(int segBase, void* play, SceneCmdEntry* cmd)
+{
+    (void)segBase;
+    u8* pb = (u8*)play;
+    u8* cb = (u8*)cmd;
+    pb[0x4c34] = cb[6];
+    *(u16*)(pb + 0x5000) = *(u16*)(cb + 2);
+    *(u16*)(pb + 0x5002) = *(u16*)(cb + 4);
+    return 1;
+}
+
+/* ------------------------------------------------------------------
  * Scene_CmdSoundSettings  (ZSI cmd 0x15)  VA 0x00273108  size 48B
  *
  *   play + 0xa68 = *(u32*)(cmd + 4)     // 3 sound-config words packed
@@ -468,8 +508,14 @@ u32 Scene_ExecuteCommands(int segBase, void* play, u8* cmdList)
                 case SCENE_CMD_ROOM_BEHAVIOR:        /* 0x08 -> FUN_002344c4 */
                     Scene_CmdRoomBehavior(segBase, play, cmd);
                     break;
+                case SCENE_CMD_WIND_SETTINGS:        /* 0x05 -> FUN_00217c2c */
+                    Scene_CmdWindSettings(segBase, play, cmd);
+                    break;
                 case SCENE_CMD_SOUND_SETTINGS:       /* 0x15 -> FUN_00273108 */
                     Scene_CmdSoundSettings(segBase, play, cmd);
+                    break;
+                case SCENE_CMD_ECHO_SETTINGS:        /* 0x16 -> FUN_00256c7c */
+                    Scene_CmdEchoSettings(segBase, play, cmd);
                     break;
                 case 0x09:                            /* unused N64 slot */
                     Scene_CmdUnused9(segBase, play, cmd);

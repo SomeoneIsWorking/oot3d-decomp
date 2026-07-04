@@ -78,6 +78,8 @@ extern u32 Scene_CmdTransitionActors (int segBase, void* play, SceneCmdEntry* cm
 extern u32 Scene_CmdRoomBehavior     (int segBase, void* play, SceneCmdEntry* cmd);
 extern u32 Scene_CmdSoundSettings    (int segBase, void* play, SceneCmdEntry* cmd);
 extern u32 Scene_CmdUnused9          (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdWindSettings     (int segBase, void* play, SceneCmdEntry* cmd);
+extern u32 Scene_CmdEchoSettings     (int segBase, void* play, SceneCmdEntry* cmd);
 
 /* The scene command dispatcher itself (FUN_002e4de4). Reads a
  * command list until it hits SCENE_CMD_END, dispatching each via

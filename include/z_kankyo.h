@@ -130,8 +130,20 @@ typedef struct EnvironmentContext_3DS {
                                              Scene_CmdSkyboxSettings from
                                              cmd[7] normalized; init 0
                                              by Env_Init). */
-    u16  unk_90;                          /* +0x90 (init 0x50) */
-    u8   unk_92[0x0a];                    /* +0x92 opaque */
+    s16  windDirX;                        /* +0x90 (WRITTEN by
+                                             Scene_CmdWindSettings cmd 0x05
+                                             = (s8)cmd[4]). Env_Init sets
+                                             it to 0x50 (which the
+                                             WindSettings scene cmd
+                                             overwrites). */
+    s16  windDirY;                        /* +0x92 same, cmd[5] */
+    s16  windDirZ;                        /* +0x94 same, cmd[6] */
+    u16  unk_96;                          /* +0x96 opaque */
+    f32  windStrength;                    /* +0x98 (WRITTEN by
+                                             Scene_CmdWindSettings from
+                                             cmd[7] normalized u8/255).
+                                             SoH's z_kankyo.c has an
+                                             equivalent envCtx.windSpeed. */
     u8   numLightSettings;                /* +0x9C (WRITTEN by
                                              Scene_CmdLightSettingsList
                                              = cmd[1]) */
