@@ -91,8 +91,11 @@ convention, see soh3d docs/title_view_matrix_lh.md).
 
 ## Title cs instance
 
-`spot00_info.zsi + 0x203b8` (cmd_count=13, end_frame=2400; NOT the
-0x28a34 blob — that's a different cutscene). 13 commands: player-cue
+The byte-identical " BDQ" script (cmd_count=13, end_frame=2400) is
+embedded in TWO scene files: **`spot99_info.zsi + 0x3528`** — the scene
+the 3DS actually loads at title (live-verified; spot99 is Grezzo's
+dedicated title scene) — and `spot00_info.zsi + 0x203b8` (same bytes;
+NOT the 0x28a34 blob, which is a different cutscene). 13 commands: player-cue
 channels (Link/Epona ride across Hyrule Field, actions 0x40/0x41/0x24,
 f0–3036), 2 misc triggers (types 0x1E@f345, 0x1F@f1930), set-time
 04:00, destination @f2400 (loop), transition f2310–2460, camera 0x97
