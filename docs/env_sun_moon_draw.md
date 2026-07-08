@@ -448,3 +448,200 @@ quads' exact FCRAM addresses are now known (table above), the watchpoint tooling
 works end-to-end (fires, resolves PC/LR/regs/stack), and the failure mode is now a
 specific, actionable one (scalar-write hook blind to bulk-copy asset materialization)
 rather than "couldn't find the function." No soh3d C was touched; no commits made.
+
+## Session 4 (2026-07-08) — RESOLVED: per-pixel combiner + vertex-shader uniform readback gives faithful constants (#146)
+
+Sessions 1-3 stalled trying to find the moon's DRAW-EMISSION *code* via static/dynamic
+call-graph tracing. This session took a different tack per the task brief: don't find the
+writer function — read the **already-known moon quads' GPU state directly** (draw-log +
+FCRAM vertex-buffer reads + vertex-shader uniform-register dump), all via the existing
+harness (`tools/soh3d_harness`), extended in-session. No soh3d game C touched, no commits.
+
+### Harness extensions this session (Azahar `sw_rasterizer.cpp`, TASK16 hook family)
+
+1. Added `cmod=`/`amod=`/`cscale=`/`ascale=` to the existing `tev[N]` draw-log line (TEV
+   color/alpha *modifiers* + multiplier, previously only sources+op were logged).
+2. Added a **per-pixel PIXEL debug line** (gated to the 3 known moon tex phys addrs, capped
+   per-layer) printing `texcol=`/`primary=`/`combined=` — the actual resolved
+   `texture_color`, `primary_color`, and `WriteTevConfig(...)` output at specific pixel
+   coords. This is the key new primitive: the per-*triangle* log only captures
+   pre-interpolation vertex-color attributes; this captures what the combiner **actually
+   computes per pixel**, which turned out to differ.
+3. Added a **`vsuniforms`** draw-log line dumping all 96 `pica.vs_setup.uniforms.f[]`
+   vertex-shader float registers for the 3 moon draws — since the vertex buffer read (below)
+   showed identical geometry for all 3 layers, the scale/position difference had to be a
+   uniform (model matrix), not vertex data.
+
+### Capture method
+
+`soh_boot` + 9×`step 40` (=360 frames) → the "moon-behind-rider" title shot the task brief
+named. `draw_log <path>` armed, `step 1`, `draw_log off`. Cross-checked against a
+`scan_unclipped.py` sweep (every 10 frames, 180→780) to check whether the moon is ever fully
+on-screen in this shot (it is not — see clipping finding below).
+
+### Finding 1 — the per-triangle vertex-color log's "(0,0,0,0)" was a RED HERRING; the real combiner input is opaque white
+
+Prior sessions (this doc's Session 2/3, and soh3d's `debug_journal/2026-07-08-title-moon-size.md`)
+read `v0.color=(0,0,0,0)` from the per-triangle log and concluded "vertex colour is zero,
+texture-only". That raw field is real (confirmed again this session, zero across 600 sampled
+frames), but it is **not what actually reaches the TEV combiner**: the per-pixel debug shows
+
+```
+PIXEL tex0=2090ec80 ... primary=(255,255,255,255) combined=(148,150,123,255)
+```
+
+for all 3 layers, always. `primary_color` (the `PrimaryColor` TEV source) is computed by
+`RasterizerSoftware::ProcessTriangle`'s scanline loop directly from `v0.color/v1.color/v2.color`
+— same field — so this is not a different code path; the interpolated result is genuinely
+white, meaning the vertex color attribute is **not loaded from the vertex buffer at all**
+(it's a disabled/default attribute whose hardware-default is opaque white, not the raw
+zero the vertex-buffer bytes would imply if it *were* loaded). TEV stage 0 (`cs=(0,3,14)
+cmod=(0,0,0) cop=1` = `Modulate(PrimaryColor·SourceColor, Texture0·SourceColor)`, alpha
+`Modulate(PrimaryAlpha·SourceAlpha, Texture0·SourceAlpha)`) then yields
+`combined == texture_color` exactly (verified byte-for-byte on every sampled pixel, all 3
+layers) — confirming, with corrected mechanism, the same practical conclusion Session 3
+reached: **the moon's on-screen color/alpha is 100% texture-driven, zero vertex/material
+modulation.** The old "(0,0,0,0)" framing was accidentally-right-for-the-wrong-reason;
+future sessions should cite `primary_color` from the PIXEL debug, not the per-triangle
+`c0=`/`c1=`/`c2=` fields, which reflect an unused/overridden attribute slot.
+
+**Faithful soh3d constant: draw color/alpha = (255,255,255,255)** — i.e. no modulation at
+all, not the tuned `kMoonDrawAlpha=220`. See the quantified caveat below for why 220 is
+currently closer to correct in soh3d specifically.
+
+Texture formats (from the existing draw-log `fmt=` field, cross-referenced against Pica's
+`TextureFormat` enum in `regs_texturing.h`): disc `fine_moon0` = **fmt 4 = RGBA4** (real alpha
+channel — the crescent shading lives in alpha); both halos `fine_moon1`/`fine_moon2` = **fmt
+3 = RGB565 (NO alpha channel)** — texture fetch returns alpha=255 unconditionally, so the
+halos' visual falloff-to-transparent is baked entirely into the RGB channels going to
+black at the texture edge, not into any alpha gradient. A port that tries to fake halo
+falloff via a synthesized alpha ramp is structurally wrong; falloff must come from the
+texture's own RGB, unmodified.
+
+### Finding 2 — the moon quads ARE genuinely screen-clipped in this shot; screen pixel measurements from it are unusable for absolute scale
+
+All 3 layers show triangle count 3 (not 2) per quad at every one of ~60 sampled frames from
+360 to 780 steps, with the right edge pinned at **exactly** x=480.0 and the top edge pinned
+at **exactly** y=0.0 in every single sample. A 2-triangle quad clipped by one screen-edge
+plane becomes a 5-gon → 3 triangles in a fan, which is exactly what's observed; the
+suspiciously-exact repetition of the screen-boundary values (never anything else, across
+600 frames of camera pan) is the signature of real Sutherland-Hodgman-style geometric
+clipping upstream of `ProcessTriangle`, not organic geometry. **This means the "moon-behind
+-rider" shot the task brief named for goal 3 (disc target screen size) cannot yield a valid
+unclipped screen-size measurement** — both dimensions are clipped throughout its ~400-frame
+span (checked out to frame 780; the moon never re-enters frame in the sampled range). Do
+not re-attempt scale extraction from this shot's screen coordinates.
+
+### Finding 3 — model-space quad is IDENTICAL (unit square) for all 3 layers; the scale lives in a per-draw uniform, not geometry
+
+Direct FCRAM float reads (`r32`) at the 3 known vertex-buffer VAs (session 3's
+`0x149068f0`/`0x1490eb00`/`0x14910d00`) give, for **all three layers, byte-identical**:
+
+```
+pos: (-0.5, 0.5, 0.0), (0.5, 0.5, 0.0), (-0.5, -0.5, 0.0), (0.5, -0.5, 0.0)
+uv:  (0,1), (1,1), (0,0), (1,0)
+```
+
+— a 1.0×1.0 unit quad, same UVs, for disc AND both halos. So the halo/disc size difference
+is not authored in the mesh; it must be a per-draw transform. Dumping the vertex-shader
+uniform float registers (`pica.vs_setup.uniforms.f[0..95]`) at each of the 3 draws found the
+per-layer model matrix at **registers f20/f21/f22** (a 3×4 matrix, columns = X/Y/Z-out,
+row 4 = translation):
+
+| register | disc | halo A (`fine_moon1`) | halo B (`fine_moon2`) |
+|---|---|---|---|
+| f20 (x-row) | (**640.0001**, 0, 0.0335, 1088.1997) | (**1280.0002**, 0, 0.067, 1124.4058) | (**1280.0002**, 0, 0.067, 1051.9941) |
+| f21 (y-row) | (0, **640.0001**, 0.0131, 801.8882) | (0, **1280.0002**, 0.0262, 828.5681) | (0, **1280.0002**, 0.0262, 775.2084) |
+| f22 (z-row) | (-0.0335, -0.0131, **640.0001**, -2684.47) | (-0.067, -0.0262, **1280.0002**, -2773.7856) | (-0.067, -0.0262, **1280.0002**, -2595.1543) |
+
+Everything else (f0-f19: projection registers f0/f1, a `(0,0,1,1.0001,7)`-ish clip-adjust
+row f2/f3, and f4-f19 = four identity 4×4 blocks, presumably unused texture matrices) is
+**byte-identical across all 3 draws** — confirming the difference is isolated entirely to
+f20-22.
+
+**The diagonal scale term is EXACTLY 640.0 for the disc and EXACTLY 1280.0 for BOTH
+halos — a clean, authored 2.000× ratio, identical for the inner and outer halo.** There is
+no 1.65×/1.85× asymmetry in the actual model scale. The small off-diagonal terms
+(0.067/0.0335, 0.0262/0.0131) are a shared tiny rotation/shear (billboard tilt), same
+direction for all 3, scaled proportionally with the diagonal — not a separate per-layer
+effect.
+
+The translation column (f20.w/f21.w/f22.w) DOES differ per layer — each of the 3 billboards
+sits at a **different depth**: disc `z≈-2684.5`, halo A `z≈-2773.8` (further), halo B
+`z≈-2595.2` (closer). This is why the two halos previously *measured* different on-screen
+sizes (Session 2026-07-08 recal: 133×188 vs 139×200-ish) despite having the identical model
+scale: it's parallax from depth placement, not an authored scale asymmetry. Back-of-envelope
+check using pure `scale/|z|` (pinhole approx, ignoring the small shear): haloA/disc ≈
+(1280/2773.8)/(640/2684.5) ≈ **1.94×**, haloB/disc ≈ (1280/2595.2)/(640/2684.5) ≈ **2.07×**
+— consistent with (and explaining) the previously-measured ~1.72×/1.94× *screen* ratios
+Session "RESOLVED" reported, without needing an authored scale asymmetry to explain them.
+
+### Faithful constants for soh3d (`Zelda3D_TryDrawSunMoon`, `zelda3d.c`)
+
+soh3d's current port draws all 3 layers with the **same** `Matrix_Translate` (one shared
+`moonWorldX/Y/Z`, no per-layer depth offset) — i.e. it does not replicate OoT3D's per-layer
+depth placement. Given that architecture, the correct constant to port is the **pure
+model-space scale ratio**, since with equal depth the screen ratio equals the model ratio
+exactly:
+
+1. **Halo scale: 2.0× the disc scale, identical for BOTH `fine_moon1` and `fine_moon2`.**
+   Replace the current `1.65f` / `1.85f` (`zelda3d.c:4018,4038`) with a single `2.0f` for
+   both. The old 1.65/1.85 asymmetry was reverse-engineered from *screen pixels* of a shot
+   where the two halos sit at different depths — it measured depth-parallax, not an
+   authored scale difference; using it with soh3d's single-depth draw double-counts nothing
+   but also doesn't reproduce the real asset relationship (2.0/2.0), so it's simply wrong.
+   (If soh3d later wants to replicate the depth-parallax too — i.e. give each layer its own
+   translate — the *screen-space* targets would be ~1.94×/2.07×, not 1.65×/1.85×; the old
+   figures were also off in that scenario, just less obviously.)
+
+2. **Color/alpha mechanism: draw at full (255,255,255,255) — no modulation.** Ground truth
+   (Finding 1) is that OoT3D's combiner output equals texture color exactly, with no
+   material/vertex alpha involved at all. This mechanically supersedes the "(0,0,0,0)
+   vertex colour, texture-only" framing in the existing code comment (`zelda3d.c:3994-4003`)
+   with the corrected explanation, but the practical upshot — draw at full strength, let the
+   texture supply 100% of the shape/alpha — is the same conclusion, now on solid footing.
+   - **Quantified caveat (do NOT blindly set `kMoonDrawAlpha=255`):** frame-360 screenshot
+     luminance peak measured this session: **Az = 235.2, current SoH (alpha=220) = 233.2** —
+     already closely matched. This corroborates the existing in-code comment's claim that
+     SoH's decoded `fine_moon0` texture is measurably *brighter* than the real console
+     texture, so the mechanically-faithful 255 would very likely overshoot/clip past Az's
+     235 peak (as the comment already warns). **220 is currently a reasonable-looking
+     compensation for a real texture-decode brightness bug, not evidence that OoT3D
+     modulates the moon's alpha.** The clean fix is to find and fix the texture-decode
+     brightness divergence (a `fine_moon0.ctxb` CMB/texture-pipeline issue, out of this
+     session's scope — no soh3d C touched) and set alpha=255 once that's done; until then,
+     leave `kMoonDrawAlpha` as a documented STOPGAP for the decode bug, not a "faithful"
+     constant.
+
+3. **Disc target screen size: no change — `kMoonDiscScale=0.44` already targets valid ground
+   truth.** This session's frame (360 steps) cannot yield a screen-size measurement (Finding
+   2 — genuinely clipped both edges, confirmed via clip-fan triangle counts and the
+   exact-boundary coordinate signature). The prior "RESOLVED" session's circle-fit
+   measurement (54.6px disc diameter at an *unclipped* "moon-over-Hyrule-field" shot,
+   `scratch/moon/circlefit.py` + `calib.py` in soh3d) remains the only valid unclipped
+   measurement and should stay authoritative — it is a fixed billboard property (same
+   `scale=640` register, similar depth) independent of which shot it's measured from, so
+   there is no reason to expect a different shot to give a different disc angular size.
+   Current baked value (0.44 → 53.4px measured vs Az 54.6px, 1.2px / 2.2% off) is within
+   measurement noise; **do not re-tune this constant.**
+
+4. **Authored model-space quad sizes:** disc, halo A, halo B all use the **identical** unit
+   quad `{(±0.5, ±0.5, 0.0)}` with UVs `{(0,1),(1,1),(0,0),(1,0)}` — confirmed via direct
+   FCRAM reads at the 3 known vertex-buffer VAs (Finding 3 table above has the full
+   authored scale-matrix values if a future session wants the raw registers instead of the
+   derived ratio).
+
+### Tooling artifacts this session (uncommitted, harness/Azahar C only — no soh3d game C touched)
+
+- `Azahar/src/video_core/renderer_software/sw_rasterizer.cpp`: added `cmod=`/`amod=`/
+  `cscale=`/`ascale=` to the `tev[N]` log line; added a per-pixel `PIXEL` debug line (gated
+  to the 3 moon tex phys addrs, capped per-layer at 200 hits) dumping
+  `texcol=`/`primary=`/`combined=`; added a `vsuniforms` line dumping all 96
+  `pica.vs_setup.uniforms.f[]` registers for the moon draws. All gated behind the existing
+  `soh3d_draw_log_active` flag, zero cost when the log isn't armed.
+- `scratch/moon146/` in the soh3d worktree (not committed): `capture.py` (the 360-step
+  capture), `scan_color.py` (vertex-color-over-time sweep, 180-600 frames, confirms zero
+  throughout), `scan_unclipped.py` (the clip-boundary sweep, 180-780 frames), `readvbuf.py`
+  (FCRAM vertex-buffer float reads), `snap.py` (Az+SoH PPM snapshot at frame 360),
+  `frame360.{az,soh}.png` (visual confirmation of the clipped corner-moon composition and
+  the current soh3d render for comparison).
