@@ -90,9 +90,9 @@ void Actor_TurnToPoint(void* actor, const Vec3f* target, s32 max_step);
  * speed until arrival:
  *
  *   Vec3f target = {
- *     s16_to_f32(*(s16*)(path_node + 0x18)),   // waypoint.x
- *     s16_to_f32(*(s16*)(path_node + 0x1C)),   // waypoint.y
- *     s16_to_f32(*(s16*)(path_node + 0x20))    // waypoint.z
+ *     (f32)(s32)*(s32*)(path_node + 0x18),   // waypoint.x
+ *     (f32)(s32)*(s32*)(path_node + 0x1C),   // waypoint.y
+ *     (f32)(s32)*(s32*)(path_node + 0x20)    // waypoint.z
  *   };
  *   f32 dist = length(actor->world.pos - target);
  *   if (dist < 8.0f) {                       // arrival: DAT_003CF500 = 0
@@ -108,12 +108,14 @@ void Actor_TurnToPoint(void* actor, const Vec3f* target, s32 max_step);
  * speed_xz at actor+0x6C (all 5 writes attribute to this fn's
  * `actor->speed_xz = kPathSpeed` line, with data == 0x41000000 == 8.0f).
  *
- * The path_node struct holds s16 waypoint coordinates and probably
- * neighbour pointers for waypoint chaining. Fields walked so far:
+ * The path_node struct holds s32 waypoint coordinates (Grezzo widened
+ * these from the N64 Vec3s — disasm-confirmed via `vcvt.f32.s32`, see
+ * docs/title_writer_chains.md) and probably neighbour pointers for
+ * waypoint chaining. Fields walked so far:
  *
- *   path_node + 0x18   s16  waypoint.x
- *   path_node + 0x1C   s16  waypoint.y
- *   path_node + 0x20   s16  waypoint.z
+ *   path_node + 0x18   s32  waypoint.x
+ *   path_node + 0x1C   s32  waypoint.y
+ *   path_node + 0x20   s32  waypoint.z
  *
  * This IS the effective "title-demo spline". Not a Bézier/keyframe
  * curve — a linear-interpolation waypoint chain + this per-frame
