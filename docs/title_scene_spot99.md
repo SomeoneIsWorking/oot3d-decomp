@@ -9,6 +9,13 @@ boot (no writer anywhere in the binary besides a boot-time zero-clear), so **hea
 `14`→`zelda_box.zar` (real filenames via a newly-derived id table), but `964`/`31572`/
 `32324` remain unidentified (confirmed outside that table's range, confirmed no
 `ActorProfile` owns them) and the consuming code path for all 6 is still open.
+**Update (2026-07-10, later same day) — §6.6: confirmed NOT an extractor bug.** Raw
+ROM hexdump + the decompiled consuming handler (`FUN_003a7558`) show 964/31572/32324
+are genuine literal bytes in the object-list command, correctly extracted; they're
+consumed by a handler with zero bounds-checking, but that handler almost certainly
+never runs on the title path (title bypasses normal `Play_Init`/scene-command dispatch)
+— so for spot99/title purposes these 3 ids are inert. spot00's normal-gameplay case is
+flagged as a separate open question, not resolved this session.
 
 RE'd 2026-07-08 to resolve the scene-level half of the title-parity gap: the oracle
 title runs on scene index `0x6b` = **`spot99`** (established in
@@ -249,6 +256,104 @@ negative).
   handling (the prior session's ad hoc `scratch/find_logo_actor.py` crashed partway
   through on an unmapped profile pointer and only covered part of the range).
 
+### 6.6 RESOLVED (2026-07-10): 964/31572/32324 are genuine ROM bytes, NOT an extractor bug — root cause of the "anomalous object id" question
+
+Re-derived directly from the raw file bytes (not through `scene_actors.py`), to rule out
+a parser bug (wrong stride, off-by-one into adjacent data, byte order) as the source of
+these 3 out-of-range values, per the standing "don't RE by poking guessed offsets, verify
+against the actual file" rule.
+
+**Raw hexdump at the declared object-list command, both files:**
+
+```
+spot99_0_info.zsi: cmd @0x48 = (ctype=0x0B, count=8, ptr=0x000b7e54)
+  bytes: 01 00 02 01 00 00 b4 00 00 00 44 7e 0b 00 00 00
+  → [1, 258, 0, 180, 0, 32324(0x7e44), 11, 0]
+  next cmd (ctype=0x01 actorList) ptr = 0x000b7e64 = object-list ptr + 16
+    → EXACTLY 8×2 bytes past the object list start, zero slack/padding.
+
+spot00_0_info.zsi: cmd @0x48 = (ctype=0x0B, count=8, ptr=0x000e7b64)
+  bytes: 01 00 02 01 00 00 c4 03 00 00 54 7b 0e 00 00 00
+  → [1, 258, 0, 964(0x3c4), 0, 31572(0x7b54), 14, 0]
+  next cmd ptr = 0x000e7b74 = object-list ptr + 16, same exact-fit.
+```
+
+The next command's pointer landing **exactly** 16 bytes (8 × 2-byte entries) after the
+object-list pointer, with zero gap in both files independently, is airtight confirmation
+that `count=8` / `stride=2` / `ptr` are all correct — there is no room for a stride or
+off-by-one misparse. **`scene_actors.py`'s object-list parsing (`CMD_OBJECT_LIST = 0x0B`,
+`_u16le` per entry) is correct and requires no fix.** The values are literal bytes stored
+in the ROM's scene file, at the position the game engine itself reads as the object bank.
+
+**Confirmed via the actual consuming handler, `FUN_003a7558` = `Scene_CmdObjectList`
+(dispatch table entry `0x0B`, `docs/scene_command_handler.md`), decompiled this session
+(`build/decomp/003a7558.c`):**
+
+```c
+// FUN_003a7558(segBase, play, cmdPtr) — Scene_CmdObjectList / Object_UpdateBank-equivalent
+// Diffs the new object list against the currently-active bank (play+0x3a58 = bank
+// count, play+0x3a5c = bank array, stride 0x80/entry): matching leading entries are
+// left alone; anything past the common prefix is torn down (freed via FUN_0034fc6c /
+// FUN_00371738), then every new entry beyond the matched prefix is appended with its
+// id NEGATED (`*(short*)(iVar1+4) = -*psVar5;`) — the standard OoT "pending async
+// load" sentinel pattern (negative id = not yet resident; a separate per-frame poller
+// flips it positive once the DMA completes).
+```
+
+**Critically: this handler does zero bounds/range validation on the raw id.** It reads
+`*psVar5` (the scene's literal `s16`/`u16` value — 964, 31572, 32324 included) and writes
+`-value` straight into the bank slot. Whatever downstream function resolves a bank-slot id
+to an actual RomFS object file (not yet decompiled this session — the next hop from the
+negated-id poller) would receive these values unmodified. Since 964–32324 are 2–75× past
+the 416-row id→filename table (`§6.1`), if that downstream resolver used the same table
+indexing, it would read 2–75× past the table's 28,220-byte extent into unrelated
+`code.bin` data — i.e. these ids, if ever actually consumed, would not resolve to a real
+object file.
+
+**Why this doesn't crash the real game — reconciling with `spot00` = Hyrule Field being
+played normally in retail:** `FUN_003a7558` is only reached through the standard scene
+command dispatcher (`FUN_002e4de4`), itself only called from `FUN_004490d8` (normal
+Play-state scene init, `docs/scene_command_handler.md`). Per
+`docs/title_gamestate_driver.md` (established prior session, reused here — see also the
+"OoT3D title NOT Play" memory note), **`gPlayState` is `0` at title** — the title
+sequence runs through a separate scripted-playback path that bypasses `Play_Init`/normal
+scene-command dispatch entirely, so `FUN_003a7558` almost certainly never executes for
+`spot99` during title playback. That is consistent with, and explains, the existing
+"zero `ActorProfile` owners, zero consuming references" finding (§6.1) — **spot99's
+`964`/`32324` are inert dead bytes as far as the title render path is concerned**: real
+ROM data, correctly extracted, but never interpreted by the code path that actually
+renders the title scene.
+
+`spot00` (Hyrule Field) DOES go through normal `Play_Init`/scene-command dispatch during
+ordinary gameplay, so if header 0's object list genuinely contains `964`/`31572`
+unconditionally on every load, `FUN_003a7558` would run on them for real. Two
+explanations remain open and were **not** resolved this session (out of scope — this
+session's task was specifically the spot99/title anomaly): either (a) `spot00`'s live
+daytime gameplay doesn't actually route through the header-0 command list that was
+hexdumped here (e.g. some other selection state overrides it before dispatch — unlike
+the already-proven-fixed-at-0 alt-header *selector field*, §6.5, this would be a
+different override mechanism, not yet checked), or (b) the not-yet-decompiled downstream
+id→file resolver silently no-ops out-of-range ids instead of indexing the 416-row table
+directly. Whoever next needs spot00 parity should decompile that downstream resolver
+(the function reading the negated bank-slot ids once DMA-pending) rather than re-deriving
+the id→filename table again.
+
+**Verdict: NOT an extractor bug.** No JSON regeneration needed — `scene_actors.py`'s
+object-list output for spot99/spot00 was already correct. The earlier "3 swapped slots"
+conclusion (§6, corrected 2026-07-10) **survives unchanged**: `{180, 32324, 11}` vs
+`{964, 31572, 14}` are real, byte-verified, engine-legible (if ever dispatched) values.
+
+**Anchors (this session):**
+- `FUN_003a7558` @ `0x003a7558` — `Scene_CmdObjectList`, decompiled in full
+  (`build/decomp/003a7558.c`); object bank state at `play+0x3a58` (count, `u8`) /
+  `play+0x3a5c` (array, stride `0x80`/entry).
+- Raw hexdump cross-check performed directly against the decrypted 3DS ROM (RomFS via
+  `soh3d/tools/ctr_romfs.py`), independent of `scene_actors.py`, at both files' `0x48`
+  scene-header command (`ctype=0x0B`) — see byte listings above.
+- No impact on the SoH3D port beyond what §6.1/§7 already state: these 3 ids do not need
+  to be resolved to real assets for spot99/title parity, since the handler that would
+  consume them never runs on the title path.
+
 ## 6.5 Alt-header selection — RESOLVED (2026-07-10): mechanism decompiled; the selector field is provably 0, so header 0 (default) is correct
 
 Task: which of spot99's 7 alt-headers (§2) does the title actually load, and by what
@@ -376,17 +481,18 @@ Concretely, the port needs:
 
 ## 8. Open items for next session
 
-1. **Partially resolved (§6.1):** 3 of the 6 swapped object-bank ids now have real
+1. **Partially resolved (§6.1, §6.6):** 3 of the 6 swapped object-bank ids now have real
    filenames — spot99-unique `180`→`zelda_mo.zar`, `11`→`zelda_wm2.zar`; spot00-unique
    `14`→`zelda_box.zar` (via a newly-derived OoT3D object-id→filename table, cross-validated
-   against the already-confirmed `330`→`zelda_mag.zar` logo-actor anchor). **Still open:**
-   `964`/`31572`/`32324` (spot00's two big ids + spot99's `32324`) exceed that table's
-   range entirely (max id ~416) — they use a different, not-yet-located id/lookup space.
-   Also still open for ALL 6: which code path actually *consumes* each one (a full
-   1200-entry `ActorProfile.objectId` sweep found zero owners for the 3 large ids, and only
-   semantically-implausible ENEMY/BOSS-category owners for 180/11/14) — likely a secondary
-   object slot or a cutscene-side dynamic object request, not a primary `ActorProfile`
-   declaration; see §6.1's closing paragraph for the concrete next step.
+   against the already-confirmed `330`→`zelda_mag.zar` logo-actor anchor). `964`/`31572`/
+   `32324` exceed that table's range entirely (max id ~416) — **confirmed §6.6 this is
+   genuine ROM data, not an extractor bug** (raw hexdump + exact-fit adjacency to the next
+   scene command in both files), consumed by a decompiled handler (`FUN_003a7558`,
+   `Scene_CmdObjectList`) with no bounds-checking, but that handler is provably unreached
+   on the title path (title bypasses normal `Play_Init`/dispatch — `gPlayState==0`), so
+   these 3 ids are inert dead bytes for spot99/title purposes. Still open: whether spot00's
+   *normal gameplay* load actually dispatches through this same header-0 list (flagged,
+   not investigated — separate question from the title-scene task this session covered).
 2. ~~Confirm which of spot99's 7 alt-headers is selected at boot~~ — **RESOLVED, §6.5**:
    none are selected; header 0 (default) is used, because the alt-header selector field
    (`0x00588e40`) has no writer anywhere in the binary other than a boot-time zero-clear.
