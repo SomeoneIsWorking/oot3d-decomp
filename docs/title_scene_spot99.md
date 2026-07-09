@@ -1,5 +1,15 @@
 # OoT3D title scene `spot99` — what it actually is, vs `spot00`
 
+**Update (2026-07-10):** the two items §6/§8 left open — which alt-header the title
+uses, and what the 3 swapped object-bank slots are — are now decompiled. Header
+selection: **RESOLVED, §6.5** — the selector field is provably always 0 in a normal
+boot (no writer anywhere in the binary besides a boot-time zero-clear), so **header 0
+(default) is correct — SoH3D's current choice needs no change.** Object slots:
+**partially resolved, §6.1** — `180`→`zelda_mo.zar`, `11`→`zelda_wm2.zar`,
+`14`→`zelda_box.zar` (real filenames via a newly-derived id table), but `964`/`31572`/
+`32324` remain unidentified (confirmed outside that table's range, confirmed no
+`ActorProfile` owns them) and the consuming code path for all 6 is still open.
+
 RE'd 2026-07-08 to resolve the scene-level half of the title-parity gap: the oracle
 title runs on scene index `0x6b` = **`spot99`** (established in
 `title_gamestate_driver.md` §1 via live `play+0x104` read + byte-match against
@@ -131,38 +141,205 @@ except altHeaders and the two payload sizes above).
 
 ## 6. Object list — 3 of 8 slots swapped
 
-Room-0 `ObjectList` (cmd 0x0B, 8 entries):
+**CORRECTION (2026-07-10) — the slot-index column below was transcribed wrong in the
+original version of this table.** Re-read directly from `data/scene_actors/{spot99,spot00}.json`
+(`tools/scene_actors.py`'s `parse_room_file`, cmd 0x0B walk) this session:
+
+```
+spot99 room0 objects = [1, 258, 0, 180,   0, 32324, 11, 0]
+spot00 room0 objects = [1, 258, 0, 964,   0, 31572, 14, 0]
+                idx:    0    1  2   3     4      5   6  7
+```
+
+Corrected table:
 
 | slot | spot99 | spot00 |
 |---|---|---|
 | 0 | 1 (`OBJECT_GAMEPLAY_KEEP`) | 1 (same) |
-| 1 | 258 | 258 |
-| 2 | **180** | **964** |
-| 3 | 0 (empty) | 0 (same) |
+| 1 | 258 | 258 (same) |
+| 2 | 0 (empty) | 0 (same) |
+| 3 | **180** | **964** |
 | 4 | 0 (empty) | 0 (same) |
 | 5 | **32324** | **31572** |
 | 6 | **11** | **14** |
 | 7 | 0 (empty) | 0 (same) |
 
+The **VALUE SET** {180, 32324, 11} vs {964, 31572, 14} that the rest of this doc (and
+`title_logo_actor.md`) reasons about was already correct — only the slot-index labels
+(2/5/6 vs the actual 3/5/6, and which slot was empty) were off by one. No other finding
+in this doc depended on the slot index, so nothing else here needed correcting.
+
 5 of 8 slots identical (including slot 0 = the shared `gameplay_keep`, present in
 both — trees/rocks/holes draw from it in both scenes, consistent with the identical
-actor table). **3 slots differ: index 2, 5, 6.**
+actor table). **3 slots differ.**
 
-**Caveat — these object IDs do NOT reliably resolve through the N64 `object_table.h`
-enum.** Two of the three differing values (964, 31572, 32324) exceed the N64 table's
-402-entry range entirely, which means OoT3D's room-level object bank uses its own,
-larger index space (consistent with `actor_layout.md`'s prior finding that OoT3D actor
-ids/tables don't follow the N64 numbering 1:1 past the low range). Looking up the
-*other* three differing/shared small values against `object_table.h` as a sanity check
-(180→`OBJECT_MO`, 11→`OBJECT_WALLMASTER`, 14→`OBJECT_BOX`) produces semantically
-implausible results for a field/title scene (no Wallmaster or treasure-box object
-belongs in Hyrule Field) — so those matches are almost certainly coincidental
-small-integer collisions, not real identifications. **Not resolved this session**:
-building an OoT3D-side object-index table (from the ROM's own object directory, not
-the N64 enum) is the correct next step to identify what these 3 slots actually are —
-plausible candidates given the title cs content are a dedicated 2D-logo/overlay object
-(`title_logo_us`/`g_title` per `title_2d_overlay_logo.md`) or a scene-specific dressing
-prop, but that's inference, not decompiled fact.
+### 6.1 RESOLVED (2026-07-10): 180/11/14 identified via a derived OoT3D object-id→filename table; 964/31572/32324 remain unidentified (real negative result, not a gap)
+
+**Falsifies the "N64 `object_table.h` enum lookup is coincidental" framing above** — that
+caution was right to distrust an N64-enum lookup, but a *native OoT3D* id→filename table
+does exist and resolves 3 of the 6 values cleanly.
+
+Built by extracting every `rom:/actor/<name>.zar` string from `build/code.bin` (398
+matches, `re.finditer(rb'rom:/actor/[A-Za-z0-9_]+\.zar')`) and confirming they sit in a
+**fixed-stride 0x44-byte table** starting at file offset `0x0043cd38` (VA `0x0053cd38`,
+base = VA-file-offset delta `0x00100000`, cross-checked independently against a known
+ARM opcode at `0x00378ff8` — `e92d41f0` = `stmdb sp!,{r4-r8,lr}`, matches the disassembly
+exactly, confirming the base). Row index → objectId is **`objectId = (fileOffset -
+0x0043cd38) / 0x44 + 1`** (9 of the 416 rows are empty/skipped — string count 398 ≠ row
+count 416, consistent gaps at exact multiples of 0x44).
+
+**Anchor/validation**: row math gives **objectId 330 → `zelda_mag.zar`** — this is an
+EXACT match for the already-confirmed logo actor's `ActorProfile.objectId = 330`
+(`title_logo_actor.md` §5.1), independently derived here with zero foreknowledge of that
+number. This validates the table's base/stride/1-based-indexing all at once.
+
+Applying the same formula to the 6 differing/candidate values:
+
+| objectId | file (from table) | in range? |
+|---|---|---|
+| **180** | `zelda_mo.zar` | yes (row 179) |
+| **11** | `zelda_wm2.zar` | yes (row 10) |
+| **14** | `zelda_box.zar` | yes (row 13) |
+| 964 | — | **no** — table only has 416 rows (max objectId ≈ 416; `zelda_keep_opening.zar` is the last entry, objectId 416) |
+| 31572 | — | **no** — far outside the table |
+| 32324 | — | **no** — far outside the table |
+
+So: **spot99's two unique slots (180, 11) = `zelda_mo.zar` and `zelda_wm2.zar`; spot00's
+unique small slot (14) = `zelda_box.zar`.** These are real OoT3D asset filenames, not
+coincidental N64-enum collisions (the N64-enum guesses `OBJECT_MO`/`OBJECT_WALLMASTER`/
+`OBJECT_BOX` for these same numbers turn out to be superficially similar-sounding but are
+a red herring — `zelda_wm2` and `zelda_box` are OoT3D's OWN id space, not proof N64
+`OBJECT_WALLMASTER`/`OBJECT_BOX` semantics carry over).
+
+**964, 31572, 32324 do NOT resolve through this table — confirmed a real gap, not a
+tooling miss.** They exceed the table's actual extent (416 rows / 28,220 bytes) by
+2–75×, so no amount of re-deriving the same table finds them; they belong to a
+different numbering/lookup mechanism not yet located.
+
+**Consuming-actor scan (re-run this session with a full, uncrashed sweep of all 1200
+`gActorOverlayTable` entries, `tools/ghidra_scripts/ScanObjectIds.py`, new this
+session)**: **zero** `ActorProfile.objectId` matches for 964, 31572, or 32324 anywhere
+in the binary (confirms `title_logo_actor.md` §1's partial finding, now on a complete,
+non-crashed scan). For 180/11/14, matches exist (`actorId 196→180`, `actorId
+17,142→11`, `actorId 10,170→14`) but none are a plausible fit for a field/title scene by
+category (the categories read as ENEMY/BOSS-shaped in both this session's and the prior
+session's independent scans) — so even though the FILENAMES are now solid ground truth,
+**no actor declares any of the 6 differing objects as its *primary* object in a way that
+explains why spot99/spot00 would need them**. Two live possibilities, neither confirmed:
+(a) they're consumed as a *secondary* object slot by some actor (many OoT actors carry
+more than one object dependency; `ActorProfile` only exposes the primary), or (b) they're
+requested directly by the cutscene interpreter / a per-scene dynamic-spawn path, the same
+non-static-actor-table mechanism already established for the title logo itself (id 0x171,
+not in spot99's 74-entry static actor list either, yet its object IS in the object bank).
+**Not resolved this session** — the consuming code path for 180/11/14/964/31572/32324
+remains open; whoever picks this up next should look for `Object_Spawn`/cutscene-side
+object-id requests rather than another `ActorProfile` sweep (already run twice, both
+negative).
+
+### Anchors (this session)
+
+- OoT3D object-id→filename table: base VA `0x0053cd38` (file `0x0043cd38`), stride
+  `0x44`, `objectId = row + 1`, 416 rows (398 populated, 18 gap rows), last entry
+  `zelda_keep_opening.zar` @ objectId 416.
+- VA-to-file-offset base confirmed independently via ARM opcode match at `0x00378ff8`
+  (`e92d41f0`).
+- `tools/ghidra_scripts/ScanObjectIds.py` — new reusable script this session: scans
+  `gActorOverlayTable` (`0x0050CD84`, stride `0x20`) for `ActorProfile.objectId` matches
+  against an `OOT3D_OBJIDS` env-var target set; full 0..1199 sweep with proper exception
+  handling (the prior session's ad hoc `scratch/find_logo_actor.py` crashed partway
+  through on an unmapped profile pointer and only covered part of the range).
+
+## 6.5 Alt-header selection — RESOLVED (2026-07-10): mechanism decompiled; the selector field is provably 0, so header 0 (default) is correct
+
+Task: which of spot99's 7 alt-headers (§2) does the title actually load, and by what
+mechanism? Decompiled the real handler (not inferred from N64 by analogy) and traced its
+one input field to a dead end that pins the answer.
+
+### The handler: `FUN_00378ff8` = `Scene_CmdAltHeaders`-equivalent
+
+Cmd `0x18` in the scene-command dispatch table (`scene_command_handler.md`). Decompiled
+this session (`build/decomp/00378ff8.c`):
+
+```c
+undefined4 FUN_00378ff8(int param_1, undefined4 param_2, int param_3) {
+  int iVar3 = *(int *)(*(int *)0x00379170 + 0x4e8);   // the ONE input: a global-struct field
+  if (iVar3 == 0) {
+      return 1;   // no override — the header ALREADY loaded by the generic dispatcher stays active (= header 0)
+  }
+  iVar6 = param_1 + *(int *)(param_3 + 4);             // headers[] array base (segAddr)
+  iVar5 = *(int *)(iVar6 + iVar3 * 4 - 4);              // headers[iVar3 - 1]   (1-BASED index)
+  if (iVar5 == 0) {
+      if (iVar3 != 3) return 1;
+      iVar5 = *(int *)(iVar6 + 4);                      // special-case fallback: iVar3==3 && headers[2]==NULL → use headers[1]
+  }
+  // ... walk iVar5's 8-byte command stream exactly like the top-level dispatcher (recursive re-parse)
+}
+```
+
+Disasm-confirmed (`0x00378ff8..0x00379008`): `ldr r0,[0x379170]` loads a POINTER stored at
+the FIXED global slot `0x00379170`; `ldr r0,[r0,#0x4e8]` dereferences that pointer +0x4e8.
+This is a clean, direct 1-based array index — **not** the N64 `cutsceneIndex >= 0xFFF0`
+sentinel scheme; OoT3D refactored header selection into a plain small integer.
+
+### The selector field: pinned to a fixed VA, then traced to a boot-time-only zero-clear with NO other writer in the whole binary
+
+- `*0x00379170` (the pointer itself) has **zero code writers anywhere** (`FindDataWriters`) →
+  it is a load-time-fixed constant, not a runtime-relocated pointer. Its value: **`0x00588958`**
+  (confirmed twice — once by reading `0x00379170` directly, once via an independent literal
+  pool at `0x00449224` used by the sibling function below — both agree).
+- So the selector field's real, fixed VA is **`0x00588958 + 0x4e8 = 0x00588e40`**. This sits
+  inside a small global struct 0x1000 bytes past `gSaveContext` (`0x00587958`,
+  `ram_map.md`); the struct's neighboring field at `+0x500` (`0x00588e58`) is the
+  "play-state/next-entrance copy" `ram_map.md` had already flagged (entranceIndex-shaped,
+  183 live copies noted there) — consistent placement for a "pending scene setup" struct.
+- **`FindDataWriters` on `0x00588e40` directly: 27 reads, 0 writes**, anywhere in the
+  30 MB binary. Confirmed this field IS genuinely consulted broadly (`FUN_004490d8`, the
+  scene state-1 init, ALSO reads it — via the literal-pool alias `UNK_00449224` — to index a
+  byte lookup table at `0x00543bb8` alongside `gSaveContext.entranceIndex`, the classic
+  N64-shaped `EntranceTable[entranceIndex + setupIndex]` pattern; this cross-use is a second,
+  independent confirmation that `0x00588e40` really is "the setup/header-select index," not
+  a coincidental hit).
+- The only WRITE that touches this address at all is a **bulk zero-fill**:
+  `FUN_00449dec` calls `FUN_00343280(0x00588e3c, 0x70)` — a memset-shaped clear of
+  `[0x00588e3c, 0x00588eac)`, which contains BOTH `0x00588e40` (our field, at +4) AND
+  `0x00588e58` (the entranceIndex copy, at +0x1C). `FUN_00449dec` is called from exactly one
+  place, `FUN_0044735c`, a general boot-time reset routine (not scene-specific).
+
+### Conclusion
+
+**No code anywhere in the binary writes a nonzero value into the alt-header selector field**
+via any reference Ghidra's DB can resolve (direct address AND the register-computed-offset
+form both checked — the latter is how the 27 reads themselves were even found, so the same
+resolution method would have caught a computed-offset write too, if one existed). The field
+is zeroed once at boot and never touched again. Therefore **`FUN_00378ff8` always takes its
+`iVar3 == 0` early-return path during a normal boot/title session — header 0 (the scene's
+default/base header) is what spot99's title load actually uses.**
+
+**This means SoH3D's current header-0 choice is CORRECT — no port change needed here.**
+Confidence: high but not absolute — per the `ghidra-re` skill's documented limitation,
+a write reached only through a cached heap pointer with no resolvable base (as opposed to
+the fixed-global-pointer form all writes to this struct use here) could in principle evade
+`FindDataWriters`. Given every access to this specific struct observed in this session (27
+reads + the 1 bulk-clear write) used the SAME fixed-global-pointer addressing form, that
+residual risk is low — but it was not eliminated by a dynamic/harness cross-check this
+session (none was run: the field's writer-count is 0, so there was no writer PC to locate,
+which is the one thing the hard directive sanctions a harness watchpoint for).
+
+### Anchors (this session)
+
+- `FUN_00378ff8` @ `0x00378ff8` — `Scene_CmdAltHeaders`-equivalent, decompiled
+  (`build/decomp/00378ff8.c`), disasm-verified base-pointer-load shape.
+- Selector field VA: **`0x00588e40`** (`= *0x00379170 + 0x4e8`); struct base
+  `0x00588958` (pointer stored at fixed global `0x00379170`, itself never rewritten).
+- `FindDataWriters` on `0x00588e40`: 27 reads (incl. `FUN_004490d8`'s
+  `EntranceTable[entranceIndex+setupIndex]`-shaped lookup, `build/decomp/004490d8.c`), 0
+  direct writes.
+- Only write path: `FUN_00449dec` (`build/decomp/00449dec.c`) → `FUN_00343280(0x00588e3c,
+  0x70)` bulk clear, called once from boot-time `FUN_0044735c`.
+- `FUN_00449420` = `Play_Init`, decompiled in full (`build/decomp/00449420.c`) — confirms
+  the 3 `sceneNum==0x51` special-case sites `graph_thread_and_state_dispatch.md` already
+  flagged, but they gate an unrelated audio/fanfare-cue subsystem (`param_1+0x7f14/0x7f18`,
+  `param_1+0x7f38/0x7f3c`), **not** header selection — ruled out as an alternate mechanism.
 
 ## 7. What this means for SoH3D — concrete recommendation
 
@@ -192,20 +369,30 @@ Concretely, the port needs:
    Hyrule Field, importing it directly is both more correct AND cheaper than porting
    the full spot00 field geometry for a background that's only ever seen from a fixed
    flyover camera path.
-4. Fewer alt-headers (7 vs 13, §2) means the title-demo doesn't need spot00's full
-   day/night/quest-flag header matrix — the port only needs whichever ONE of the 7
-   alt-header slots the boot-time hint (`sceneNum==0x51` special-case, per
-   `title_gamestate_driver.md` §1) actually selects; that slot-selection isn't RE'd
-   yet and is the next open item if the port needs to pick the exact alt-header.
+4. **RESOLVED (§6.5): header 0 (default) is what the title load actually uses** — fewer
+   alt-headers (7 vs 13, §2) is real but irrelevant to the port, since `spot99`'s
+   alt-header selector field is provably always 0 in a normal boot. SoH3D does not need
+   to pick, port, or even parse the other 6 alt-header variants for the title path.
 
 ## 8. Open items for next session
 
-1. Identify the 3 swapped object-bank slots (§6) — needs an OoT3D-native object index
-   table (built from the ROM's object directory/asset manifest, not the N64 enum) to
-   resolve ids 180/32324/11 (spot99) vs 964/31572/14 (spot00) to actual asset names.
-2. Confirm which of spot99's 7 alt-headers is selected at boot (the `sceneNum==0x51`
-   Play_Init special-case, `title_gamestate_driver.md` §1) — needed if the port must
-   pick a specific header rather than header 0.
+1. **Partially resolved (§6.1):** 3 of the 6 swapped object-bank ids now have real
+   filenames — spot99-unique `180`→`zelda_mo.zar`, `11`→`zelda_wm2.zar`; spot00-unique
+   `14`→`zelda_box.zar` (via a newly-derived OoT3D object-id→filename table, cross-validated
+   against the already-confirmed `330`→`zelda_mag.zar` logo-actor anchor). **Still open:**
+   `964`/`31572`/`32324` (spot00's two big ids + spot99's `32324`) exceed that table's
+   range entirely (max id ~416) — they use a different, not-yet-located id/lookup space.
+   Also still open for ALL 6: which code path actually *consumes* each one (a full
+   1200-entry `ActorProfile.objectId` sweep found zero owners for the 3 large ids, and only
+   semantically-implausible ENEMY/BOSS-category owners for 180/11/14) — likely a secondary
+   object slot or a cutscene-side dynamic object request, not a primary `ActorProfile`
+   declaration; see §6.1's closing paragraph for the concrete next step.
+2. ~~Confirm which of spot99's 7 alt-headers is selected at boot~~ — **RESOLVED, §6.5**:
+   none are selected; header 0 (default) is used, because the alt-header selector field
+   (`0x00588e40`) has no writer anywhere in the binary other than a boot-time zero-clear.
+   The `sceneNum==0x51` `Play_Init` special-case (`title_gamestate_driver.md` §1) was
+   checked and ruled out as an alternate header-selection mechanism — it gates an
+   unrelated audio/fanfare-cue subsystem, not the scene-header parse (§6.5).
 3. **Tooling correction flagged, not fixed**: `scene_actors.py`'s `CMD_TRANS_ACTORS =
    0x0F` conflicts with `scene_command_handler.md`'s dispatch-table finding that cmd
    0x0F is `lightSettingsList` (SOLVED, cross-verified via the envCtx pointer writes)
