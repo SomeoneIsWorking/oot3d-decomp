@@ -414,6 +414,15 @@ So the N64-derived STOPGAP in `soh3d:Shipwright/soh/src/zelda3d/behaviors/title/
 misses the 3DS's staged sequencing entirely. Port targets: steps 3.0 / 4.25 / 6.0, cap 255,
 phase timers 40 (lead-in delay) / 81 / 60, fade-out 10/frame, all in 30 fps cs-frame ticks.
 
+### 5.5bis Superseded by §6/§7 (2026-07-10 follow-up)
+
+The draw fn was decompiled only at the top level in §5; two things were left ambiguous:
+how `+0x1DC` ("sheen") actually reaches the GPU (§5.2's row said "ramped with +0x1D0" but
+not *how it composites*), and the press-START skip path (§5.3 called it "decomp only, not
+traced"). **Both are now resolved — see §6 and §7 below.** §5.2's `+0x1DC` row and §5.3's
+press-START paragraph are superseded by those sections; this paragraph is the pointer, the
+old text is left in place above for history but should not be read as current.
+
 ### 5.5 Anchors (this session)
 
 - `Flags_GetEnv` = **`0x0035a3c4`** (raw-encoding scan; 14 BL callers)
@@ -434,3 +443,296 @@ phase timers 40 (lead-in delay) / 81 / 60, fade-out 10/frame, all in 30 fps cs-f
   call sites in the binary, and its decompiled constants predicted the live per-frame field
   behavior exactly (all 4 ramps, all 3 snaps, both triggers) — which is a stronger
   identification than a PC sample would have been.
+
+## 6. RESOLVED (2026-07-10): the draw fn traced fully — `+0x1DC` is NOT a mesh alpha, it's a light-direction sweep on the wordmark
+
+Full static decompile of `FUN_001da4f4` (`build/decomp/001da4f4.c`, 231 lines) and every
+callee it reaches (`003687a8`, `003589cc`, `00358964`, `0033d220/0033d200/0033d174/0033d14c`,
+`0036c174`, `003721e0`, `003679b4`, `0036788c` — all now in `build/decomp/`). Static RE only,
+no live probing this session (per task constraint) — cross-checked against the live per-frame
+trace already captured in §5.3/§5.5 (that trace's numbers, e.g. `+0x1DC` snapping to 255.0 in
+lockstep with `+0x1D0`, are consistent with the mechanism below).
+
+### 6.1 Draw fn structure: exactly THREE draw blocks, one per handle, no fourth
+
+`FUN_001da4f4(actor)` has **only three conditional draw blocks**, gated on actor+0x1A8,
++0x1A4, +0x1AC respectively — the same three handles §5.1/§5.5 already identified
+(backdrop `g_title`/idx0, wordmark `title_logo_us`/`_eu`/idx2|3, copyright
+`copy_nintendo`/idx1). **There is no fourth block and no reference to a `ura.ctxb` handle
+anywhere in this function** — see §6.4, this rules out the fire-glow-strip "quick win" the
+task asked about; it isn't reachable from here.
+
+Each block does the same four things when its alpha condition passes (alpha field > 0):
+build an RGBA color (RGB from a static asset literal, alpha from the actor field ×
+`1/255`), write it into the model's own **constant-color register index 5**, set the
+model's own **local placement transform** (a fixed 3×4 matrix, camera-relative — the
+overlay's existing camera-basis technique), mark the model visible (`handle+0xac=1`), and
+enqueue it into the scene draw-list exactly once (`FUN_003679b4` "already queued" latch +
+`FUN_0033d220` submit). The WORDMARK block (+0x1A4) does one extra thing before the
+enqueue: the sheen computation.
+
+### 6.2 What each callee actually does (GPU-facing semantics, decompiled this session)
+
+| fn | VA | what it writes |
+|---|---|---|
+| `FUN_003687a8` | 0x003687a8 | `return *(*(handle+0x14)+0x10)` — fetches the model's material-context pointer (`matCtx`) from its CTR render-object, used by every call below |
+| `FUN_003589cc(matCtx, ch)` | 0x003589cc | `*(matCtx+ch+4) = 1` — dirty/enable flag for constant-color channel `ch` |
+| `FUN_00358964(matCtx, ch, rgba)` | 0x00358964 | copies 4 words (RGBA) into `matCtx + ch*0x10 + 8` — **the actual constant-color register write**, indexed by channel `ch` (always called with `ch=5` from the draw fn) |
+| `FUN_0033d200(slot, idx)` / `FUN_0033d174(slot, idx, c0..c3)` / `FUN_0033d14c(slot, idx, vec3)` | 0x0033d200/74/4c | write into a **per-index (stride 0x60) light-environment slot**: `+0xd4`=flag, `+0x88/0x98/0xa8/0xb8`=4 constant colors (ambient/diffuse/specular/emission-shaped), `+0xc8..0xd0`=a Vec3 (light **direction**). Only the wordmark block calls these, always `idx=0` |
+| `FUN_003721e0(handle, mtx34)` | 0x003721e0 | copies a 3×4 matrix into `handle+0x7c..0xa8` — the model's own local placement transform |
+| `FUN_0036c174(dst, A, B)` | 0x0036c174 | 3×4 affine matrix compose (`dst = B∘A`), used to build the backdrop/copyright placement matrices from a shared base |
+| `FUN_003679b4` / `FUN_0036788c` | 0x003679b4 / 0x0036788c | "enqueue once" latch + scene draw-list flush (shared plumbing, not draw-content-specific) |
+
+**Constant-color RGB is always the literal `(1.0, 1.0, 1.0)`** for all three elements
+(read from the asset pool: `0x004d9904` backdrop, `0x004d9914` wordmark, `0x004d9964`
+copyright — all three all-1.0f). So **the only thing this actor ever writes into
+const-color-5 is the fade alpha** (`+0x1D0`/`+0x1D4`/`+0x1D8` × 1/255); the RGB channel is
+a neutral pass-through. This resolves the fire-glow ambiguity flagged in
+`soh3d:debug_journal/2026-07-10-title-fireglow-copyright.md`: `g_title.cmb`'s visible
+orange/gold TINT does **not** come from this actor at all — it must come from a *different*
+constant-color channel (not `5`) driven by `g_title_fire.cmab`'s own material-animation
+player (a separate subsystem from actor 0x171, ticked when the model is loaded — out of
+this actor's code entirely). The soh3d port's existing split — CMAB ConstColor→flat tint,
+actor alpha field→visibility fade — is confirmed to be the functionally correct
+decomposition of two genuinely separate GPU registers, not a guess that happened to work.
+**Combine mode: MULTIPLICATIVE.** Const-color-5's alpha directly scales the texture's own
+alpha (standard N3DS TEV constant-color modulate, same shape as N64 EnMag's prim-alpha —
+already noted in §5.2); nothing here is additive.
+
+### 6.3 `+0x1DC` ("sheen"): a rotating LIGHT DIRECTION for the wordmark's fragment light, not a mesh alpha
+
+The wordmark block (+0x1A4) is the **only** block that touches `+0x1DC`, and it never
+writes it to a color/alpha register at all. Decompiled sequence (`001da4f4.c` lines
+180–197):
+
+```c
+t = *(f32*)(actor + 0x1dc) * (1.0f/255.0f);      // sheen ramp, normalized
+if (t > 1.0f) t = 1.0f;                           // clamp to [0,1]  (int-compare trick on the float bit pattern)
+w0 =  t*2.0f - 1.0f;                              // 2t - 1
+w1 =  1.0f - t*2.0f;                              // 1 - 2t
+w2 = -0.5f - t*0.5f;                              // -0.5 - 0.5t
+dir = w0*basisRow0 + w1*basisRow1 + w2*basisRow2; // blend 3 rows of the SAME 3x3 camera-facing
+dir = normalize(dir);                             // basis matrix used to billboard the wordmark itself
+FUN_0033d200(matCtx, 0);                          // enable light-env slot 0
+FUN_0033d174(matCtx, 0, ambient, diffuse, specular, emission); // {1,1,1,1} {.183,.183,.183,1} {1,1,1,1} {0,0,0,1} — STATIC, same every frame
+FUN_0033d14c(matCtx, 0, &dir);                    // the ONLY per-frame-animated part: light direction
+```
+
+`basisRow0/1/2` are the **same three rows** of the 3×4 matrix (`fStack_58` block, identity
+rotation + local translate `(0,0,-34.0)`) that is *also* passed to `FUN_003721e0` a few
+lines later to set the wordmark's own billboard placement transform — i.e. the sheen
+sweep direction is expressed **in the wordmark's own camera-facing local frame**, not
+world space. As `t` goes 0→1 (which happens in lockstep with the backdrop alpha ramp,
+`+0x1D0`, over cs frames 466–525 per §5.3 — same 4.25/frame rate, same 60-frame window),
+the light direction rotates continuously between two fixed endpoints (`t=0`: `-row0 +
+row1 - 0.5·row2`; `t=1`: `row0 - row1 - row2`, both normalized) — a genuine hardware
+"fragment light" (ambient/diffuse/specular unit), not a texture-combiner trick. Once
+`+0x1DC` reaches 255 (end of the backdrop-fade stage) it is never touched again — not on
+DISPLAY hold, not on fade-out (§5.3 already noted this) — so the light direction **freezes
+at its `t=1` endpoint** for the rest of the title's life. The visual effect is a
+gold specular gleam that sweeps once across the wordmark during fade-in, then holds still.
+
+**Port implication:** the "sheen scale" is not something to multiply into the wordmark's
+alpha or add as a second draw pass — it is a light-direction parameter for a **specular/
+fragment-lit shading term on the wordmark's own material**, computed relative to the same
+camera basis the overlay placement code already derives. A faithful port needs (a) a static
+ambient/diffuse/specular/emission color set `{1,1,1,1} {0.1834,0.1834,0.1834,1} {1,1,1,1}
+{0,0,0,1}`, (b) the two endpoint direction vectors above (in the overlay's local frame), (c)
+linear-interpolate + renormalize by `t = clamp(+0x1DC/255, 0, 1)`, and (d) feed that into
+whatever specular term the wordmark's shader/material actually implements — which the
+current soh3d port does not yet model (it only ports the flat-tint/UV-scroll seam for
+`g_title.cmb`, a different mesh — the sheen belongs to `title_logo_us`/`_eu` instead, and
+isn't ported at all yet). This is a real gap, not previously identified as one:
+`title_2d_overlay_logo.md` and the fireglow journal both assumed the sheen fed
+`g_title.cmb`; it does not — it feeds the **wordmark's own light direction**.
+
+Per-field → per-drawcall map (supersedes §5.2's `+0x1DC` row):
+
+| actor field | consumer draw block | GPU write | combine |
+|---|---|---|---|
+| `+0x1D0` (backdrop alpha) | block 1 (`+0x1A8`, `g_title`) | const-color-5.a | multiplicative (× texture alpha) |
+| `+0x1D4` (wordmark alpha) | block 2 (`+0x1A4`, `title_logo_us/_eu`) | const-color-5.a | multiplicative (× texture alpha) |
+| `+0x1D8` (copyright alpha) | block 3 (`+0x1AC`, `copy_nintendo`) | const-color-5.a | multiplicative (× texture alpha) |
+| `+0x1DC` (sheen) | block 2 ONLY (wordmark) | light-env slot 0's **direction** vector (`matCtx+0xc8..0xd0`), NOT a color/alpha register | interpolation parameter (lerp+normalize between 2 fixed endpoints), feeds a fragment-light term multiplicatively into the wordmark shading — orthogonal to `+0x1D4`'s alpha gate |
+
+### 6.4 `ura.ctxb` — confirmed NOT part of this actor's draw at all
+
+The task asked to flag any `ura.ctxb`/billboard-strip placement constants visible in the
+draw code. **None exist here.** `FUN_001da4f4` has exactly three draw blocks
+(`+0x1A8`/`+0x1A4`/`+0x1AC`) and three corresponding placement matrices, all accounted for
+in §6.1 above — there is no fourth handle, no fourth `FUN_0033d220` submit, and no
+reference to any `_ura` asset or a second CMAB target anywhere in this function or its
+callees. This **rules out** the hypothesis (implicit in
+`soh3d:debug_journal/2026-07-10-title-fireglow-copyright.md`'s "Gaps" section) that the
+`ura.ctxb` billboard strip is drawn from inside the logo actor's own draw call — whatever
+draws it (if it's drawn by the retail title at all — it may be dead/unused content) is a
+separate subsystem, not reachable by extending this function. Do not look here for its
+placement; a future session would need to find its OWN draw call from scratch (start from
+`ListCallers` on whatever loads `g_title_fire_ura.cmab`, not from this actor).
+
+**Bonus (partial) finding — the three elements' own LOCAL placement offsets**, in case
+useful for the overlay's depth ordering (these are local-frame translations composed with
+the shared camera basis, not screen-space fractions, so they don't replace the port's
+existing oracle-measured screen-fraction placement, but they do give relative depth/offset
+between the three elements in the overlay's own coordinate space):
+
+| element | local translate (composed with the shared billboard basis) | source literal(s) |
+|---|---|---|
+| wordmark (`title_logo_us/_eu`) | `(0, 0, -34.0)` | `0x001da8a4` = -34.0f |
+| backdrop (`g_title`) | `(0, 0, -34.0 + 0.00990)` ≈ `(0,0,-33.99)` | `0x001da8ac` = 0.0099... (tiny near-bias composed on top of the wordmark's own -34.0 base) |
+| copyright (`copy_nintendo`) | `(0, -11.0, -34.0)` | `0x001da8b0` = -11.0f (composed the same way) |
+
+i.e. backdrop sits almost exactly at the wordmark's depth (nudged a hair to avoid
+z-fighting), copyright sits offset -11 local units on the same axis the port already
+treats as "screen Y" (below the wordmark) — consistent with the oracle-measured screen
+fractions in the fireglow journal (copyright bbox center y=0.879, well below the wordmark).
+
+### 6.5 Anchors (this session)
+
+- draw fn `FUN_001da4f4` fully decompiled: `build/decomp/001da4f4.c` (231 lines)
+- callees newly decompiled this session: `build/decomp/003687a8.c`, `003589cc.c`,
+  `00358964.c`, `0033d220.c`, `0033d200.c`, `0033d174.c`, `0033d14c.c` (matrix-compose
+  `0036c174.c`, transform-set `003721e0.c`, enqueue-latch `003679b4.c`/`0036788c.c` were
+  already decompiled from an earlier session, re-read this session)
+- const-color RGB literals (all `1.0f`): `0x004d9904` (backdrop), `0x004d9914` (wordmark),
+  `0x004d9964` (copyright)
+- light-env static color-preset block (ambient/diffuse/specular/emission): `0x004d9924`
+  (`{1,1,1,1}`), `0x004d9930` (`{0.1834,0.1834,0.1834,1}`), `0x004d9940` (`{1,1,1,1}`),
+  `0x004d994c`..`0x004d9960`-ish region (`{0,0,0,1}`) — 16 words total from `0x004d9924`
+- sheen-blend constants: `0x001da8d4`=2.0f, `0x001da8d8`=0.5f, `0x001da8dc`=-0.5f,
+  `0x001da8b4`=1/255 (shared with the alpha scale)
+- placement literals: `0x001da8a0`=0.0f (filler), `0x001da8a4`=-34.0f, `0x001da8a8`=1.0f
+  (filler), `0x001da8ac`=0.00990f, `0x001da8b0`=-11.0f
+- verified via cross-check against §5.3's live-captured per-frame trace (independently
+  gathered, not this session) — no contradiction found: `+0x1DC` snaps to 255 in lockstep
+  with `+0x1D0` exactly as the code predicts, and is never decremented on fade-out exactly
+  as §5.3 already recorded
+
+## 7. RESOLVED (2026-07-10): the press-START skip path, traced through `FUN_001da9f8`
+
+`FUN_001da9f8` (the actor's update fn, already anchored in §5.1) fully decompiled
+(`build/decomp/001da9f8.c`, 300 lines) and traced end to end. Static only, this session.
+
+### 7.1 Detection: a "confirm pressed" byte read once per frame while gated
+
+Once the fade-in delay timer (`+0x1C0`) reaches 0 and the "seen" latch (`+0x1C2`) is still
+0, and `globalState` (`+0x1C8`) is ≥ 2 (DISPLAY or later), the update fn reads
+`*(byte*)(inputCtx + 8)` every frame, where `inputCtx = *piRam001dad08` (a fixed global
+pointer, not traced further this session — static RE budget went to the composite
+mechanism instead; functionally it behaves exactly like a per-frame "confirm/START pressed
+this frame" latch read from a title-menu input-polling struct). This is the actual
+"press-START" detection; it is NOT gated on any specific button code visible in this
+function (the byte is pre-resolved elsewhere), so it may key off START **or** A/confirm —
+not distinguished at this call site.
+
+### 7.2 State fan-out on press: which target state depends on WHEN you pressed
+
+```c
+if (*(char*)(inputCtx + 8) != 0) {                 // "confirm" pressed this frame
+    if (play->field_0x5c2d != 0x14) {               // guard: only fire the transition once
+        FUN_0033d13c(0);
+        FUN_0037547c(...);                          // some cs/audio side-effect (not traced further)
+    }
+    switch (globalState) {                          // +0x1C8
+        case 2: case 5:                              // DISPLAY, or already-DONE
+            *(s16*)(actor+0x1c0) = 25;                // delay 25 frames before the real skip
+            *(s16*)(actor+0x1c8) = 4;                 // → globalState 4 = "press-START, pending"
+            break;
+        case 3:                                       // FADE_OUT already running (cs-driven, natural)
+            *(s16*)(actor+0x1c0) = 25;
+            *(s16*)(actor+0x1c8) = 6;                 // → globalState 6 = "press-START during fade-out, accelerate"
+            break;
+    }
+    *(s16*)(actor+0x1c2) = 1;                          // latch: don't re-detect the press again
+}
+```
+
+So the skip is **not instant** — it always inserts a **25-frame (`0x19`) grace delay**
+(`+0x1C0`) before anything visible happens, regardless of whether you pressed during
+DISPLAY or during an already-running cs fade-out. This matches §5.2's existing row
+`"+0x1CC = fade-out step = 10 (set in init; press-START path overrides to 25)"` — 25 is
+used for BOTH the grace-delay timer AND (later) the accelerated fade rate; they share the
+same literal but are two different uses of it.
+
+### 7.3 After the 25-frame delay (globalState 4 → 3): the actor MANUALLY fires the scene transition
+
+```c
+if (globalState == 4) {
+    if (actor->0x1c0 > 0) return;                     // still counting down the 25-frame grace delay
+    if (play->0x5c2d != 0x14) {                        // guard: only if the transition wasn't already requested
+        play->0x4e4  = 2;                              // (context field, not traced further — a request-kind tag)
+        play->0x5c2d = 0x14;                            // *** the scene-transition trigger ***
+        play->0x5c76 = 2;                               // (paired flag, likely "which transition variant")
+    }
+    actor->0x1ca = 15;                                  // 0xf  (repurposed; unused by state 3's own ramp — see 7.4)
+    actor->0x1cc = 25;                                  // 0x19 — accelerated fade-out RATE (vs default 10)
+    globalState  = 3;                                    // → normal FADE_OUT state, but now running at 25/frame
+}
+```
+
+**This is the key finding**: under the *normal* (un-skipped) flow, `play->0x5c2d = 0x14`
+is **never written by this actor at all** — the natural fade-out (`globalState` 2→3 via
+`Flags_GetEnv(play,4)`, `LAB_001daff8`'s else-branch) does not touch `play+0x5C2D`; that
+trigger is presumably set by the title cutscene's own scripted end-of-cs command instead.
+The press-START path has to **manufacture that same trigger itself**, because the player
+is cutting the cutscene short before it would naturally reach that point. The `!= 0x14`
+guard on both this site and the `globalState==6` site exists specifically so a
+double-press (or a press landing during an already-fired transition) doesn't refire it.
+
+`+0x1CA` being set to 15 here is real but **currently unused downstream** — state 3's own
+fade-out block (`FUN_001da9f8` lines ~172–209, already documented in §5.3) reads only
+`+0x1CC` for its per-frame decrement, never `+0x1CA`. This write is either dead code, or
+defensive pre-staging for a path this static trace didn't find a consumer for (candidate:
+if `+0x1CA` is re-read by a DIFFERENT function this actor doesn't own, e.g. a shared
+title-transition helper — not chased further, flagging rather than guessing).
+
+### 7.4 The accelerated fade-out itself: same ramp code, faster rate, one guard difference
+
+Both `globalState==3` (normal cs fade-out, and now ALSO the post-press-START path once it
+reaches this state) and `globalState==6` (press-START **during** an already-running
+cs fade-out) execute the **same three-alpha decrement block** already documented in §5.3
+(`+0x1D0`/`+0x1D4`/`+0x1D8` each `-= (float)(s16)+0x1CC` per frame, floored at 0, all in
+lockstep) — the only difference is the per-frame rate baked into `+0x1CC` (10 normal /
+25 accelerated) and that state 6 re-checks and re-fires the `play+0x5C2D` transition guard
+one more time (belt-and-suspenders, in case state 6 was entered directly from DISPLAY-press
+without ever passing through state 4 — it can, per §7.2's case 3 branch). Once all three
+alphas hit 0 (and, for state 3 only, the delay timer `+0x1C0` is also 0), `globalState`
+becomes 5 (DONE) and — for state 3, if the transition wasn't already fired — the same
+`play->0x4e4=2 / 0x5c2d=0x14 / 0x5c76=2` triple is written one final time as a safety net.
+
+### 7.5 Timing summary (30 fps cs-frame ticks, all counts confirmed from `0018cbb8.c`/`001da9f8.c` literals)
+
+| trigger | delay before transition fires | fade-out rate | total frames alpha→0 (from 255) |
+|---|---|---|---|
+| natural cs end (`Flags_GetEnv(play,4)`) | 0 (transition presumably fired by the cs script itself, not this actor) | 10/frame (default, `+0x1CC` init value) | 26 (§5.3, already measured live) |
+| press START during DISPLAY/DONE | **25 frames** (`+0x1C0`) before `play+0x5C2D=0x14` fires, THEN fade begins | 25/frame (override) | 11 (255/25, ceil) |
+| press START during an already-running cs fade-out | **25 frames** before transition (re-)fires (if not already), THEN remaining alpha continues down at 25/frame | 25/frame (override) | up to 11 from wherever the cs fade had already reached |
+
+So the full skip latency from button-press to scene-transition-request is **25 frames
+(~0.83s at 30fps)** in every case, followed by an ~11-frame (~0.37s) fast fade-to-black —
+noticeably snappier than the natural ~26-frame cs-driven fade, but not instant. **Port
+target:** on confirm-press during DISPLAY, start a 25-frame timer; at timer-end, request
+the same scene transition the natural cs end would request and switch the alpha ramp to
+-25.0f/frame (was already fading at -10.0f/frame if the press happened during a natural
+fade-out already in progress).
+
+### 7.6 Anchors (this session)
+
+- update fn fully decompiled: `build/decomp/001da9f8.c` (300 lines)
+- press-detect read: `*(byte*)(*piRam001dad08 + 8)`, gated on `globalState>=2 && delay==0 &&
+  seenLatch==0`
+- state fan-out: DISPLAY(2)/DONE(5) → state 4; FADE_OUT-cs(3) → state 6; both set
+  `+0x1C0=25(0x19)`, latch `+0x1C2=1`
+- transition trigger fields: `play+0x5C2D=0x14` (main trigger, guarded by `!=0x14` check),
+  paired writes `play+0x4E4=2`, `play+0x5C76=2` — field names not resolved this session
+  (no cross-reference to a named `PlayState`/`GlobalContext` struct layout attempted;
+  flagging as future work if the port needs the exact semantics of `0x4E4`/`0x5C76`)
+- rate override site: `+0x1CA=15` (unused downstream, flagged not guessed), `+0x1CC=25`
+  written at the state-4→3 transition (`FUN_001da9f8` ~L110-117)
+- default rate (`+0x1CC=10`, `+0x1CA=6`): confirmed still in init `FUN_0018cbb8`
+  (`build/decomp/0018cbb8.c` L86-87), matches §5.1/§5.3's existing citation
+- also noted in init (not part of the task, flagging for completeness): a SEPARATE
+  "already seen title, resume at file-select" cold-start path (`0018cbb8.c` L102-126,
+  gated on `*(char*)(iRam0018cf14+0x576)`) that snaps straight to `globalState=2` (DISPLAY)
+  with all alphas already at full — likely the "returning from file-select via B" case, NOT
+  the press-START skip; not traced further, out of this task's scope
