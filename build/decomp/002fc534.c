@@ -11,7 +11,7 @@ void FUN_002fc534(int param_1,int param_2,int param_3,int param_4,int param_5)
   int iVar6;
   float fVar7;
   
-  uVar1 = DAT_002fc690;
+  uVar1 = uRam002fc690;
   iVar3 = 0;
   iVar4 = 0;
   if (0 < param_4) {

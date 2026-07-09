@@ -30,22 +30,22 @@ void FUN_002fcc88(float param_1,float param_2,int *param_3)
   float local_30;
   undefined4 local_2c;
   
-  uVar2 = DAT_002fcdcc;
-  fVar1 = DAT_002fcdc8;
-  local_80[0] = *DAT_002fcdc4;
-  local_80[1] = DAT_002fcdc4[1];
-  local_80[2] = DAT_002fcdc4[2];
-  local_80[3] = DAT_002fcdc4[3];
-  fStack_70 = DAT_002fcdc4[4];
-  fStack_6c = DAT_002fcdc4[5];
-  local_68 = DAT_002fcdc4[6];
-  fStack_64 = DAT_002fcdc4[7];
-  fStack_60 = DAT_002fcdc4[8];
-  fStack_5c = DAT_002fcdc4[9];
+  uVar2 = uRam002fcdcc;
+  fVar1 = fRam002fcdc8;
+  local_80[0] = *pfRam002fcdc4;
+  local_80[1] = pfRam002fcdc4[1];
+  local_80[2] = pfRam002fcdc4[2];
+  local_80[3] = pfRam002fcdc4[3];
+  fStack_70 = pfRam002fcdc4[4];
+  fStack_6c = pfRam002fcdc4[5];
+  local_68 = pfRam002fcdc4[6];
+  fStack_64 = pfRam002fcdc4[7];
+  fStack_60 = pfRam002fcdc4[8];
+  fStack_5c = pfRam002fcdc4[9];
   iVar4 = 0;
   iVar3 = param_3[1];
   if (0 < iVar3) {
-    fVar6 = param_1 + DAT_002fcdd0;
+    fVar6 = param_1 + fRam002fcdd0;
     do {
       fVar5 = (float)VectorSignedToFloat((iVar3 - iVar4) + -1,(byte)(in_fpscr >> 0x15) & 3);
       local_58 = param_1 + fVar5 * fVar1;

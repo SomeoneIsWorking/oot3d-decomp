@@ -1,5 +1,15 @@
 # OoT3D title-screen 2D overlay / logo — ground truth + SoH3D port spec
 
+> **CORRECTION 2026-07-10 — see `title_ura_ctxb_identified.md`.** This doc's characterization of
+> `ura.ctxb` as a "fire-glow overlay strip texture" (§1, §2) is **WRONG** — a direct pixel decode
+> shows it is a file-select/press-start UI sprite atlas (OoT + Master Quest save cards, an empty
+> card, a cursor-outline shape, and a baked "PRESS START" prompt), with no flame/glow imagery
+> anywhere in it. The narrow-vertical-strip draw-log finding in §2 is very likely a UI
+> cursor-highlight fade-in (or a file-select-transition frame bleeding into the sampled window),
+> not part of the title-logo fire-glow effect. §5 item 1.d ("`ura.ctxb` as the narrow vertical
+> strip... alpha driven by `g_title_fire_ura.cmab`") should NOT be ported as written — see the
+> correction doc §6 for the revised port guidance.
+
 Scope: the 2D elements OoT3D composites over the title-demo 3D scene — the
 "Legend of Zelda: Ocarina of Time 3D" logo, background card, fire-glow effect,
 copyright text, and (separately) "PRESS START". Companion to

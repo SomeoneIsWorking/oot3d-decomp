@@ -1,5 +1,15 @@
 # OoT3D title logo fire-glow — CMAB format + draw/timing spec
 
+> **CORRECTION 2026-07-10 — see `title_ura_ctxb_identified.md` §3.** This doc's "two draw
+> targets" hypothesis (§2, §3, §5) — that `g_title_fire_ura.cmab`'s duplicated entries drive a
+> *second* target, guessed to be the `ura.ctxb` billboard quad, purely from the filename pairing —
+> is now contradicted by a direct pixel decode of `ura.ctxb`: it contains no fire/glow imagery at
+> all (it's a file-select/press-start UI atlas). A CMAB drives a CMB's *material* list, and a CTXB
+> has no material list, so it could never be a legal CMAB target in the first place. Both fire
+> cmabs almost certainly target `g_title.cmb`'s own material only (e.g. two aspects of the same
+> mesh's shading, not two draw calls) — treat that as the new working hypothesis. The "two draw
+> targets = `g_title.cmb` + `ura.ctxb`" reading throughout this doc should be read as superseded.
+
 Scope: the animated gold flame-glow around the title logo (`g_title.cmb` + its two `.cmab`
 material animations). Extends `title_2d_overlay_logo.md` (asset inventory, §5 item 2.c: "needs a
 CMAB player") and `title_gamestate_driver.md` (logo fade-in/fade-out frame windows). Feeds the
