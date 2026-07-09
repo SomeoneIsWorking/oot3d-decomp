@@ -4,7 +4,7 @@ void FUN_002c411c(int param_1)
 
 {
   if (*(char *)(param_1 + 4) != '\0') {
-    *(undefined *)(param_1 + 4) = 0;
+    *(undefined1 *)(param_1 + 4) = 0;
   }
   return;
 }

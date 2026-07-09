@@ -286,8 +286,11 @@ CSAB/CMAB curves per `title_2d_overlay_logo.md` §5.1.
 
 ## 4. Open items for the next session
 
-1. ~~**Locate OoT3D's En_Mag-equivalent actor and its Update fn**~~ — **ANSWERED
-   IN THE NEGATIVE**, see `title_logo_actor.md` §3: there is no conventional
+1. ~~**Locate OoT3D's En_Mag-equivalent actor and its Update fn**~~ — **ANSWERED**
+   (2026-07-10): it DOES exist — actor id 0x171, objectId 330, update `FUN_001da9f8`,
+   full alpha-ramp constants decompiled + live-verified, see `title_logo_actor.md` §5.
+   (The earlier NEGATIVE from `title_logo_actor.md` §3 is falsified; kept below for the
+   record.) Original note: there is no conventional
    Actor here at all; the title 2D overlay is a dedicated non-Actor subsystem
    (`FUN_0046ac98`'s init struct at `0x0050AF34`). The read-side confirmation
    of `Flags_GetEnv(play,3)`/`(4)` from `play+0x5f98` is still open, but is now

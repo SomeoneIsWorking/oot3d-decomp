@@ -90,8 +90,23 @@ for fn in fn_it:
     for ins in ins_it:
         mn = ins.getMnemonicString().lower()
 
-        # bl/blx clobber AAPCS caller-saved.
+        # bl/blx clobber AAPCS caller-saved — but FIRST check whether any
+        # arg reg (r0..r3) currently holds a target-range address. This
+        # catches Vec3f-copy / memcpy patterns where the setup site is
+        # `add r0, gGlobalCtx, #offset` and the actual store lives in
+        # the callee (which we can't see with a per-fn constant tracker).
         if mn in ("bl", "blx"):
+            for arg in ("r0", "r1", "r2", "r3"):
+                if arg in reg_const:
+                    v = reg_const[arg]
+                    if lo <= v < hi:
+                        print("  %08x  %-8s %-40s  arg %s=0x%08x (in target range)  fn=%s@0x%08x  ARG-SETUP" % (
+                            ins.getAddress().getOffset(),
+                            ins.getMnemonicString(),
+                            ins.toString(),
+                            arg, v,
+                            fn.getName(), entry.getOffset()))
+                        hits += 1
             for r in ("r0", "r1", "r2", "r3", "r12", "ip", "lr"):
                 reg_const.pop(r, None)
             continue

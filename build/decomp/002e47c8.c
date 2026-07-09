@@ -42,7 +42,7 @@ void FUN_002e47c8(int param_1,undefined4 *param_2,int param_3)
     FUN_004533a4();
   }
   uVar9 = 0;
-  pcVar8 = (char *)(UNK_002e4dc8 + param_3 * 0x50);
+  pcVar8 = (char *)(iRam002e4dc8 + param_3 * 0x50);
   uVar10 = 0;
   if (*pcVar8 != '\0') {
     uVar2 = FUN_002de6b8(param_1,pcVar8);
@@ -54,7 +54,7 @@ void FUN_002e47c8(int param_1,undefined4 *param_2,int param_3)
     FUN_0031b124(param_2 + 0x83,*param_2,*(undefined4 *)(pcVar8 + 0x40),0);
     param_2[0x9f] = 1;
   }
-  iVar1 = UNK_002e4dd4;
+  iVar1 = iRam002e4dd4;
   iVar3 = unaff_r5 + 0xec;
   if (param_3 == 5) {
     FUN_002d56e0(param_2 + 1,param_2 + 0x83,*(undefined4 *)(pcVar8 + 0x44),
@@ -102,23 +102,23 @@ void FUN_002e47c8(int param_1,undefined4 *param_2,int param_3)
     return;
   }
   iVar5 = 0;
-  bVar11 = *(char *)(UNK_002e4dcc + 0x54d) != '\0';
-  iVar4 = UNK_002e4dcc;
+  bVar11 = *(char *)(iRam002e4dcc + 0x54d) != '\0';
+  iVar4 = iRam002e4dcc;
   if (bVar11) {
-    iVar4 = *(int *)(UNK_002e4dcc + 0x4e8);
+    iVar4 = *(int *)(iRam002e4dcc + 0x4e8);
   }
-  if ((bVar11 && iVar4 < 4) && (*UNK_002e4dd0 - 1 < 5)) {
+  if ((bVar11 && iVar4 < 4) && (*pbRam002e4dd0 - 1 < 5)) {
     iVar5 = 1;
   }
   iVar4 = 0;
-  iVar5 = UNK_002e4ddc + iVar5 * 0x48;
+  iVar5 = iRam002e4ddc + iVar5 * 0x48;
   while ((puVar6 = (ushort *)(iVar5 + iVar4 * 8),
-         (uint)*(ushort *)(UNK_002e4dd4 + 0xa8) < (uint)*puVar6 ||
-         (((uint)puVar6[1] <= (uint)*(ushort *)(UNK_002e4dd4 + 0xa8) && (puVar6[1] != UNK_002e4dd8))
+         (uint)*(ushort *)(iRam002e4dd4 + 0xa8) < (uint)*puVar6 ||
+         (((uint)puVar6[1] <= (uint)*(ushort *)(iRam002e4dd4 + 0xa8) && (puVar6[1] != uRam002e4dd8))
          ))) {
     iVar4 = (int)(short)((short)iVar4 + 1);
     if (8 < iVar4) {
-LAB_002e4a7c:
+code_r0x002e4a7c:
       FUN_002d56e0(param_2 + 1,param_2 + 0x83,*(undefined4 *)(pcVar8 + 0x44),
                    *(undefined4 *)(pcVar8 + 0x48),*(undefined4 *)(pcVar8 + 0x4c));
       if (param_3 == 1) {
@@ -153,9 +153,9 @@ LAB_002e4a7c:
   }
   else {
     fVar12 = (float)FUN_00361490(puVar6[1],*puVar6,*(undefined2 *)(iVar1 + 0xa8));
-    uVar2 = VectorFloatToUnsigned(fVar12 * UNK_002e4de0,3);
+    uVar2 = VectorFloatToUnsigned(fVar12 * fRam002e4de0,3);
     *(char *)(unaff_r5 + 0x13) = (char)uVar2;
   }
-  goto LAB_002e4a7c;
+  goto code_r0x002e4a7c;
 }
 

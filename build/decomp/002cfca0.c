@@ -7,8 +7,8 @@ float FUN_002cfca0(uint param_1)
   uint in_fpscr;
   float fVar2;
   
-  pfVar1 = (float *)(DAT_002cfcdc + ((param_1 & 0xffff) >> 8) * 0x10);
+  pfVar1 = (float *)(iRam002cfcdc + ((param_1 & 0xffff) >> 8) * 0x10);
   fVar2 = (float)VectorUnsignedToFloat(param_1 & 0xff,(byte)(in_fpscr >> 0x15) & 3);
-  return *pfVar1 + pfVar1[2] * fVar2 * DAT_002cfcd8;
+  return *pfVar1 + pfVar1[2] * fVar2 * fRam002cfcd8;
 }
 

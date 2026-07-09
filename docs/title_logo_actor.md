@@ -129,6 +129,10 @@ graph." Treat it as reinforced, not fully confirmed.
 
 ## 3. Revised answer to the task's core question
 
+> **FALSIFIED 2026-07-10 — see §5.** The En_Mag-equivalent Actor DOES exist (id 0x171,
+> objectId 330); §1's scan missed it because it only checked spot99's *differing* object
+> slots. The rest of this section is kept as a record of the wrong turn.
+
 **There is very likely no OoT3D 3DS "En_Mag-equivalent Actor" at all.** The title's 2D overlay
 (background card, animated logo mesh, fire-glow, copyright, and whatever drives "PRESS START")
 appears to be implemented as this **dedicated, non-Actor title-context subsystem** —
@@ -311,3 +315,122 @@ closing paragraph) actually recovers the constant.
 - `tools/ghidra_scripts/ListFnsInRange.py` — new reusable script this session (list function
   entries whose entry point falls in `[OOT3D_RANGE_START, OOT3D_RANGE_END)`; composes with
   `DecompDump` for "what functions live near this address" sweeps).
+
+## 5. RESOLVED (2026-07-10): the logo IS an Actor (id 0x171) — full alpha state machine decompiled + live-verified
+
+This session **falsifies §3's headline conclusion**. The title 2D overlay's logo/copyright
+alpha state machine lives in a perfectly conventional Actor — it was missed because §1
+scanned `ActorProfile.objectId` only against spot99's 3 *differing* object slots
+`{11, 180, 32324}`, and the logo actor's declared object is **330**, which is present in
+BOTH spot99 and spot00's object banks (so it never showed up in the difference set).
+The non-Actor `0x0050AF34` context from §2 is real but is a separate subsystem; the fade
+constants were never in it (live dumps of that struct + all 8 sub-objects across the whole
+fade window: zero bytes change).
+
+### 5.1 The actor
+
+`gActorOverlayTable[0x171]` → `ActorProfile @ 0x0052c328`:
+
+| field | value |
+|---|---|
+| actorId | **0x171** (369) |
+| category | 6 (PROP) |
+| objectId | **330** (zelda_mag) |
+| instanceSize | 0x1E0 |
+| init | `FUN_0018cbb8` @ 0x0018cbb8 (decompiled: `build/decomp/0018cbb8.c`) |
+| destroy | 0x0018cf1c |
+| update | **`FUN_001da9f8`** @ 0x001da9f8 (decompiled: `build/decomp/001da9f8.c`, 1180 B) |
+| draw | `FUN_001da4f4` @ 0x001da4f4 (decompiled: `build/decomp/001da4f4.c`) |
+
+How it was found (dynamic→static loop, embedded-Azahar harness + Ghidra):
+
+1. Static: the known `Flags_SetEnv` (`FUN_00366704`) encodes the env-flag bitfield access as
+   `add r0,r0,#0x5f00` + `ldrh/strh [r0,#0x98]`. Raw-scanned code.bin for the ADD encoding
+   (`(w & 0x0FE00FFF) == 0x02800C5F`): 18 sites; only one has the *load-and-mask* (GetEnv)
+   shape: **`Flags_GetEnv` = `0x0035a3c4`** (`ldrh` + `1 << (flag&0xf)` + `and`).
+2. BL-scan for its callers: 14. Exactly two pass flags 3/4 — `0x001db00c` (flag 3) and
+   `0x001db04c` (flag 4), both inside `FUN_001da9f8` = the logo actor's update.
+3. Live (harness savestate at title, cs curFrame domain — note `0x0054CC3C` is a *different*,
+   faster counter; the trigger frames 345/1930 are in `csCtx.curFrame @ play+0x22B8`):
+   whole-FCRAM `dumpphys` snapshots across the fade-in window, diffed for the predicted
+   ramp values, located the live instance at phys `0x27008CA0` and confirmed every field.
+
+### 5.2 The alpha fields (actor instance offsets)
+
+| offset | type | meaning (from draw fn `FUN_001da4f4`) |
+|---|---|---|
+| +0x1C0 | s16 | generic delay timer |
+| +0x1C2 | s16 | "seen/skip latch" |
+| +0x1C4 | s16 | fade-in sub-phase (0..5) |
+| +0x1C6 | s16 | sub-phase countdown timer |
+| +0x1C8 | s16 | globalState: 0=INITIAL 1=FADE_IN 2=DISPLAY 3=FADE_OUT(cs) 4/6=press-START paths 5=DONE |
+| +0x1CA | s16 | **copyright fade-in step = 6** (set in init `FUN_0018cbb8`) |
+| +0x1CC | s16 | **fade-out step = 10** (set in init; press-START path overrides to 25, +0x1CA→15) |
+| +0x1D0 | f32 | alpha (0..255) of zar asset idx 0 = `g_title` backdrop/emblem |
+| +0x1D4 | f32 | alpha (0..255) of zar asset idx 2/3 = `title_logo_us`/`_eu` wordmark (idx picked by language via `func_0x00410350`) |
+| +0x1D8 | f32 | alpha (0..255) of zar asset idx 1 = `copy_nintendo` copyright |
+| +0x1DC | f32 | wordmark sheen/light-vector scale (0..255), ramped with +0x1D0 |
+
+Draw multiplies each field by `1/255.0f` (`fRam001da8b4 = 0x3b808081`) into the material
+const-color alpha — exactly the N64 `EnMag` pattern (runtime alpha into prim color), and
+exactly what §4.1 predicted from the CMB blend states.
+
+### 5.3 The measured + decompiled fade constants (cs frames, 30 fps cursor)
+
+Fade-in (`Flags_GetEnv(play,3)` fires at csCtx.curFrame **345**; live trace
+`soh3d:scratch/decomp_stream/fields/trace.log`):
+
+| cs frame (measured) | phase | what happens | decomp constant |
+|---|---|---|---|
+| 346 | state 0→1 | flag-3 gate passes; `+0x1C6 = 0x28` | delay 40 |
+| 347–384 | 1 | wait (38 observed; phase-0 bind consumed 2) | timer 0x26 = 38 |
+| 385–465 | 2 | **wordmark `+0x1D4 += 3.0`/frame** (0→240), then snap 255 | step `fRam001db030 = 3.0f`, timer 0x51 = 81 |
+| 466–525 | 3 | **backdrop `+0x1D0` and sheen `+0x1DC` += 4.25/frame** (0→250.75), snap 255 | step `fRam001db034 = 4.25f`, timer 0x3C = 60 (60×4.25 = 255 exact) |
+| 526–568 | 4 | **copyright `+0x1D8` += 6.0/frame** (0→252), clamp at 255 | step = s16 `+0x1CA` = **6**, cap `fRam001db038 = 255.0f` |
+| 569 | 5 / state 2 | DISPLAY (full alpha hold) | — |
+
+Fade-out (`Flags_GetEnv(play,4)` fires at csCtx.curFrame **1930**; MEASURED live, same
+trace file): state 2→3 at cf1931, then per frame `+0x1D0, +0x1D4, +0x1D8 -=
+(float)(s16)+0x1CC` (= **10.0/frame**): 255→245→235→…→5 (cf1932..1956), floored to 0.0
+(`fRam001dad04`) and state→5 at cf1957 — **26 frames** (~0.87 s at 30 fps), all three
+alphas in lockstep. `+0x1DC` is NOT decremented (stays 255; the sheen dies with the
+wordmark's alpha=0).
+
+Press-START skip paths (decomp only, not traced): pressing START during DISPLAY sets
+`+0x1CC = 0x19` (25/frame fast fade, ~11 frames) with `+0x1CA = 0xF`, plus play transition
+trigger `play+0x5C2D = 0x14`.
+
+### 5.4 vs N64 En_Mag
+
+| | N64 `En_Mag` | OoT3D actor 0x171 |
+|---|---|---|
+| trigger mechanism | env-flags 3/4 via cs misc-ops | **identical** (same flag numbers, same misc-op types 0x1E/0x1F) |
+| fade-in | single alpha, +6/frame to 210 cap (~35 fr) | **three staged ramps**: logo +3.0→255 (81 fr, after 40-fr delay), backdrop+sheen +4.25→255 (60 fr), copyright +6→255 (~43 fr) |
+| fade-out | -10/frame (En_Mag `MAG_STATE_FADE_OUT`) | -10/frame to 0, all three at once (26 fr) |
+| alpha domain | 0..255 into prim color | 0..255 × (1/255) into const color — same shape |
+
+So the N64-derived STOPGAP in `soh3d:Shipwright/soh/src/zelda3d/behaviors/title/title_logo.cpp`
+(+6/frame, 210 cap) is wrong for OoT3D on every element except the copyright's step (6), and
+misses the 3DS's staged sequencing entirely. Port targets: steps 3.0 / 4.25 / 6.0, cap 255,
+phase timers 40 (lead-in delay) / 81 / 60, fade-out 10/frame, all in 30 fps cs-frame ticks.
+
+### 5.5 Anchors (this session)
+
+- `Flags_GetEnv` = **`0x0035a3c4`** (raw-encoding scan; 14 BL callers)
+- logo actor update = **`FUN_001da9f8`** @ 0x001da9f8; flag-3 call @ 0x001db00c, flag-4 @ 0x001db04c
+- init = `FUN_0018cbb8` (writes `+0x1CA=6`, `+0x1CC=10`, `+0x1C6=0x3C`, alphas=0, state=0)
+- draw = `FUN_001da4f4` (3 draw blocks: handles +0x1A8/idx0 ← alpha+0x1D0; +0x1A4/idx2|3 ← alpha+0x1D4 (+sheen +0x1DC); +0x1AC/idx1 ← alpha+0x1D8; ×1/255)
+- literal pool: 3.0f @ 0x001db030, 4.25f @ 0x001db034, 255.0f @ 0x001db038 & 0x001dad00, 0.0f @ 0x001dad04, 1/255 @ 0x001da8b4
+- live instance @ phys 0x27008CA0 (title session; heap — not stable across boots)
+- csCtx.curFrame = `play + 0x2298 + 0x20` (VA 0x08720AF8 at title); runs at HALF the
+  emulated-frame rate and is NOT the `0x0054CC3C` counter (that one ticks ~1/emulated frame;
+  the settled-title savestate sits at counter 394 but curFrame 88)
+- measured traces: `soh3d:scratch/decomp_stream/fields/trace.log` (FI = fade-in per-frame,
+  FO = fade-out per-frame; machine-local scratch — the tables above carry the durable numbers)
+- writer-PC watchpoint caveat: the harness write-watch needs the instance's VA; `memscan`
+  over `0x08000000..0x09000000` did not find the actor header pattern (heap VA region not
+  yet mapped for this heap), so no runtime writer-PC record was captured. The writer is
+  pinned STATICALLY instead — `FUN_001da9f8` contains the only `Flags_GetEnv(play,3)/(4)`
+  call sites in the binary, and its decompiled constants predicted the live per-frame field
+  behavior exactly (all 4 ramps, all 3 snaps, both triggers) — which is a stronger
+  identification than a PC sample would have been.
