@@ -146,9 +146,23 @@ orchestrates each cutscene frame:
 ### Title cs instance
 
 Byte-identical `" BDQ"` script embedded at **`spot99_info.zsi + 0x3528`**
-(live VA `0x0877DF48`), `cmd_count=13`, `end_frame=2400` (**40 s loop @
-60 fps** — the same script is also duplicated at `spot00_info.zsi + 0x203b8`,
-but spot00 is not the scene that loads at title; see §1).
+(live VA `0x0877DF48`), `cmd_count=13`, `end_frame=2400` (~~40 s loop @
+60 fps~~ — see correction below; the same script is also duplicated at
+`spot00_info.zsi + 0x203b8`, but spot00 is not the scene that loads at title; see §1).
+
+**Correction (2026-07-09, SoH3D port session) — the cs cursor advances at 0.5 frames per
+`retro_run()` tick, not 1: the loop is ~80s of real 3DS time, not 40s.** The "60 fps" figure
+above was an unverified assumption. Directly measured via Azahar (title cs's `csCtx`-driven
+live camera-eye position at `0x005BE6D4`, inverted against the byte-exact-verified OP97
+spline table across az_step 0..600): **az_cs(az_step) = 88 + 0.5 · az_step** — the cs cursor
+ticks exactly once per TWO `retro_run()` calls (residual <0.1 world units at every sampled
+point — an exact fit, not approximate). So the 2400-frame loop is 2400 cs-ticks at an
+effective 30 fps under Azahar's 60Hz-clocked `retro_run()` cadence, i.e. **~80s real time**,
+not the 40s the table below assumes. This doesn't change any of the frame NUMBERS in this
+doc (345/1930/2310–2460/2400 are all still correct cs-frame values, unaffected) — only the
+real-time duration each one corresponds to. See `<soh3d>/debug_journal/
+2026-07-09-title-cs-phase-sync.md` for the full derivation and the SoH3D-side fix this
+enabled (SoH's ported cursor was wrongly running at the naive 1:1 rate, i.e. 2x too fast).
 
 ## 3. Logo/fade phase timing — NEW this session
 
@@ -231,16 +245,18 @@ the **actor-side read** is inferred by structural analogy to N64, not yet
 independently confirmed on the 3DS binary. Flag this open item for whoever
 extends this decomp next (§4).
 
-### Resulting phase windows (title cs, 60 fps, 2400-frame / 40 s loop)
+### Resulting phase windows (title cs, 2400-frame / ~80s loop at the cs cursor's real
+0.5-frame-per-`retro_run()`-tick rate — see the 2026-07-09 correction above; times below
+recomputed at that rate, cs FRAME numbers unchanged from the original table)
 
-| cs frame | time (60fps) | event |
+| cs frame | real time | event |
 |---|---|---|
 | 0 | 0.0 s | loop start — pure flyover, no logo/UI overlay (matches the "shot 1" sample used to justify SoH3D task #15 — that shot falls before frame 345) |
-| **345** | **5.75 s** | misc `0x1e` fires → `Flags_SetEnv(play,3)` → (by N64 analogy) logo enters FADE_IN: `title_logo_us.cmb`/`.csab` assembly animation + `g_title_fire[.ura].cmab` flame fade-in begin |
-| 1345 (345+1000, if title_logo_us.csab's 120-frame duration is doubled to 60fps ticks — see caveat below) | ~ mid-hold | logo settled, full-alpha hold (by N64 analogy: `MAG_STATE_DISPLAY`) |
-| **1930** | **32.17 s** | misc `0x1f` fires → `Flags_SetEnv(play,4)` → logo enters FADE_OUT |
-| 2310–2460 | 38.5–41.0 s | opcode `0x7c` transition/fade window (screen-level fade, overlapping the loop boundary) |
-| 2400 | 40.0 s | opcode `0x3e8` destination — loop restarts at frame 0 |
+| **345** | **11.5 s** | misc `0x1e` fires → `Flags_SetEnv(play,3)` → (by N64 analogy) logo enters FADE_IN: `title_logo_us.cmb`/`.csab` assembly animation + `g_title_fire[.ura].cmab` flame fade-in begin |
+| 1345 (345+1000, if title_logo_us.csab's 120-frame duration is doubled to cs-cursor ticks — see caveat below) | ~ mid-hold | logo settled, full-alpha hold (by N64 analogy: `MAG_STATE_DISPLAY`) |
+| **1930** | **64.3 s** | misc `0x1f` fires → `Flags_SetEnv(play,4)` → logo enters FADE_OUT |
+| 2310–2460 | 77.0–82.0 s | opcode `0x7c` transition/fade window (screen-level fade, overlapping the loop boundary) |
+| 2400 | 80.0 s | opcode `0x3e8` destination — loop restarts at frame 0 |
 
 The middle row is a rough bound, not a decomp fact: `title_logo_us.csab` is
 120 frames / 13 tracks (`docs/csab_catalog.md`), and if CSAB plays at a
