@@ -270,14 +270,24 @@ CSAB/CMAB curves per `title_2d_overlay_logo.md` §5.1.
 
 ## 4. Open items for the next session
 
-1. **Locate OoT3D's En_Mag-equivalent actor and its Update fn**, to directly
-   confirm it reads `Flags_GetEnv(play,3)`/`(4)` from `play+0x5f98` (complete
-   the read-side half of §3's claim). Attack: live-oracle actor-list walk at
-   settled title, filter category PROP (per `actor_layout.md`'s category
-   ordering) for the actor whose `objBankIndex` resolves to `zelda_mag.zar`;
-   or a disasm sweep for computed-offset accesses to `+0x5f98` (extend
-   `tools/ghidra_scripts/FindRangeRefs.py`-style scanning to registerized
-   offsets, since Ghidra's static Reference DB misses these).
+1. ~~**Locate OoT3D's En_Mag-equivalent actor and its Update fn**~~ — **ANSWERED
+   IN THE NEGATIVE**, see `title_logo_actor.md` §3: there is no conventional
+   Actor here at all; the title 2D overlay is a dedicated non-Actor subsystem
+   (`FUN_0046ac98`'s init struct at `0x0050AF34`). The read-side confirmation
+   of `Flags_GetEnv(play,3)`/`(4)` from `play+0x5f98` is still open, but is now
+   correctly scoped to "this subsystem's per-frame tick", not "an Actor's
+   Update" — `title_logo_actor.md` §4.2 (2026-07-09) records two more static
+   dead ends (global-pointer xref scan on `0x0050AF34` found only 2 unrelated
+   refs; a sibling-function-address sweep near `Flags_SetEnv`/`Flags_UnsetEnv`
+   found no `Flags_GetEnv`-shaped neighbor). Also newly confirmed there (§4.1):
+   `title_logo_us.cmb`'s wordmark materials and `copy_nintendo.cmb`'s material
+   have alpha-blend GPU state enabled but a compile-time-constant alpha=1.0
+   with no CMAB/keyframe track anywhere — so the fade constant is NOT
+   recoverable from ROM assets, only from the (still unlocated) per-frame code
+   path or a live harness read. Next static option, not yet tried: a
+   Ghidra pattern/FunctionID search for the raw bit-test-and-mask instruction
+   shape anywhere in the binary (not just near the known SetEnv/UnsetEnv
+   address neighborhood).
 2. **Find the static call site of `FUN_002c5ba0`** (the cs interpreter) inside
    `Play_Main`'s body or a sub-call, to confirm it's invoked once per
    `GameState_Update` tick rather than at some other cadence (currently only

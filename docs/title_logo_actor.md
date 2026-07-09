@@ -185,3 +185,129 @@ stop searching the Actor system for this. The remaining open work is on the *non
 - `"rom:/actor/zelda_mag.zar"` string @ VA `0x005424a7`, inside a `0x44`-stride object-filename
   table (`~0x00516bd8..0x0054a15c`) — index into this table not resolved this session.
 - Harness binary: **absent** everywhere checked this session (§0) — blocks all live confirmation.
+
+## 4. Follow-up session (2026-07-09): asset-side ground truth for the alpha ramp + more static dead ends
+
+Task: extract the logo alpha fade RATE (step/cap/duration) for the SoH3D `title_logo.cpp` STOPGAP,
+which currently borrows N64 `En_Mag`'s `+6/frame · 35-frame` ramp. This session could not recover
+that rate either (§4.2), but closed one important sub-question: **the alpha is not baked/keyframed
+anywhere in the ROM assets**, which pins the search to a runtime value and rules out a whole class of
+"maybe it's in the CMB/CSAB" hypotheses.
+
+### 4.1 New evidence: `title_logo_us.cmb` and `copy_nintendo.cmb` have alpha-blend infrastructure but a STATIC baked alpha=1.0 — no animated alpha data anywhere in the asset
+
+Dumped both CMBs directly from the ROM this session (`soh3d:tools/cmb.py`, via `soh3d:tools/ctr_romfs.py`
++ `soh3d:tools/zar.py` — read-only, no soh3d working-tree edits):
+
+```
+title_logo_us.cmb: 13 bones, 22 meshes, 12 materials, 10 textures (tex0="title_all" 128x64 is the
+  actual wordmark plate art; the rest are per-letter/decoration textures).
+  mat0/mat1/mat2 (tex0=title_all, meshes sepd3/12/15/20/21 — the wordmark plate itself):
+    alphaTest=False, BLEND ENABLED: src/dst rgb=0x302/0x303 (GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA,
+    standard non-additive compositing, NOT the additive g_title.cmb fire-glow blend), blend
+    const=(0,0,0,1) — i.e. constant ALPHA = 1.0, fixed at compile time.
+  mat3..mat11 (the other 9 materials, per-letter-piece textures): blend_enable=False entirely
+    (fully opaque, no alpha channel in play at all).
+
+copy_nintendo.cmb (the copyright block): 1 bone, 1 mesh, 1 material, same shape — alphaTest=False,
+  BLEND ENABLED, src/dst=0x302/0x303, const alpha=1.0 static.
+```
+
+Neither CMB has an associated `.cmab` (material-animation) targeting these materials —
+`zelda_mag.zar` contains exactly two `.cmab`s (`g_title_fire.cmab`, `g_title_fire_ura.cmab`,
+per `title_logo_fireglow_cmab.md`) and both are already accounted for as the `g_title.cmb`
+fire-glow's `ConstColor`/`Translation` tracks, driving a *different* mesh (`g_title.cmb`, additive
+blend) via a *different* material than the wordmark's `mat0/1/2` or the copyright's `mat0`. So:
+
+- The wordmark plate and the copyright block **both** have the alpha-blend GPU state switched on
+  (this is deliberate — someone authored these materials to be alpha-composited, not opaque), but
+  the alpha value itself is a compile-time constant (1.0) with **no keyframe track anywhere** that
+  could rewrite it over time.
+- This directly parallels N64's `En_Mag`: N64 never bakes `mainAlpha`/`copyrightAlpha` into a
+  texture or display-list constant either — it's a plain runtime `f32`/`s16` field on the actor,
+  written by `EnMag_Update`'s per-frame arithmetic and consumed by the draw call's primitive-color
+  alpha argument. The 3DS material design is consistent with the exact same pattern: blend state
+  ON, alpha supplied per-frame from code, not from the asset. This is new, positive, decompiled-and-
+  measured corroboration (not just structural analogy) that OoT3D kept a runtime alpha-ramp
+  mechanism for both the logo AND the copyright block — reinforcing (not just repeating)
+  `title_gamestate_driver.md` §3's "the state-machine SHAPE ports even though constants must be
+  re-derived" conclusion.
+- It also rules out one entire avenue for recovering the rate: there is no CMAB/CMB keyframe data to
+  read the ramp off of, the way `title_logo_fireglow_cmab.md` could read the fire-glow's flicker
+  curve straight from `g_title_fire.cmab`'s bytes. The alpha ramp constant can ONLY come from code
+  (static decomp of the per-frame tick) or a live memory read (harness) — asset inspection is a dead
+  end for this specific question.
+
+### 4.2 Continued search for the per-frame tick / `Flags_GetEnv`-equivalent read: still not found, new dead ends recorded
+
+Per `title_logo_actor.md` §3's open item 1 ("find `FUN_0046ac98`'s per-frame sibling"), tried:
+
+- **`FindDataWriters` on `0x0050AF34`** (the title-context global pointer itself): only **2** total
+  code references in the whole binary — `FUN_00444cb8` (DATA ref, 36B, unrelated: writes a `0x16`
+  state and clears a field on a *different* subsystem struct reached via `DAT_00444cdc`, not the
+  title context) and `FUN_0042df18` (WRITE ref, 5344B, a **controller-pairing / "NO CONTROLLER"
+  message state machine** gated on `sceneNum==0x4b`, i.e. an unrelated scene-agnostic system that
+  happens to alias the same pointer slot for its own bookkeeping — not the title tick). Neither
+  function touches `+0x5f98`, `+0x6c`, or `+0x78`. **Ruled out**: the title-context struct's
+  per-frame tick is not reached by direct references to the `0x0050AF34` global at all — it must be
+  invoked through a pointer already cached elsewhere (a local/stack copy taken once and held), which
+  is exactly the kind of indirection Ghidra's static Reference DB can't follow (per the ghidra-re
+  skill's documented limitation on register-computed / cached-pointer dispatch).
+- **Sibling-function sweep near `FUN_00366704`/`FUN_003667b0`** (the confirmed `Flags_SetEnv`/
+  `Flags_UnsetEnv`, at `0x366704`/`0x3667b0`): listed every function Ghidra has defined in
+  `0x366600..0x366a00` (`tools/ghidra_scripts/ListFnsInRange.py`, new small script added this
+  session — lists function entries in a VA range, composes with `DecompDump`) and decompiled the
+  four neighbors (`FUN_00366684`, `FUN_003666a0`, `FUN_00366738`, `FUN_00366748`). **None is a
+  `Flags_GetEnv`-shaped bit-test** (`(*(ushort*)(x+0x5f98) >> (flag&0xf)) & 1`) — they're unrelated
+  small helpers (a lookup-table dereference, an input/pairing state updater, two trivial
+  single-field bool checks on completely different offsets `+0xa90`/`+0xf38`). Ruled out: the
+  `Flags_GetEnv`-equivalent is NOT co-located with `Flags_SetEnv`/`Flags_UnsetEnv` in the binary
+  layout (no adjacency to exploit).
+- **`FUN_002db6a0`** (the allocator installing the `+0x1C`/`+0x20` duplicate quad-batch sub-objects,
+  flagged in §2 as the best lead for the two-fire-glow-targets hypothesis): decompiled fully — it is
+  a one-shot CONSTRUCTOR (builds an index buffer, allocates a GPU command-list slot, registers a
+  material) with no per-frame/alpha-ramp logic in it at all. Ruled out as the tick function; its
+  *runtime* update method (installed via the `(**(code**)(...+8))(...)` vtable pattern noted in §3
+  item 3, not resolved this session either) remains the actual next lead if this angle is pursued
+  further, but that requires walking a heap-resident vtable pointer, which is dynamic-observation
+  work (harness), not static Ghidra.
+
+**Conclusion, unchanged from the prior session but now on firmer ground**: the OoT3D logo/copyright
+alpha ramp is real (the CMB material design proves runtime-driven alpha is intended), but its rate/
+duration constants live exclusively in a per-frame code path that two static-RE sessions have failed
+to locate by every static avenue tried so far (Actor-table scan, global-pointer xref scan, sibling-
+function-address scan, constructor-vs-updater decompilation). The only remaining productive avenues
+are the ones already named in §3: (a) the embedded-Azahar harness, once built, reading the title-
+context struct's live per-frame fields across the frame-345→1930 window directly, or (b) a broader,
+non-address-adjacency-based static sweep (e.g. Ghidra's `FunctionID`/pattern search for the exact
+`ushort` bit-test-and-mask instruction shape anywhere in the binary, not just near the known
+`SetEnv`/`UnsetEnv` pair) — not attempted this session, flagged as the next concrete static option
+before falling back to harness-only.
+
+### 4.3 Recommendation for the SoH3D STOPGAP (no change to the port itself — decomp-only session)
+
+Given §4.1/§4.2, the honest state of the evidence is: the 3DS logo/copyright ramp mechanism-SHAPE
+(runtime alpha, blend-enabled, no baked keyframes) is now doubly confirmed, but the concrete
+step/cap/duration numbers remain undiscovered. The existing STOPGAP in
+`Shipwright/soh/src/zelda3d/behaviors/title/title_logo.cpp` (N64 `En_Mag`'s `+6/frame`, scaled to
+35 frames) should stay marked as a STOPGAP — nothing here confirms or refutes its specific numbers,
+it only reinforces that *some* per-frame runtime ramp is the correct mechanism shape to keep. Do not
+promote it to "derived from 3DS decomp" until either the harness or a fresh static angle (§4.2's
+closing paragraph) actually recovers the constant.
+
+### Anchors (this follow-up session)
+
+- `0x0050AF34` global-pointer xref scan (`FindDataWriters`): exactly 2 refs, both unrelated
+  subsystems (`FUN_00444cb8`, `FUN_0042df18`) — negative result, see §4.2.
+- `FUN_00366684`/`FUN_003666a0`/`FUN_00366738`/`FUN_00366748` (the 4 functions Ghidra has defined
+  adjacent to `Flags_SetEnv`/`Flags_UnsetEnv` in `0x366600..0x366a00`) — decompiled this session,
+  none is `Flags_GetEnv` — negative result.
+- `FUN_002db6a0` @ `0x002db6a0` — decompiled this session; confirmed one-shot quad-batch constructor,
+  not a per-frame tick — negative result.
+- `title_logo_us.cmb` materials 0/1/2 (wordmark plate) and `copy_nintendo.cmb` material 0
+  (copyright): alpha-blend enabled, constant alpha baked at 1.0, no CMAB target — new evidence this
+  session (`soh3d:scratch/decomp_stream/{title_logo_us,copy_nintendo}.cmb`, dumped via
+  `soh3d:tools/cmb.py`).
+- `tools/ghidra_scripts/ListFnsInRange.py` — new reusable script this session (list function
+  entries whose entry point falls in `[OOT3D_RANGE_START, OOT3D_RANGE_END)`; composes with
+  `DecompDump` for "what functions live near this address" sweeps).

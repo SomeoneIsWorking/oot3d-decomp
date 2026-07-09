@@ -6,7 +6,7 @@ undefined4 FUN_00366684(int param_1)
   int iVar1;
   undefined4 uVar2;
   
-  iVar1 = *(int *)(DAT_0036669c + param_1 * 4);
+  iVar1 = *(int *)(iRam0036669c + param_1 * 4);
   if (iVar1 == 0) {
     uVar2 = 0xffffffff;
   }
