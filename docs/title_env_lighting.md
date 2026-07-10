@@ -483,3 +483,169 @@ question, not a CMB-material-byte or SoH3D-port question.
   is confirmed (§9.3) unreachable for this material; flagged only as a reference for what a
   PICA-faithful "why would ambient double" mechanism looks like, in case the vertex-shader program
   (once found) turns out to reuse similar per-light-ambient-summing logic.
+
+## 10. Session 2026-07-10 (decomp stream): the shared vertex-shader program FOUND and disassembled — missing term named: ambient is SUMMED per enabled light, not applied once
+
+Follow-up to §9.4's concrete next step ("find the material field that selects the vertex-shader
+program, locate the shared program storage, disassemble it"). **Found on the first static search,
+no CMB material field needed**: the game's RomFS root contains two `.shbin` files as ordinary
+top-level assets — `/CmbVShader.shbin` (the CMB/scene/actor vertex shader, 3144 bytes) and
+`/profile.shbin` (664 bytes, a second small program pair, not investigated further — not what
+scene-mesh materials use per §9.4's `sw_rasterizer.cpp` read of vertex-color provenance and per
+`Model_Draw`-family code always binding the one shared model-vertex shader). All scene/actor CMB
+models are drawn through this ONE program (there's no per-material index into a shader table
+because there's only one shader for this draw class — the material-field search of §9.4 was
+looking for something that doesn't need to exist).
+
+**Method (fully static/offline, no emulator)**: `tools/ctr_romfs.py` (RomFS walker, already in
+this repo) resolved `/CmbVShader.shbin`'s absolute ROM byte range
+(NCSD→NCCH partition 0→RomFS level-3 file table, no crypto needed since the dump is already
+decrypted) and extracted it. A new tool, **`tools/shbin_disasm.py`** (committed this session,
+dependency-free, no Azahar/nihstro build required — reimplements the container/bytecode format
+directly from Azahar's bundled `externals/nihstro/include/nihstro/{shader_binary.h,
+shader_bytecode.h}`, which are themselves the documented-and-shipped PICA200 shader ISA used by
+Azahar's own interpreter/JIT/software rasterizer, i.e. ground truth for how the console executes
+these bytes) parses the `DVLB→DVLP→DVLE` container, the uniform/output/constant tables, and
+disassembles all 310 code words. Sanity check: the DVLP's 3 embedded float constants
+(`c93=(0,1,2,3)`, `c94=(0.125,0.003906,0.5,0.01)`, `c95=(3,4,5,32)`) decode to clean, plausible
+round numbers via the float24 unpacker — confirms the parser's bit-offsets are correct end-to-end
+before trusting the disassembly.
+
+### 10.1 The uniform table names the light-setup shape directly
+
+```
+LightDir0            c80        LightDiffuseColor0   c81   LightAmbientColor0.xyz c82
+LightDir1            c83        LightDiffuseColor1   c84   LightAmbientColor1.xyz c85
+LightDir2            c86        LightDiffuseColor2   c87   LightAmbientColor2.xyz c88
+MatDiffuseColor      c8         MatAmbientColor       c9
+IsVertexLighting     b9         IsFragmentLighting    b10
+```
+
+This is a **3-light array with an independent ambient color PER light slot** — structurally
+different from the N64 `EnvLightSettings` shape (`ambientColor` once, shared by both directional
+lights) that §1's decompile pinned for the CPU-side data. The CPU-side light-setup code (not
+traced this session — it lives in engine glue outside `Environment_Update`, a genuinely separate
+function from the one this doc's §1 already covers) must convert the single N64-style `ambientColor`
+into this per-light-slot uniform layout somehow. That conversion is the first place a "per-light
+ambient duplication" could originate, and §10.2 shows the vertex shader's OWN arithmetic makes any
+such duplication additive (not a no-op), i.e. the shader is structurally primed to reproduce exactly
+this kind of bug/design if the CPU writes the same ambient value into more than one light slot.
+
+### 10.2 Disassembly of the color block (words 76–120) — ambient is `Σ` over enabled lights, diffuse is `Σ NdotL_i · diffuseColor_i`
+
+Reached from `main` (word 0) via the call chain `main→[14]→[44]→[63]→[76]`, gated at word 76 by
+`ifu bool=9` (**`IsVertexLighting`**, matching this material class's already-known
+`vertexLighting=1` CMB byte):
+
+```
+ 76  ifu    bool=9 (IsVertexLighting) num=4 dest_off=112     ; if (!IsVertexLighting) goto 112 (unlit fallback)
+ 77  mov    r0, c8                     ; r0 = MatDiffuseColor
+ 78  mov    r1, c9                     ; r1 = MatAmbientColor
+ 79  dp3    r3.x, -c80, r14            ; r3.x = dot(-LightDir0, worldNormal)   =  N·L0
+ 80  dp3    r3.y, -c83, r14            ; r3.y = dot(-LightDir1, worldNormal)   =  N·L1
+ 81  dp3    r3.z, -c86, r14            ; r3.z = dot(-LightDir2, worldNormal)   =  N·L2
+ 82  mov    r9,  0                     ; r9  = ambient accumulator := 0
+ 83  mov    r10, 0                     ; r10 = diffuse  accumulator := 0
+ 84  mov    r2.x, c80.w                ; r2.x = LightDir0.w  (per-light "enabled" scalar)
+ 85  mov    r2.y, c83.w                ; r2.y = LightDir1.w
+ 86  mov    r2.z, c86.w                ; r2.z = LightDir2.w
+ 87  cmp    o0.w, 1.0, r2.x            ; CC := compare(1.0, LightDir0.w)   -- CPU flags a light "on"
+ 88  ifc    (cc.x) ...                 ;   by writing 1.0 into the unused LightDir_i.w component
+ 89    mul  r4, c81, r0                ;   r4 = LightDiffuseColor0 * MatDiffuseColor
+ 90    max  r3.x, 0, r3.x              ;   r3.x = max(0, N·L0)
+ 91    mad  r9.xyz,  r1.xyz, c82.xyz, r9.xyz   ; r9  += MatAmbientColor * LightAmbientColor0   <-- (A)
+ 92    mad  r10.xyz, r3.x,   r4.xyz,  r10.xyz  ; r10 += (N·L0) * (MatDiffuseColor*LightDiffuseColor0)
+ 93    add  r10.w, r10.w, r4.w
+ 94  ifc    (cc.y, from a cmp on r2.y, same pattern) ...      ; light 1 block, mirrors 89-93 with c84/c85
+ 95..99   (identical structure: r9 += MatAmbientColor*LightAmbientColor1, r10 += N·L1 * diffuse1)
+100  cmp    ... r2.z
+101  ifc    (cc, light 2 enabled) ...
+102..106  (identical structure again: r9 += MatAmbientColor*LightAmbientColor2, r10 += N·L2*diffuse2)
+107  add    r10.xyz, r10.xyz, r9.xyz   ; totalColor = diffuseAccum + ambientAccum
+108  ifu    bool=5 (HasColor) ...
+109    mul  r9,  c90.zzzz, v2          ; r9  = VertexAttributeScale2 * bakedVertexColor (v2 = aColor)
+110    mul  r10, r10, r9               ; FINAL: o1 (COLOR) source = (diffuse+ambient) * bakedVertexColor
+...
+120  mov    o1.xyzw, r10.xyzw          ; write to output register o1 = COLOR (the PRIMARY_COLOR the TEV reads)
+```
+
+(Full 310-word disassembly + uniform/output/constant tables reproducible with
+`python3 tools/shbin_disasm.py scratch/CmbVShader.shbin --range 0 310`, byte-cited above by word
+index and `0x`-prefixed code offset.)
+
+**This is the missing term, named precisely**: the shader does **NOT** apply `matAmbient * sceneAmbient`
+once — it accumulates `matAmbient * LightAmbientColor_i` **once per enabled light** (instruction
+91/97/104, `mad r9.xyz, MatAmbientColor.xyz, LightAmbientColor_i.xyz, r9.xyz`, three structurally
+identical blocks gated independently by each light's own `LightDir_i.w` enable flag). The diffuse
+half of the same sum (`N·L_i * LightDiffuseColor_i`, instr 92/98/105) is provably a no-op for these
+terrain materials because `MatDiffuseColor = c8 = BLACK(0,0,0)` (§3, reconfirmed) zeroes `r4` at
+instruction 89/95/102 regardless of `N·L_i` — so **only the ambient sum survives**, and it survives
+exactly as many times as there are enabled lights.
+
+**Why this produces ~1.9x and not exactly 2x/3x**: N64 `EnvLightSettings` (§1) has ONE ambient
+color shared across its 2 directional "lights" (`light1Dir/light1Color`, `light2Dir/light2Color` —
+note those are DIFFUSE colors on the N64 side, not per-light ambients; N64 has no per-light ambient
+concept at all). The engine's CPU-side N64→3DS light-setup glue (not yet traced — a genuinely
+separate function from `Environment_Update`, flagged as the next concrete decomp target) must
+therefore be writing the SAME scene `ambientColor` into more than one of `LightAmbientColor0/1/2`
+to reproduce "one shared ambient, two lights" in this 3-independent-ambient-slots shader — and every
+light slot that gets it and is flagged enabled (`LightDir_i.w`) adds another full copy into `r9`.
+Two enabled lights carrying the identical ambient value gives `r9 = 2 * matAmbient * ambientColor`
+— combined with the already-confirmed (§9.1) combiner `MODULATE(...)  * 2` on top, the full chain is:
+
+```
+o1 (PRIMARY_COLOR) = (Σ_{enabled i} matAmbient · LightAmbientColor_i) · vColorScale · vColor
+TEV stage0          = 2 · PRIMARY_COLOR · texel
+                    = 2 · (Σ_i matAmbient·LightAmbientColor_i) · vColorScale · vColor · texel
+```
+
+vs. this doc's §3 formula (and SoH's exact port of it) which applies the ambient term **once**:
+`saturate(2 · texel · vColor · ambient/255)`. If exactly 2 of the 3 light slots are enabled and
+both carry the scene's single ambient color (the natural N64→3DS mapping given N64 only has 2
+directional lights), ground truth is **2×** the ported formula — matching the measured 1.89–1.93x
+region-mean ratio almost exactly (the sub-2 residual is consistent with §7.1's already-noted ~5%
+fog-mix depression, or with the 2 enabled lights' ambient values not being bit-identical). This is
+now a **named, instruction-cited mechanism**, not a guessed constant.
+
+**What is still open (flagged, not fabricated)**: which 2 (or how many) of the 3 `LightDir_i.w`
+enable flags are actually set for terrain draws, and the exact CPU values written into
+`LightAmbientColor0/1/2`, are **runtime uniform-buffer state** set by CPU glue code per draw call —
+not visible in the CMB material bytes or the shader bytecode itself (the shader is generic and
+light-count-agnostic; the light data arrives via the uniform buffer, filled by a different function
+this session did not decompile). Confirming "exactly 2 lights enabled, ambient value duplicated
+into both slots" needs either (a) decompiling the CPU light-setup call that fills `c80..c88` per
+draw (a genuinely new decomp target, distinct from `Environment_Update`), or (b) one runtime
+uniform-buffer dump (`sgdump`-style, out of this session's static-only scope). Until then, the
+**mechanism** (ambient summed per enabled light, not applied once) is proven at the bytecode level;
+the **multiplicity** (why ~2x specifically) is the well-evidenced, not yet dynamically-confirmed,
+remaining piece.
+
+### Port guidance for the soh3d agent
+
+SoH3D's `sceneLitPath` shader (`Shipwright/libultraship/src/fast/zelda3d_sdl3gpu.cpp`, `kFrag`)
+currently computes `rgb = texel*vColor*ambient` (ambient applied once) `* combScaleRGB`. To match
+ground truth, the correct port is: apply `matAmbient * ambientColor` **once per enabled light**
+(most likely 2 for standard terrain/room lighting — `light1`/`light2` in N64 terms, both currently
+carrying the same scene `ambientColor` since that's the only ambient value SoH's `envCtx` tracks),
+i.e. multiply the existing ambient term by the enabled-light count (2, if confirmed) rather than
+inventing a new "2x ambient" magic constant — the multiplier IS a real per-light sum, not a fudge
+factor, so it should be implemented as `ambient * numEnabledLights` (or, more faithfully, as a real
+per-light loop if/when SoH's `envCtx` grows distinct per-light ambient values). Do not hardcode
+"×1.9" — that was only ever the measured ratio, not the mechanism; the mechanism proven here is an
+integer-multiple sum (2x for 2 lights), and the ~0.1x shortfall from clean 2x is a separate, already
+partially-explained fog effect (§7.1), not part of this term.
+
+### Anchors (this session)
+
+- `soh3d:tools/ctr_romfs.py` located `/CmbVShader.shbin` at ROM absolute offset `0x320cf0`
+  (RomFS file, 3144 bytes) and `/profile.shbin` at `0x321940` (664 bytes, unrelated 2-DVLE pair,
+  not investigated) — both reproducible offline via `ZELDA3D_OOT3D_ROM=<rom> python3 -c` +
+  `CtrRom(...).get("/CmbVShader.shbin")`.
+- `oot3d-decomp/tools/shbin_disasm.py` (new, committed) — DVLB/DVLP/DVLE container parser +
+  PICA200 vertex-shader disassembler, format derived from
+  `Azahar/externals/nihstro/include/nihstro/{shader_binary.h,shader_bytecode.h}` (bundled with
+  Azahar, i.e. the same ISA definition Azahar's own interpreter/JIT executes — ground truth
+  reused, not reinvented).
+- Full disassembly + tables: `python3 tools/shbin_disasm.py <extracted CmbVShader.shbin> --range 0 310`
+  (extraction not committed — ROM-derived binary, regenerate via `tools/ctr_romfs.py` per above,
+  same convention as `scratch/spot00_0_room.cmb` in §9's anchors).
