@@ -894,11 +894,15 @@ next: find the GX writer of `GPUREG_FOG_LUT_DATA` (reg 0x0e8) / the float→1.1.
 loop in code.bin, decompile, and port THAT into SoH's LUT-equivalent shader ramp. Porting a
 fitted curve was deliberately NOT done (no magic constants).
 
-Secondary observed-but-unattributed dawn layers (recorded for completeness, all absent in
-SoH): an untextured ADDITIVE horizon glow (vertex color (182,34,0), α≈0.31-0.37, blend
-srcAlpha/ONE, mostly occluded by nearer terrain), a white-texture mauve haze band
-(`tex0=0x1834c100`, α≈0.08-0.17), and a warm alpha layer (`tex0=0x20ace580` VRAM, α up to
-0.38). These are smaller than the fog term at the measured pixels.
+Secondary observed dawn layers (all absent in SoH): an untextured ADDITIVE horizon glow
+(vertex color (182,34,0), α≈0.31-0.37, blend srcAlpha/ONE, mostly occluded by nearer
+terrain), a white-texture mauve haze band (`tex0=0x1834c100`, α≈0.08-0.17), and a warm
+alpha layer (`tex0=0x20ace580` FCRAM, α up to 0.38). These are smaller than the fog term
+at the measured pixels. **ATTRIBUTED 2026-07-11 — see `title_dawn_layers.md`**: glow =
+sun glow dome `model/fine_sun.cmb` (handler `FUN_0045d018`); haze = the kumo_a cloud
+band itself with CPU-lerped variant vertex colors (texture `fine_a01`, byte-exact);
+warm = ground-mist billboards using `zelda_keep_opening.zar soft/tex/soft_smoke.ctxb`
+(byte-exact).
 
 ### Anchors (this session)
 
