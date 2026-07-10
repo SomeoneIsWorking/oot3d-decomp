@@ -329,3 +329,19 @@ Concretely, for the title logo the player needs to:
   ~32-second demo loop, vs. some other continuation mechanism restarting/reversing it, is inferred
   from `loopMode=Once` but not live-observed — verify with the harness before treating "one-shot,
   freeze at frame 300" as final.
+
+## 4. Cross-ref 2026-07-10: staging-timing discrepancy reconciled in `title_logo_actor.md` §8, not here
+
+soh3d's `2026-07-10-fireglow-combiner-and-terrain-decomposition.md` also reported an apparent
+timing gap (oracle showing glow "started" before SoH at az=730/cs≈453). That is a **staging/gating**
+question (which actor field, and when, makes `g_title.cmb` visible at all), owned by the actor's
+alpha state machine documented in `title_logo_actor.md` §5-§7 — not by this doc's combiner-format
+or CMAB-curve content, which govern the glow's *tint/brightness* once it's already visible. See
+`title_logo_actor.md` §8 for the reconciliation: the cs=453 data point falls before the glow mesh's
+alpha ramp even starts (cf466-525) under the live-verified §5.3 timing, and is most likely
+explained by the port's gold-hue pixel classifier picking up the WORDMARK's own (correctly-timed)
+alpha ramp (cf385-465, active at cs=453) rather than a premature glow. The combiner math in this
+doc's §3.1/§3.2 (the x2 scale, the dual-texture `mableT` term) is unaffected by that finding either
+way — this doc's own residual (the "faint tinge vs prominent wash" brightness gap once the glow
+mesh IS visible, e.g. at cs=556/638) remains open and is tracked in `title_logo_actor.md` §8.4's
+closing note, not here.

@@ -366,3 +366,120 @@ reading current source (no game run):
   `docs/spot00_field_lighting_ground_truth.md`) — §3/§4 reconfirm it without contradiction.
 - soh3d `debug_journal/2026-07-08-title-terrain-lighting-rootcause.md`,
   `2026-07-04-title-parity-pinned650.md` — SoH-side history this doc's §5 cross-checks.
+
+## 9. Session 2026-07-10 (decomp stream): candidates (a)/(b)/(d) definitively RULED OUT by corrected-offset combiner dump; residual narrowed to the vertex-shader program
+
+Follow-up to §7's open candidate list, triggered by soh3d's `2026-07-10-fireglow-combiner-and-
+terrain-decomposition.md` (formula-exact SoH vs oracle ~1.89–1.93x, channel-uniform, non-linear
+per-pixel). This session re-checked the terrain TEV combiner with the **corrected** constant-color
+palette offset (`+0xB4`, not the old buggy `+0xB8` — see `title_logo_fireglow_cmab.md`'s
+`comb_const_scale_rgb` bugfix note) to see whether the fire-glow session's same one-slot-late bug
+also corrupted the terrain material's own combiner-scale read.
+
+**Method**: extracted `spot00_0_info.zsi`'s embedded room CMB directly from the ROM
+(`tools/ctr_romfs.py` + `tools/zsi.py`, offline, no emulator) and ran a corrected combiner dumper
+(`soh3d:scratch/decomp_agent/dump_combiner.py`, itself already using `+0xB4`+manual TEV-stage-table
+parsing, independent of `cmb.cpp`'s in-tree fix) against 6 of spot00 room 0's ground materials
+(`35=s00_yuka_01, 34=s00_yama_01, 18=s00_road_01, 7, 23, 26` — the same set `spot00_mat_dump`
+sampled previously).
+
+### 9.1 (a) Combiner-scale misread — RULED OUT, byte-identical across all 6 materials
+
+```
+textureCombinerTableCount = 1   (all 6 materials)
+-- TEV stage 0 --
+  combineRGB=MODULATE  scaleRGB=x2
+  RGB: src0=PRIMARY_COLOR src1=TEXTURE0 src2=CONSTANT   op=SRC_COLOR (MODULATE only consumes src0/src1)
+  combineAlpha=MODULATE scaleAlpha=x1
+  constantIndex=0 -> constColor[0]=(0,0,0,255)   (unused by MODULATE's 2-source form)
+```
+
+`scaleRGB` reads `x2` at the corrected offset, identical to the prior (uncorrected-era) reading —
+**this material's combiner scale was never affected by the +0xB4/+0xB8 bug** (the bug only shifted
+the *constant-color palette* read, and this stage doesn't consume a constant slot: MODULATE only
+uses its first two sources, `PRIMARY_COLOR` and `TEXTURE0`; `CONSTANT` sits in the unused third
+slot, a common "leftover default" the `cmb.cpp` parser already special-cases per its own comment on
+`slotsUsed`). **Ruled out**: no hidden x4, the hardware genuinely runs at x2 for this material
+class, matching what SoH already implements and what §3's formula already assumes.
+
+### 9.2 (b) A second/skipped combiner stage — RULED OUT, all 6 materials have exactly 1 stage
+
+`textureCombinerTableCount=1` for every sampled material — there is no second stage to have
+skipped. The single stage is exactly `2.0 * (PRIMARY_COLOR * TEXTURE0)`, matching §3's formula
+term-for-term (`PRIMARY_COLOR` = the vertex-lit interpolated color = `bakedVertexColor` scaled by
+whatever the vertex-processing stage computed for `ambient`, `TEXTURE0` = the texel). **Ruled out.**
+
+### 9.3 (d) Missing fragment-lighting diffuse term — RULED OUT more precisely than before
+
+`isFragmentLighting=0` (CMB material byte) was already known from the prior session. This session
+adds a **structural** ruling-out, independent of that flag being read correctly: read Azahar's own
+software rasterizer (`Azahar/src/video_core/renderer_software/sw_rasterizer.cpp:530-554`) —
+`ComputeFragmentsColors` (the PICA fixed-function fragment Lighting Unit, `sw_lighting.cpp`) is
+gated only by the GPU register `regs.lighting.disable`, and its two outputs
+(`primary_fragment_color`/`secondary_fragment_color`) are fed into the TEV **only as combiner
+sources `FRAG_PRIMARY_COLOR`(0x6210)/`FRAG_SECONDARY_COLOR`(0x6211)** (`WriteTevConfig`'s source
+enum, cross-checked against `dump_combiner.py`'s own `SOURCE` table). The terrain material's single
+stage sources are `PRIMARY_COLOR`(0x8577, the plain interpolated vertex-color attribute, a
+*different* GPU register from `FRAG_PRIMARY_COLOR`)/`TEXTURE0`/`CONSTANT` — **never**
+`FRAG_PRIMARY_COLOR`/`FRAG_SECONDARY_COLOR`. So even if the fixed-function fragment Lighting Unit
+were computing something nonzero for this draw (regardless of the `isFragmentLighting` byte), the
+combiner never reads its output — it is **structurally unreachable** for this material, not just
+"disabled by a flag that might be misread." This fully closes candidate (d): there is no fragment-
+stage directional-light term anywhere in this material's pipeline to have missed, corrupted-read or
+otherwise.
+
+### 9.4 Residual redirected: the `PRIMARY_COLOR` input itself is vertex-shader output, not a CMB byte field
+
+With (a)/(b)/(d) closed, the only remaining unaccounted term is what value `PRIMARY_COLOR` (the
+combiner's first source) actually holds per pixel. Per the same `sw_rasterizer.cpp` read
+(lines ~500-516), `primary_color` is built by **barycentric-interpolating the mesh's own vertex
+output-register `color` attribute** (`v0.color`/`v1.color`/`v2.color`) — i.e. it is whatever the
+**real PICA200 vertex shader program** for this material computed and wrote to its color output,
+executed faithfully by Azahar's vertex-shader interpreter. This is a genuinely different code path
+from anything a CMB *material* byte dump (TEV stages, blend state, lighting-config scalar) can see:
+CMB materials on this SDK version select one of a small set of **shared, precompiled vertex-shader
+programs** by index (not an embedded shbin — confirmed no `shbin`/shader magic anywhere in the
+948KB `spot00_0_room.cmb`), so whatever arithmetic actually produces
+`PRIMARY_COLOR = ambient * matAmbient * bakedVertexColor` (§3's assumed shape) — or, if the ~1.9x
+residual is real 3DS ground truth, some doubled variant of it — lives in that **shared vertex
+program's bytecode**, not in any CMB material field sampled so far (this session's or any prior
+one).
+
+**This reframes the residual, does not resolve it.** Concrete next static step: find the
+material-chunk field that selects the vertex-shader program ID for scene/terrain materials
+(distinct from the already-parsed TEV/blend/lighting-config fields — not yet located), identify
+where the SDK's small fixed set of shared vertex programs is stored (candidate: a shared "gsh"-style
+binary loaded once at boot, or a fixed table inside `code.bin`), and disassemble the specific
+program these materials select. The per-pixel *non-linearity* soh3d's session measured (log-log
+slope 0.1–0.26, "flat noisy cloud" rather than a clean multiplicative cloud) is circumstantial
+support for this direction: a genuine per-vertex directional (N·L-shaped) term interpolated across
+large, gently-curved terrain triangles would produce exactly this kind of smooth-but-not-flat
+per-pixel variation, which a pure "ambient x2" constant could not — but this is offered as a
+plausibility signal, not proof; it was not re-derived from the vertex program itself this session.
+
+**Do not read this as "the terrain math is unexplained end-to-end"** — §3-§8's formula, the CMB
+byte-level material state (now checked at both the old and corrected constant-color-palette
+offsets), and the shader/UBO plumbing on the SoH3D side are all independently confirmed correct.
+The single remaining unknown is narrowly scoped to "what does the shared PICA vertex-shader program
+selected by these materials actually compute for its color output register" — a shader-bytecode
+question, not a CMB-material-byte or SoH3D-port question.
+
+### Anchors (this session)
+
+- `soh3d:scratch/spot00_0_room.cmb` extracted this session (948096 B, from
+  `/scene/spot00_0_info.zsi` cmb-chunk offset 996, size 948096) via `tools/ctr_romfs.py`+
+  `tools/zsi.py` — reproducible, offline.
+- `soh3d:scratch/decomp_agent/dump_combiner.py` run against materials 7/18/23/26/34/35 of that
+  CMB: all 6 identical — `textureCombinerTableCount=1`, stage0
+  `MODULATE(PRIMARY_COLOR,TEXTURE0) scaleRGB=x2`, `isFragmentLighting=0`,
+  `diffuse=(0,0,0,255)` (offset `+0xA8`, unaffected by the palette-offset bug).
+- `Azahar/src/video_core/renderer_software/sw_rasterizer.cpp:490-554` — `primary_color` built from
+  interpolated vertex `.color` attribute (vertex-shader output); `ComputeFragmentsColors`
+  (fragment Lighting Unit) gated by `regs.lighting.disable`, output routed only through
+  `FRAG_PRIMARY_COLOR`/`FRAG_SECONDARY_COLOR` combiner sources — confirmed absent from this
+  material's stage.
+- `Azahar/src/video_core/renderer_software/sw_lighting.cpp` (`ComputeFragmentsColors`) read in
+  full — real per-light `ambient` + summed `global_ambient` accumulation exists in this unit, but
+  is confirmed (§9.3) unreachable for this material; flagged only as a reference for what a
+  PICA-faithful "why would ambient double" mechanism looks like, in case the vertex-shader program
+  (once found) turns out to reuse similar per-light-ambient-summing logic.

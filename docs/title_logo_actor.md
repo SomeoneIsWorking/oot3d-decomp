@@ -736,3 +736,102 @@ fade-out already in progress).
   gated on `*(char*)(iRam0018cf14+0x576)`) that snaps straight to `globalState=2` (DISPLAY)
   with all alphas already at full — likely the "returning from file-select via B" case, NOT
   the press-START skip; not traced further, out of this task's scope
+
+## 8. Session 2026-07-10 (decomp stream): reconciling §5.3's live-verified timing against soh3d's oracle-vs-SoH glow-wash discrepancy
+
+soh3d's `2026-07-10-fireglow-combiner-and-terrain-decomposition.md` measured a gold-hue pixel
+count in the logo box (x[110,300] y[40,190]) at three Az/SoH frame pairs and reported: at
+az=730 (labeled "cs≈453"), the oracle already shows a full gold-hue wash (3982 matching px) while
+SoH's port (driving `g_title.cmb`'s alpha from `+0x1D0`, per §5.3/§6) shows only 169 — read there
+as "SoH's glow hasn't started". Since §5.3/§6 are now both **live-verified** (not just
+decompiled — §5.5's anchors record a live trace, `soh3d:scratch/decomp_stream/fields/trace.log`,
+that confirmed every ramp/snap/timing number), this session re-derived the cs-frame mapping to
+check whether the discrepancy is a real staging bug or a measurement confound.
+
+### 8.1 cs-frame conversion, reconstructed from the port's own three matched pairs
+
+The port session's `fireglow_ab.py` table gives three (az, cs)-labeled pairs: (700,438) is cited
+verbatim in `title_env_lighting.md` §7 as a confirmed "cs-frame-EXACT" match; solving
+`cs = (az + k)/2` for that pair gives `k = 2*438 - 700 = 176`. Applying `cs=(az+176)/2` to the
+other two rows in the same table reproduces their labels exactly: az=936 → (936+176)/2 = **556**
+(table says 556); az=1100 → (1100+176)/2 = **638** (table says 638). Applying it to the az=730 row:
+`(730+176)/2 = 453` — matches the task's own "cs≈453" label. **So the conversion is internally
+consistent and correct**: az=730 really does correspond to `csCtx.curFrame` **453**.
+
+### 8.2 cs=453 falls inside the WORDMARK's alpha ramp (cf385-465), squarely BEFORE the glow mesh's ramp (cf466-525)
+
+Per §5.3's fade-in table (decompiled AND live-measured):
+
+| phase | cs-frame range | what ramps |
+|---|---|---|
+| 2 | 385–465 | wordmark alpha `+0x1D4` (title_logo_us.cmb), +3.0/frame |
+| 3 | 466–525 | backdrop/glow alpha `+0x1D0` (**g_title.cmb**, the fire-glow mesh) + sheen `+0x1DC`, +4.25/frame |
+
+`cs=453` is **68 frames into the 81-frame wordmark ramp** (≈84% wordmark alpha, `+0x1D4 ≈ 204/255`)
+and **13 frames BEFORE** the glow-mesh ramp even starts. Per §6.2's confirmed GPU wiring
+(`g_title.cmb`'s composite alpha = `constColor5.a` = `+0x1D0/255`, driving the additive blend
+factor `srcAlpha*src + 1*dst` directly — alpha=0 means the additive term contributes literally
+nothing to the framebuffer regardless of the flame texture's RGB content), **the glow mesh must be
+fully invisible on a correctly-running 3DS at cs=453, exactly as SoH shows.** This is not a
+"maybe" — §5.3's numbers were independently confirmed by a live memory trace on the harness in the
+same investigation arc, not just by static decompile, so there is no live/decomp discrepancy to
+resolve on THIS side.
+
+### 8.3 The likely explanation: `fireglow_ab.py`'s gold-hue mask is picking up the WORDMARK, not the glow mesh
+
+`zelda_mag.zar` contains exactly 4 relevant CMB assets (`title_2d_overlay_logo.md` §1):
+`g_title.cmb` (the flame/glow mesh, idx0), `copy_nintendo.cmb` (idx1), and
+`title_logo_us.cmb`/`title_logo_jpeu.cmb` (idx2/3, the wordmark). At cs=453, only the WORDMARK
+(idx2/3) has nonzero alpha in the logo box — the glow mesh (idx0) and copyright (idx1) are both
+still at alpha=0 (copyright's ramp, cf526-568, hasn't even started). The "Legend of Zelda: Ocarina
+of Time 3D" wordmark is itself rendered in a gold/bronze gradient (well-established from the
+retail title screen's visual identity), so a screen-region gold-hue classifier (soh3d's mask:
+`R>60, 0.3R<G<0.9R, B<R/2`) applied to the *whole* logo box cannot distinguish "additive flame
+glow" pixels from "wordmark text that happens to also be gold-colored" pixels — both live in the
+same box and match the same RGB heuristic. **The most likely read of the az=730/cs=453 data point
+is that the oracle's "full glow wash" is actually its (correctly-timed, ~84%-alpha) wordmark
+render, not a prematurely-visible flame glow** — i.e. this is a measurement confound in the mask,
+not a staging bug in `+0x1D0`'s gate.
+
+This reframes, rather than contradicts, the port session's own honest secondary note: it already
+recorded that SoH's contribution at this frame is "169 stray px = wordmark edge pixels, zero glow
+contribution" — i.e. the port's own measurement already shows the wordmark (not the glow) is the
+thing present in-frame at this timestamp on the SoH side too. The oracle showing ~23x more gold-hue
+px in the same box, at a moment when only the wordmark should differ between the two renders
+(since the glow mesh is 0-alpha on both, by the live-verified ramp), points at a **wordmark
+rendering gap** (texture/tint/coverage — plausibly the still-unported specular sheen light-sweep
+from §6.3, or a texture-decode/tint difference on `title_logo_us.cmb` itself), not at the fire-glow
+staging mechanism documented in §5-§7.
+
+### 8.4 What this does and doesn't settle
+
+- **Not falsified**: §5.2/§5.3/§6's field-to-draw-block mapping and cf-window numbers for
+  `g_title.cmb`'s alpha (`+0x1D0`, cf466-525) — those stand, now cross-checked against a third,
+  independent line of evidence (this session's cs-frame reconstruction) with no contradiction.
+- **Falsified**: the *reading* of the az=730/cs=453 data point as "the oracle's glow starts
+  earlier than SoH's" — under the live-verified timing, neither engine's flame-glow mesh should be
+  visible yet at that frame; the observed gap is much better explained by the wordmark.
+- **Open, and now correctly scoped**: whether SoH's wordmark (`title_logo_us.cmb`) render at
+  matching alpha actually reproduces the oracle's gold coverage/intensity. This is a port-side,
+  runtime-observable question (mask the wordmark's own bbox specifically, or diff two SoH renders
+  with the glow mesh's draw forcibly suppressed vs not) — not something this static-RE session can
+  settle further; handing back to the port/harness stream with this specific, falsifiable
+  redirection instead of the original "fix the glow's alpha gate" framing.
+- The az=936/1100 (cs=556/638) rows in the same table DO fall inside or after the glow ramp window
+  (556 is in DISPLAY, past cf525; 638 likewise) — those two rows are legitimately measuring the
+  glow mesh (plus wordmark, plus copyright, all now non-zero-alpha) and their reported "SoH ~0.8x
+  intensity / ~45% coverage of Az" residual is NOT explained by this session's finding; that part
+  of the port's report should still be treated as a live open item (combiner RGB/coverage gap),
+  separate from the az=730 data point this section reconciles.
+
+### Anchors (this session)
+
+- cs-frame formula reconstructed from the port's own table: `cs = (az + 176) / 2`; verified exact
+  against all 3 rows of `soh3d:tools/fireglow_ab.py`'s A/B table (700→438 given, 936→556 and
+  1100→638 independently reproduced).
+- `title_2d_overlay_logo.md` §1's asset inventory (4 CMBs in `zelda_mag.zar`) cross-referenced
+  against §5.2's per-field asset-idx table to confirm block1/`+0x1A8`/idx0 is unambiguously
+  `g_title.cmb` (the flame/glow mesh itself, not a separate plain backdrop card).
+- No new decompilation or live probing this session — this section is a cross-check/reconciliation
+  of already-decompiled-and-live-verified §5-§7 material against the port's fresh measurement,
+  per the task's static-RE scope.
