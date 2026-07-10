@@ -285,6 +285,37 @@ unfalsified item:
   be re-measured only at pairs independently confirmed to be pixel-aligned, not just
   cs-frame-aligned, before spending further effort chasing an exact multiplier.
 
+## 7.1 UPDATE 2026-07-10 (soh3d runtime session) — decomposition lands: the missing term is on THIS side
+
+The soh3d side closed both open items in §7 (see soh3d `debug_journal/
+2026-07-10-fireglow-combiner-and-terrain-decomposition.md` §2 and its
+`tools/terrain_pixel_decompose.py`):
+
+- **Candidate 1 (UBO-fill defect) — RULED OUT for good, and then some.** Analytic
+  single-pixel decomposition at the pixel-aligned az=500/soh=908 pair: raycast the real
+  spot99 room-0 ROM triangles from the live camera pose (harness `compare camera`:
+  eye/at/up byte-matched between the two engines), recover the exact bilinear ROM texel,
+  the exact barycentric baked vertex color, and the live ambient (43,63,116)/255 (harness
+  `compare lighting`: identical on both engines), and evaluate this doc's formula
+  `saturate(2·t·v·a)`. **SoH's rendered pixels equal the formula to sub-LSB precision**
+  (mean |err| = 0.32/0.40/0.56 per RGB channel out of 255, over 400 random near-ground
+  pixels inside fogNear). The entire SoH chain — decode, vertex colors, ambient, shader,
+  UBO, output — is formula-exact.
+- **The oracle's pixels are ~1.9x ABOVE the formula**, channel-uniform on region means
+  (Az/formula = 1.89 R / 1.93 G / 1.85 B; slight sub-2 depression consistent with a ~5%
+  fog mix toward fog=(8,6,32)). Per-pixel the ratio cloud is flat/noisy (log-log slope
+  0.1–0.26 — 3DS-native filtering + upscale smoothing), so region means are the meaningful
+  statistic. Texture-pack contamination was separately ruled out (pack disabled: ≤5% shift).
+
+**Conclusion for the decomp stream: the formula in §3 is missing close to one x2 for these
+vertex-lit scene materials.** Candidates to chase HERE (static/RE): a second x2 combiner
+stage scale in the real material chain (effective `sat(4·t·v·a)`), a doubled vertex-color
+or light-sum term in the PICA vertex-lit fixed function (GL-style two-sided/doubling
+semantics), or Azahar's own output-stage transfer curve (the per-pixel flattening hints a
+nonlinearity also exists in its present path — if so, it belongs to the ORACLE's capture,
+not the game). Until the term is named here, soh3d intentionally ships the formula as-is —
+no fitted constants (stop-micro-tuning directive).
+
 ## 8. Sky R/G and star brightness — reconfirmed, not re-derived
 
 Out of respect for the hard-context ruling and this session's static-only scope, these are
