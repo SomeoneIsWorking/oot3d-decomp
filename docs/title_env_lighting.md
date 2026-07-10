@@ -909,3 +909,88 @@ srcAlpha/ONE, mostly occluded by nearer terrain), a white-texture mauve haze ban
 - soh3d `scratch/dawn_hue/` — probe scripts, PPM/PNG captures, full LUT dumps, draw logs.
 - soh3d `debug_journal/2026-07-10-dawn-hue-fog-rootcause.md` — the SoH-side session journal
   with the region-mean tables.
+
+## 13. Session 2026-07-10 (decomp stream #3): the fog LUT FILL FORMULA decompiled —
+FogResUpdater.cpp, closed-form, predict-gate PASSED float-exact at three dayTimes
+
+§12 left one open ground-truth item: the CPU function that fills the PICA fog LUT. Found,
+decompiled, and verified this session. The whole chain:
+
+### 13.1 The driver chain (all VAs code.bin)
+
+- **`FUN_002cdbfc` (372 B) — THE LUT fill** (`build/decomp/002cdbfc.c`). For i = 0..128
+  computes `local[i] = factor(eyeDist(i))`, then stores `value[i] = local[i]` (obj+0x68,
+  128 f32) and `diff[i] = local[i+1] - local[i]` (obj+0x268, 128 f32).
+  - `eyeDist(i) = -((A + B·i·k) / (C + D·i·k))` with `k = -1/128` (pool f32 @0x2cdd70) and
+    `A/B/C/D = obj+0x54/+0x50/+0x64/+0x60` = elements `[2][3]/[2][2]/[3][3]/[3][2]` of the
+    **INVERSE projection matrix** (`FUN_002d4554` @0x2d4554 = a full 4x4 inverse, writes
+    obj+0x28..0x64). I.e. eyeDist(i) is the eye-space distance of NDC depth `-i/128`. With
+    the CTR projection z-row `z_clip = a·z_eye + b·w, w_clip = -z_eye` this reduces to
+    **`eyeDist(t) = b/(a - t)`, t = i/128**, where `a = zFar/(zFar - zNear)`, `b = zNear·a`.
+  - `factor(d)`: mode byte at fogobj+0x42 selects **0 = LINEAR** (`(far - d)/(far - near)`,
+    clamped to 1.0 below near / 0.0 above far — pool f32s @0x2cdd78/0x2cdd74), 1 = EXP
+    (`expf(-density·t)`, density s32 at fogobj+0x3c, `FUN_002bb8dc` = libm expf),
+    2 = EXP2 (`expf(-density·t²)`). **The title (and measured gameplay) uses mode 0.**
+- **`FUN_0047fd24` — the per-frame bridge** (FogResUpdater.cpp — literal Grezzo source path
+  `FogResUpdater.cpp` in the alloc call):
+  copies color (+0x24 f32x3), `near = (float)(s32 fogobj+0x34)`, `far = (float)(s32
+  fogobj+0x38)` from the **fog param global @0x004fa8b8** into the LUT object, calls the
+  fill, then packs `(diff, value)` → u32 `diff13 | value11 << 13` (1.1.11 fixed via
+  `FUN_002cdb60/FUN_002cdb0c`) at obj+0x468. `FUN_00464b0c` = the vtable-dispatched setter
+  the game calls with (near, far, projMatrix, r,g,b,a); `FUN_004c062c` = refill wrapper.
+- The GX flusher (`FUN_0046c1e4`, the giant per-frame GPU-state fn) re-packs the float
+  arrays and bursts them to `GPUREG_FOG_LUT_DATA` (reg 0xe8, header pool 0x000F00E6 for the
+  index reg @0x46f2d0, pack loop @0x46f350, `orr r2,r3,r2,lsl #13`). Per-material fog
+  ENABLE: `FUN_0047d68c` reads a state byte (+0x0A) and emits fog_mode=5 + color via
+  `FUN_0047fe24` (`mov r0,#5` @0x47fe38); the byte originates from the CMB material's
+  **isFogEnabled u8 at material+0x02** (noclip readMatsChunk; spot99 room 0: 24/29 set —
+  §12's "28/29" was a miscount — the additive/effect materials 0,5,11-13 are the
+  exceptions).
+
+### 13.2 Live-verified inputs at the title (soh3d scratch/dawn_hue/fog_formula_gate.py)
+
+| dayTime | LUT-obj near (f32) | LUT-obj far (f32) | color | mode |
+|---|---|---|---|---|
+| 0x2bbb | **48.0** | **40414.0** | (9,6,31)/255 | 0 |
+| 0x3197 | **92.0** | **42612.0** | (57,42,40)/255 | 0 |
+| 0x37b5 | **138.0** | **44906.0** | (107,79,49)/255 | 0 |
+
+- **near = the palette's blended fogNear (u16&0x3ff) USED DIRECTLY IN EYE UNITS** — no
+  N64-fog-space conversion at all (blended 48/92/138 == the live values exactly).
+- **far = the palette's blended drawDist f32** (night 40000 → sunrise 48000 window ✓).
+- Inverse-projection coefficients constant across the cs: `inv[2][2]=0, inv[2][3]=-1,
+  inv[3][2]=0.1428259, inv[3][3]=f32(1/7)` → **zNear = 7.0 exactly, zFar = fogEnd = 32000**
+  (the palette fogEnd f32 is the camera far plane the fog depth mapping is built against).
+- The fog param global @0x4fa8b8 also carries s32 near/far at +0x34/+0x38 (stale-ish cached
+  ints; the LUT object's f32 fields at +0x14/+0x18 are what the fill consumes).
+
+### 13.3 Predict gate — PASSED
+
+Recomputing the full 129-node table from `(inv coefficients, near, far, mode 0)` and
+comparing against the LIVE float arrays (obj+0x68 / obj+0x268) at all three dayTimes:
+**max |err| ≤ 6.7e-8 on value[0..127] and ≤ 9.7e-8 on diff[0..127]** — float-exact.
+Predicted max fog 79.2/75.1/71.2% vs §12's dumped 79.3/75.2/71.3% (same frames ±12 dayTime
+ticks). Runner: soh3d `scratch/dawn_hue/fog_formula_gate.py` (resolves the LUT object by
+memscan for its 0x4fa8b8 back-pointer in the 0x08xxxxxx heap).
+
+### 13.4 The load-bearing subtlety: the ENTRY-127 LERP IS the look
+
+Scene depths compress into LUT entries ~121-127; entry 127 spans eyeDist 873..32000. PICA
+LERPs value→value+diff INSIDE the entry by depth fraction, so a rock at eye ~2100 gets
+**~50% fog** even though the underlying linear curve at d=2100 is only ~5%. Any port that
+evaluates the smooth closed-form factor(d) directly (no 128-node piecewise structure)
+misses the entire visible haze. The SoH port therefore reproduces the node/lerp structure:
+factor = lerp(node(i), node(i+1), frac) with node(t) = the closed-form above, i = 
+floor(128·depth3ds), depth3ds = a - b/d. (The 11/13-bit LUT quantization is ≤1/2048 —
+sub-LSB of the 8-bit output — and is omitted.)
+
+### 13.5 Port anchors (soh3d repo)
+
+- `Shipwright/cmb3d/asset/cmb.{h,cpp}` — CMB `is_fog` (material+0x02).
+- `Shipwright/libultraship/src/fast/zelda3d_gl.cpp` `Zelda3D_Fog3dSet` — a/b from
+  (camNear=7, fogEnd), window = (blended fogNear, blended drawDist), camera fwd/eye.
+- `Shipwright/libultraship/src/fast/zelda3d_sdl3gpu.cpp` — `fog3dNode()` + the per-entry
+  LERP in kFrag; vertex shader carries the 3DS depth `a - b/d` (affine in screen space, so
+  varying interpolation is exact); per-draw gate = CMB isFog byte, uFog.w == 2.0.
+- `Shipwright/soh/src/zelda3d/zelda3d_cutscene.cpp` `Zelda3D_TitleCsBlendedFog` +
+  `behaviors/title/title_presentation.cpp` applyLightOverride — the per-frame feed.
