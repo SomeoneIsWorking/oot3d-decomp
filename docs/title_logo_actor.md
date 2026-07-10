@@ -478,7 +478,7 @@ enqueue: the sheen computation.
 | `FUN_003687a8` | 0x003687a8 | `return *(*(handle+0x14)+0x10)` — fetches the model's material-context pointer (`matCtx`) from its CTR render-object, used by every call below |
 | `FUN_003589cc(matCtx, ch)` | 0x003589cc | `*(matCtx+ch+4) = 1` — dirty/enable flag for constant-color channel `ch` |
 | `FUN_00358964(matCtx, ch, rgba)` | 0x00358964 | copies 4 words (RGBA) into `matCtx + ch*0x10 + 8` — **the actual constant-color register write**, indexed by channel `ch` (always called with `ch=5` from the draw fn) |
-| `FUN_0033d200(slot, idx)` / `FUN_0033d174(slot, idx, c0..c3)` / `FUN_0033d14c(slot, idx, vec3)` | 0x0033d200/74/4c | write into a **per-index (stride 0x60) light-environment slot**: `+0xd4`=flag, `+0x88/0x98/0xa8/0xb8`=4 constant colors (ambient/diffuse/specular/emission-shaped), `+0xc8..0xd0`=a Vec3 (light **direction**). Only the wordmark block calls these, always `idx=0` |
+| `FUN_0033d200(slot, idx)` / `FUN_0033d174(slot, idx, c0..c3)` / `FUN_0033d14c(slot, idx, vec3)` | 0x0033d200/74/4c | write into a **per-index (stride 0x60) light-environment slot**: `+0xd4`=flag, `+0x88/0x98/0xa8/0xb8`=4 constant colors — **`+0x88`=light DIFFUSE, `+0x98`=light AMBIENT** (§6.6 runtime-verified: they feed CmbVShader's `LightDiffuseColor0`/`LightAmbientColor0` c81/c82 respectively; consistent with `FUN_003fa5d0` pairing `+0x88` with the material's diffuse bytes and `+0x98` with its ambient bytes — the earlier "ambient/diffuse/specular/emission" arg-order guess was WRONG), `+0xa8/+0xb8`=specular-shaped colors unused by the vertex-lit path, `+0xc8..0xd0`=a Vec3 (light **direction**). Only the wordmark block calls these, always `idx=0` |
 | `FUN_003721e0(handle, mtx34)` | 0x003721e0 | copies a 3×4 matrix into `handle+0x7c..0xa8` — the model's own local placement transform |
 | `FUN_0036c174(dst, A, B)` | 0x0036c174 | 3×4 affine matrix compose (`dst = B∘A`), used to build the backdrop/copyright placement matrices from a shared base |
 | `FUN_003679b4` / `FUN_0036788c` | 0x003679b4 / 0x0036788c | "enqueue once" latch + scene draw-list flush (shared plumbing, not draw-content-specific) |
@@ -514,7 +514,11 @@ w2 = -0.5f - t*0.5f;                              // -0.5 - 0.5t
 dir = w0*basisRow0 + w1*basisRow1 + w2*basisRow2; // blend 3 rows of the SAME 3x3 camera-facing
 dir = normalize(dir);                             // basis matrix used to billboard the wordmark itself
 FUN_0033d200(matCtx, 0);                          // enable light-env slot 0
-FUN_0033d174(matCtx, 0, ambient, diffuse, specular, emission); // {1,1,1,1} {.183,.183,.183,1} {1,1,1,1} {0,0,0,1} — STATIC, same every frame
+FUN_0033d174(matCtx, 0, diffuse, ambient, spec0, spec1); // {1,1,1,1} {0.18,0.18,0.18,1} {1,1,1,1} {0,0,0,1} — STATIC, same every frame
+                                                  // (arg->slot color roles corrected per §6.6:
+                                                  //  1st color = light DIFFUSE = WHITE,
+                                                  //  2nd color = light AMBIENT = 0.18 exactly —
+                                                  //  NOT ambient-1/diffuse-0.1834 as first guessed)
 FUN_0033d14c(matCtx, 0, &dir);                    // the ONLY per-frame-animated part: light direction
 ```
 
@@ -525,24 +529,34 @@ sweep direction is expressed **in the wordmark's own camera-facing local frame**
 world space. As `t` goes 0→1 (which happens in lockstep with the backdrop alpha ramp,
 `+0x1D0`, over cs frames 466–525 per §5.3 — same 4.25/frame rate, same 60-frame window),
 the light direction rotates continuously between two fixed endpoints (`t=0`: `-row0 +
-row1 - 0.5·row2`; `t=1`: `row0 - row1 - row2`, both normalized) — a genuine hardware
-"fragment light" (ambient/diffuse/specular unit), not a texture-combiner trick. Once
+row1 - 0.5·row2`; `t=1`: `row0 - row1 - row2`, both normalized) — feeding the shared
+CmbVShader's vertex-lighting unit (§6.6; the material is `isVertexLighting=1`,
+`isFragmentLighting=0`, so this is SOFTWARE vertex lighting, not the PICA hardware
+fragment-light unit as first assumed), not a texture-combiner trick. Once
 `+0x1DC` reaches 255 (end of the backdrop-fade stage) it is never touched again — not on
 DISPLAY hold, not on fade-out (§5.3 already noted this) — so the light direction **freezes
 at its `t=1` endpoint** for the rest of the title's life. The visual effect is a
 gold specular gleam that sweeps once across the wordmark during fade-in, then holds still.
 
-**Port implication:** the "sheen scale" is not something to multiply into the wordmark's
-alpha or add as a second draw pass — it is a light-direction parameter for a **specular/
-fragment-lit shading term on the wordmark's own material**, computed relative to the same
-camera basis the overlay placement code already derives. A faithful port needs (a) a static
-ambient/diffuse/specular/emission color set `{1,1,1,1} {0.1834,0.1834,0.1834,1} {1,1,1,1}
-{0,0,0,1}`, (b) the two endpoint direction vectors above (in the overlay's local frame), (c)
-linear-interpolate + renormalize by `t = clamp(+0x1DC/255, 0, 1)`, and (d) feed that into
-whatever specular term the wordmark's shader/material actually implements — which the
-current soh3d port does not yet model (it only ports the flat-tint/UV-scroll seam for
-`g_title.cmb`, a different mesh — the sheen belongs to `title_logo_us`/`_eu` instead, and
-isn't ported at all yet). This is a real gap, not previously identified as one:
+**Port implication (corrected by §6.6):** the "sheen scale" is not something to multiply
+into the wordmark's alpha or add as a second draw pass — it is the light-direction
+parameter of the wordmark's **vertex-lit shading term**. The faithful expression (derived
+from the CmbVShader disassembly + the runtime uniform read-back, §6.6) is:
+
+```
+t   = clamp(+0x1DC/255, 0, 1)
+L   = normalize(2t-1, 1-2t, -0.5-0.5t)          // object space; basis rows are identity
+o1  = clamp(0.18 + max(0, dot(N, -L)), 0, 1)    // matAmb*lightAmb + max(0,N·(-L))*matDif*lightDif,
+                                                //  all material colors white
+px  = texel.rgb * o1                            // TEV stage0 MODULATE(PRIMARY_COLOR, TEXTURE0) x1
+```
+
+There is NO specular term: the vertex-lit CmbVShader path has no specular uniform at all
+(`title_env_lighting.md` §10 — dir/diffuse/ambient per light only), so `{1,1,1,1}` in slot
+`+0xa8` is dead data for this draw class. Since the letter meshes are perfectly FLAT
+(all `title_logo_us.cmb` mats-0-2 normals are exactly (0,0,1)), the term shades the whole
+wordmark uniformly: `0.18 + (0.5+0.5t)/|L_raw|` — 0.513 at t=0 → 0.757 at t=1, a x1.48
+end-to-end swing (x1.31 over the cs470→cs588 measurement pair). This was a real gap:
 `title_2d_overlay_logo.md` and the fireglow journal both assumed the sheen fed
 `g_title.cmb`; it does not — it feeds the **wordmark's own light direction**.
 
@@ -596,9 +610,10 @@ fractions in the fireglow journal (copyright bbox center y=0.879, well below the
   already decompiled from an earlier session, re-read this session)
 - const-color RGB literals (all `1.0f`): `0x004d9904` (backdrop), `0x004d9914` (wordmark),
   `0x004d9964` (copyright)
-- light-env static color-preset block (ambient/diffuse/specular/emission): `0x004d9924`
-  (`{1,1,1,1}`), `0x004d9930` (`{0.1834,0.1834,0.1834,1}`), `0x004d9940` (`{1,1,1,1}`),
-  `0x004d994c`..`0x004d9960`-ish region (`{0,0,0,1}`) — 16 words total from `0x004d9924`
+- light-env static color-preset block (diffuse/ambient/spec0/spec1 — roles per §6.6):
+  16 words at `0x004d9924` = `{1,1,1,1}` (DIFFUSE), `{0.18,0.18,0.18,1}` (AMBIENT —
+  exactly `0x3E3851EC` = 0.18f, the earlier "0.1834" was a misread), `{1,1,1,1}`,
+  `{0,0,0,1}` (both unused by the vertex-lit path)
 - sheen-blend constants: `0x001da8d4`=2.0f, `0x001da8d8`=0.5f, `0x001da8dc`=-0.5f,
   `0x001da8b4`=1/255 (shared with the alpha scale)
 - placement literals: `0x001da8a0`=0.0f (filler), `0x001da8a4`=-34.0f, `0x001da8a8`=1.0f
@@ -607,6 +622,61 @@ fractions in the fireglow journal (copyright bbox center y=0.879, well below the
   gathered, not this session) — no contradiction found: `+0x1DC` snaps to 255 in lockstep
   with `+0x1D0` exactly as the code predicts, and is never decremented on fade-out exactly
   as §5.3 already recorded
+
+### 6.6 RESOLVED (2026-07-10, sheen-diffuse session): the slot-color ROLES verified at the GPU — diffuse is WHITE, ambient is 0.18; the full shading expression reproduces the measured ×1.40
+
+Trigger: soh3d's discriminator measurement (soh3d `debug_journal/
+2026-07-10-fade438-sheen-diffuse-analysis.md`) found the oracle's wordmark letters brighten
+**×1.40** across the sheen ramp (cs470→cs588, alpha provably constant) while a first-order
+"ambient=1 + 0.1834·N·L" model caps at ×1.18 — the §6.3 light-env labels had to be wrong or
+incomplete. All three legs were re-derived this session:
+
+1. **Pool bytes re-read** (`build/code.bin`, ptr `0x001da8d0` → `0x004d9924`): the four
+   vec4s are `{1,1,1,1} {0.18,0.18,0.18,1} {1,1,1,1} {0,0,0,1}` — the second color is
+   **0.18 exactly** (`0x3E3851EC`), not 0.1834.
+2. **The shared vertex shader has no specular path and no clamp before output**
+   (`/CmbVShader.shbin` @ ROM 0x320cf0, full disassembly via `tools/shbin_disasm.py`,
+   re-read of `title_env_lighting.md` §10 words 76–120): the lit path is exactly
+   `o1 = Σ_enabled_i [matAmb·LightAmbientColor_i + max(0, dp3(-LightDir_i, N_view))·matDif·LightDiffuseColor_i]`,
+   optionally ×`vColorScale·vColor` (`HasColor` — FALSE for the letters), written raw to o1.
+   Note the **negated** light dir in the dp3 (`-c80`) — a port that dots with +L gets 0 from
+   `max()` on the letters' +Z normals and shows a bit-flat sheen (soh3d's exact prior bug).
+3. **Runtime uniform read-back (new tooling)**: Azahar patch 5 (`soh3d
+   tools/soh3d_harness/AZAHAR_PATCH.md`) logs the decoded `vs_setup.uniforms` (b5/b9/b10,
+   c8/c9, c80–c88) at every `trigger_draw`; harness REPL command `vsuni_log <path>`.
+   At the wordmark draw (az=1000 from `title_settled.state`):
+   `hasCol=0 vLit=1 fLit=0 matDif=(1,1,1,1) matAmb=(1,1,1,0)
+   dir0=(0.57735,-0.57735,-0.57735,1) dif0=(1,1,1,1) amb0=(0.18,0.18,0.18,1)`,
+   lights 1/2 disabled (`dir1.w=dir2.w=0`). So **slot `+0x88` (the draw fn's 1st color,
+   WHITE) feeds `LightDiffuseColor0` and slot `+0x98` (0.18) feeds `LightAmbientColor0`** —
+   §6.2/§6.3's original "ambient={1,1,1,1}, diffuse={0.1834}" assignment was swapped.
+   Cross-check: `FUN_003fa5d0` (hardware-lighting sibling, `title_env_lighting.md` §11)
+   pairs slot `+0x88` with the CMB material's DIFFUSE bytes (+0xA8) and `+0x98` with its
+   AMBIENT bytes (+0xA4) — same roles, independently.
+   The light-env slot itself was also located in guest RAM (memscan for the color block;
+   ctx `0x0820ca9c`, slot dir at +0xc8 = `(-0.64838,0.64838,-0.399)` at az=764 /
+   `(0.57735,-0.57735,-0.57735)` at az=1000) — **bit-exact** vs `normalize(2t-1, 1-2t,
+   -0.5-0.5t)` with t=17/255 resp. 1, confirming §6.3's direction formula and that no
+   view-basis transform is applied to it.
+
+**Resulting ground-truth expression** (letters, mats 0-2 — flat meshes, every normal
+exactly (0,0,1), 12 tris, dumped via `soh3d tools/cmb.py`):
+
+```
+shade(t) = clamp(0.18 + max(0, dot((0,0,1), -L(t))), 0, 1)
+         = 0.18 + (0.5+0.5t)/‖(2t-1, 1-2t, -0.5-0.5t)‖
+pixel    = texel.rgb · shade(t)        (TEV MODULATE ×1; alpha unaffected by the sheen)
+```
+
+Predicted cs470→cs588 factor: shade(t=17/255)=0.579 → shade(t=1)=0.757 = **×1.308**,
+vs the oracle-measured ×1.40 (baseline mask) / ×1.38 (strict letter-core mask) — within
+the ±0.1 acceptance bar of the strict measure; the small residual is consistent with the
+fire-glow overlay (which ramps over the SAME cs466–525 window) bleeding into the letter
+mask via antialiasing/letter-texture alpha, i.e. not part of the letter shading term.
+
+Anchors: `soh3d scratch/decomp_agent/{vsuni_capture2.py, slot_dump2.py, predict_factor.py,
+dump_combiner.py}`; harness `vsuni_log` command (committed, soh3d `tools/soh3d_harness/`);
+Azahar-side hunk documented in `AZAHAR_PATCH.md` Patch 5 (Azahar tree is gitignored).
 
 ## 7. RESOLVED (2026-07-10): the press-START skip path, traced through `FUN_001da9f8`
 

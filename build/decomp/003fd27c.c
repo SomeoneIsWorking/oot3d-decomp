@@ -98,10 +98,10 @@ LAB_0031bbd8:
     }
     *(int *)(param_1 + 0x98) = *(int *)(param_1 + 0x98) + 1;
     FUN_004663f4(1);
-    iVar6 = DAT_0031bd28;
-    puVar5 = DAT_0031bd24;
-    piVar10 = (int *)(DAT_0031bd28 + 8);
-    *DAT_0031bd24 = 1;
+    iVar6 = iRam0031bd28;
+    puVar5 = puRam0031bd24;
+    piVar10 = (int *)(iRam0031bd28 + 8);
+    *puRam0031bd24 = 1;
     iVar7 = coproc_movefrom_User_R_Thread_and_Process_ID();
     if (iVar7 != *(int *)(iVar6 + 0xc)) {
       do {
