@@ -649,3 +649,170 @@ partially-explained fog effect (§7.1), not part of this term.
 - Full disassembly + tables: `python3 tools/shbin_disasm.py <extracted CmbVShader.shbin> --range 0 310`
   (extraction not committed — ROM-derived binary, regenerate via `tools/ctr_romfs.py` per above,
   same convention as `scratch/spot00_0_room.cmb` in §9's anchors).
+
+## 11. Session 2026-07-10 (decomp stream #2): the CPU-side per-material light-setup function FOUND — `FUN_003fa5d0`, confirms the ≤3-light loop with a runtime per-slot enable flag, narrows the "duplication" question to one field upstream
+
+Follow-up to §10's open item ("which 2 (or how many) of the 3 `LightDir_i.w` enable flags are set… is runtime uniform-buffer state set by CPU glue code per draw call — not decompiled this session"). Found this session, static-only, via a new reusable Ghidra script.
+
+**Method**: Ghidra's Reference DB / `ListCallers`-style BL scanning was already known to miss
+vtable-dispatched functions (§4 of the ghidra-re skill). Rather than chase call sites, searched
+the opposite direction — for **readers** of the byte offsets §1 pinned for `envCtx`'s
+ambient-color-shaped fields, directly over Ghidra's already-analyzed `Listing` (proper ARM/Thumb
+instruction boundaries, immune to the literal-pool/branch-table desync that broke an earlier
+capstone-linear-sweep attempt this session — that attempt is recorded as a dead end below).
+New script `tools/ghidra_scripts/FindByteOffsetReaders.py` (committed) lists every `ldrb`/`strb`
+in the whole image whose displayed operand contains a given `#0x..` immediate, tagged with its
+enclosing function — validated first against the **already-known** `envCtx.unk_BF` writer
+(`env_context_layout.md`'s CS-handler write near PC `0x0045e470`; the scan correctly located a
+`strb r0,[r4,#0xa5]` inside `FUN_0045dd30`/`Environment_Update` itself, confirming methodology)
+before trusting a novel hit.
+
+Scanning for `ldrb ?,[reg,#0xb2]` (the byte offset §1 assigns to `envCtx.lightSettings.ambientColor[0]`)
+returned exactly 2 hits: one inside `Environment_Update` itself (expected — it re-reads what it
+just wrote), and **one new site: `0x003fa710`, inside `FUN_003fa5d0`** (VA `0x003fa5d0`, size
+1608 bytes). Decompiled in full (`build/decomp/003fa5d0.c`).
+
+### 11.1 What `FUN_003fa5d0` does — signature and shape
+
+```c
+void FUN_003fa5d0(int param_1, int *param_2, int param_3)
+```
+
+Gated by `*(char*)*param_2 != 0` (a "lighting enabled for this material" flag). Reads THREE
+RGB byte-triples from `*param_2` **once, before any per-light loop**:
+
+```c
+fVar11,12,13 = VectorUnsignedToFloat(*param_2 + 0xa4/0xa5/0xa6)   // triple A
+fVar14,15,16 = VectorUnsignedToFloat(*param_2 + 0xac/0xad/0xae)   // triple B
+fVar17,18,19 = VectorUnsignedToFloat(*param_2 + 0xb0/0xb1/0xb2)   // triple C  <- the ldrb #0xb2 hit
+```
+
+(a 4th, `local_38/34/30/2c`, is a per-material tint read earlier from `+0xa8..0xab`, either taken
+directly or computed dynamically via `FUN_00333abc` when a "computed ambient" flag at
+`+0x1a1`-relative-to-param_2 is set — i.e. this is the material's own baked-vs-animated ambient
+tint, a SEPARATE axis from the 3 scene-light triples above.)
+
+Then loops over **exactly 3 light-record slots** (`iVar10 = 0..2`), each a 0x60-byte struct at
+`*(int*)(param_1+0x10) + iVar10*0x60`:
+
+```c
+for (i = 0; i < 3; i++) {
+    lightRec = lightArray + i*0x60;
+    if (*(float*)(lightRec + 0xe4) != 1.0f)   // per-slot ENABLE flag (float 1.0, not bool)
+        continue;                              // slot disabled -> entirely skipped
+    out[i].enabledA = 1; out[i].enabledB = 1;  // two output enable bytes set
+    out[i].dir = f16_pack(-lightRec.dir[0..2]);           // negated dir, packed to float16 pairs
+    out[i].diffuse[0..2]  = clamp(lightRec[0x88/0x8c/0x90] * matTint[0..2]);
+    out[i].ambient[0..2]  = clamp(lightRec[0x98/0x9c/0xa0] * tripleA[0..2] * globalScale);
+    // (a second/third color group at lightRec+0xa8.. / +0xb8.. multiplies tripleB / tripleC
+    //  the same way, feeding the diffuse/specular-adjacent output bytes at +0xe..+0x13)
+}
+FUN_004093f8(param_1 + 0x24, out);   // appends `out` (3 * 0x2c = 132 bytes) to a GX command list
+```
+
+`FUN_004093f8` is a 12-line wrapper: `writePtr = FUN_0040d15c(out, *(writePtr_field))` — the
+classic "append prebuilt payload, advance the display-list cursor" shape, i.e. `out` becomes a
+GPU-command payload, not a further-processed CPU struct. `FUN_0040d15c` itself (the raw
+command-list appender) was not decompiled this session — out of scope once the payload shape was
+established.
+
+### 11.2 What this confirms vs. what remains open
+
+**Confirmed, matching §10's shader-side hypothesis exactly**:
+- The engine has a **≤3-light loop**, not a fixed 2 or 3 — each slot is independently
+  enabled/disabled at RUNTIME (`lightRec+0xe4 == 1.0f`), matching the shader's own
+  `LightDir_i.w` per-slot enable-flag design (§10.1/10.2) register-for-register: this is very
+  plausibly the exact CPU write site that PRODUCES that `.w` flag (the `1.0f` compare constant,
+  the per-slot independence, and the "3 slots total" count all match the shader's `c80/83/86`
+  structure one-for-one).
+- Each enabled slot's ambient output is computed from a **material-side per-slot coefficient**
+  (`lightRec+0x98/0x9c/0xa0` etc, one triple per slot) multiplied against a **scene-side
+  color triple that is fetched ONCE before the loop, then reused for every enabled slot** —
+  this is architecturally exactly the "broadcast one scene ambient value into every enabled
+  light slot" mechanism §10 predicted, at the CPU level: the loop body has no way to give
+  slot 0 and slot 1 different scene-ambient inputs unless the corresponding `lightRec` structs
+  were built with different per-slot coefficients — the SOURCE color (tripleA/B/C) is
+  structurally shared.
+
+**Narrowed, not yet closed** — the doc's earlier framing ("the CPU writes the same
+`ambientColor` into `LightAmbientColor0` AND `LightAmbientColor1`") is now revealed to be
+one level removed from what `FUN_003fa5d0` itself does: this function does NOT read a single
+`ambientColor` field and copy it 2-3 times — it reads **three independently-addressable
+byte-triples** (`+0xa4-a6`, `+0xac-ae`, `+0xb0-b2` relative to `*param_2`) that get assigned to
+the diffuse/ambient-adjacent output channels of whichever slots are enabled. **Whether those
+three source triples actually hold the SAME numeric value (the duplication §10 needs) is a
+property of whatever populates `*param_2`'s underlying struct — not of this function**, which
+only forwards data. That populator (plausibly a scene-light-list "bind" step downstream of
+`Environment_Update`, analogous to N64's `Lights_BindAll`) is the next concrete decomp target if
+the exact duplication needs pinning byte-for-byte. Likewise, `*param_2` here was reached via a
+byte-offset coincidence (`+0xb2` matched the numeric value from §1's `envCtx` layout) rather than
+a proven identity between `*param_2` and `play->envCtx` — plausible (`param_2`/`param_3` read
+per-material state and the byte-triples sit in the same neighborhood as §1's pinned
+`EnvLightSettings`-equivalent fields) but not confirmed by a direct data-flow trace from
+`Environment_Update`'s output to this call. **Do not treat `*param_2`'s exact identity as
+settled** — it is a strong, evidence-matching candidate, not a proven pointer chain.
+
+**Genuinely new, unflagged before**: the light-record's direction is written **float16-packed**
+(explicit float32→float16 bit manipulation, `((uint)f << 1) >> 0x18) - 0x70` exponent rebias
+pattern) via a GX-command-append call — this is the PICA200 hardware register payload SHAPE for
+the **fixed-function lighting unit** (`GPUREG_LIGHTi_*`), which is architecturally DISTINCT from
+`CmbVShader.shbin`'s `c80-c88` SOFTWARE vertex-uniform registers that §10 disassembled (those are
+plain float24 uniform slots written via `GPUREG_VSH_FLOATUNIFORM_*`, no float16 packing, no
+per-component exponent rebias — pure `mad`/`dp3` shader math). **This function may be feeding a
+sibling/actor lighting path (PICA hardware Gouraud lighting), not necessarily the exact `c80-c88`
+path §10 disassembled for vertex-lit CMB terrain materials.** This is the concrete answer to the
+task's "how do ACTOR draws differ" question: OoT3D likely has (at least) two lighting deliveries —
+software vertex-shader lighting (§10, `IsVertexLighting` gated, used by `vertexLighting=1` scene
+materials per `spot00_field_lighting_ground_truth.md`) and PICA hardware fixed-function lighting
+(`FUN_003fa5d0`, feeding `GPUREG_LIGHTi_*`-shaped payloads) — and `FUN_003fa5d0`'s target is not
+yet proven to be the same draw class as §10's terrain materials. This is flagged, not resolved:
+confirming which material class calls `FUN_003fa5d0` (vs which reaches `IsVertexLighting=1` CMB
+draws) needs tracing the vtable dispatch at its one caller site (`0x004ebdac`, itself a data slot
+with **zero code xrefs** — the exact "vtable in .rodata, table pointer loaded from a heap struct"
+blind spot the ghidra-re skill's §4 already documents as needing dynamic (JIT-watchpoint)
+confirmation, not further static scanning).
+
+### 11.3 A dead end this session, recorded so it isn't re-tried
+
+A first attempt used a hand-rolled linear capstone sweep over `.text` (ARM pass, then a
+byte-stepping Thumb pass) to find `ldrb [reg,#0xb2]`/`[reg,#0x0a]` directly over `code.bin`
+bytes. It returned **zero hits even for a byte offset (`#0xa5`) with an ALREADY-KNOWN real
+writer PC** (`env_context_layout.md`'s `0x0045e470`) — a methodology failure, not a real
+negative: literal pools and branch-table data interleaved in `.text` desync a naive linear
+Thumb walk (confirmed by manually disassembling near the known-good PC and finding garbage
+`lsls`/`b`-to-nonsense instructions at the "expected" alignment). **Fix**: scan Ghidra's
+already-analyzed `Listing` (`FindByteOffsetReaders.py`, §11 method above) instead of
+re-disassembling raw bytes — Ghidra's own auto-analysis already resolved the correct ARM/Thumb
+instruction boundaries and skips embedded data. Re-validated against the same known writer PC
+(found `strb r0,[r4,#0xa5]` inside `Environment_Update` — a different but adjacent instruction
+to the documented `0x0045e470`, close enough to confirm the field/function match) before trusting
+the novel `0xb2` hit. **Lesson for future sessions**: prefer `FindByteOffsetReaders.py` (or any
+Listing-driven Jython scan) over ad hoc capstone linear sweeps for ANY register+immediate-offset
+search — the existing `find_consumer.py`/`find_indexed_writers.py` capstone tools are safe
+specifically because they anchor on POOL LITERALS (self-describing 4-byte-aligned data) or
+MOVW/MOVT pairs, not on maintaining correct instruction alignment across an unbounded linear
+sweep; a bare "walk every 2 bytes and disassemble" does NOT have that safety property.
+
+### Port guidance update
+
+No change to the §10 port-guidance verdict (apply `matAmbient * ambientColor` once per enabled
+light, most likely 2 for standard terrain). This session adds mechanism-level CPU-side
+confirmation that the engine's light pipeline is genuinely a **runtime-gated ≤3-slot loop with a
+shared per-call scene-color source**, not a hardcoded shader assumption — reinforcing that SoH's
+port should implement `ambient * numEnabledLights` as a REAL small loop over live light state
+(mirroring `FUN_003fa5d0`'s shape: iterate light slots, skip disabled ones, accumulate), not a
+hardcoded ×2, if/when SoH's `envCtx` grows real per-light enable state. Until then the existing
+"×2 for the common 2-light case" guidance stands unchanged.
+
+### Anchors (this session)
+
+- `oot3d-decomp/tools/ghidra_scripts/FindByteOffsetReaders.py` (new, committed) — Listing-driven
+  byte-offset immediate scanner; validated against the known `envCtx.unk_BF` writer before use.
+- `FUN_003fa5d0` @ VA `0x003fa5d0` (1608 bytes) — per-material ≤3-light setup, decompiled in full
+  at `build/decomp/003fa5d0.c` (not committed — regenerate via `DECOMP_TARGETS` + `DecompDump.py`
+  per the ghidra-re skill, same convention as this doc's other `build/decomp/*.c` citations).
+- `FUN_004093f8` @ VA `0x004093f8` (48 bytes) — thin GX-command-list-append wrapper around
+  `FUN_0040d15c` (not decompiled this session).
+- Single caller of `FUN_003fa5d0`: vtable-dispatched from data slot `0x004ebdac` (zero code
+  xrefs — needs dynamic confirmation to identify which material class reaches it, flagged in
+  §11.2, out of this session's static-only scope).
