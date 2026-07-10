@@ -816,3 +816,96 @@ hardcoded ×2, if/when SoH's `envCtx` grows real per-light enable state. Until t
 - Single caller of `FUN_003fa5d0`: vtable-dispatched from data slot `0x004ebdac` (zero code
   xrefs — needs dynamic confirmation to identify which material class reaches it, flagged in
   §11.2, out of this session's static-only scope).
+
+## 12. Session 2026-07-10 (soh3d runtime stream): the dawn HUE axis ROOT-CAUSED — it is
+PICA DISTANCE FOG toward the palette fogColor; every other candidate input measured EQUAL
+
+Task: at content-matched dawn pairs az=1000/soh=1408 (dayTime `0x3197`) and az=1522/soh=1930
+(`0x37b5`), the oracle's sky is warm purple-pink and its distant rock warm reddish while SoH's
+are cold blue/green. Derivation was fully dynamic (live-oracle probes via soh3d_harness), no
+value tweaking. Everything below is measured, not inferred.
+
+### 12.1 Ruled OUT by direct A/B measurement (all byte-level, both target frames)
+
+- **dayTime**: `az_daytime` == SoH cs-derived dayTime, exact 0-delta (post-`b4d55be2`).
+- **Light palette blend**: oracle terrain draws' live VS uniforms (`vsuni_log`, c82/c85 =
+  `LightAmbientColor0/1`) read `(60,74,100)/255` @0x3197 and `(79,87,83)/255` @0x37b5 —
+  equal (±1 LSB rounding) to SoH's `Zelda3D_TitleCsBlendedLight` output `(61,75,100)` /
+  `(79,87,84)`. Both slots carry the same value (the §10 ×2 mechanism), matDif black,
+  matAmb white — identical on both engines. **The blended ambient is NOT the diverging input.**
+- **Dome schedule**: both engines select idx (3,0) with blend 0.324 / 0.611 at the two
+  dayTimes (SoH `soh_env skybox1=3 skybox2=0 blend=83/156`; oracle dome curTime global
+  `0x00588f00` = the same dayTime; `play+0x3370` byte pair = (3,0)). Upper-sky region means
+  match to ~3/255. **Dome variant selection/blend is NOT the diverging input.**
+- **Terrain formula/texture**: per-pixel TEV dump (`SOH3D_PIXEL_TEX`) on the mountain-rock
+  texture (`tex0=0x180bf800`) shows the oracle's combiner output = `2·texel·primary`
+  exactly, same texels — no extra warm combiner term in the rock draw itself.
+
+### 12.2 The diverging input: the PICA fog stage (per-draw), color = blended fogColor
+
+- **28 of spot99 room 0's 29 CMB materials have `isFog=1`** (offline dump of
+  `spot99_0_info.zsi`'s embedded CMB; the sole exceptions are the additive doughnut/effect
+  materials). Per-draw GPU state (extended `vsuni_log`) confirms **`fog_mode=5` (Fog) for 51
+  draws/frame** at title with **`fog_color=(56,42,40)`** at dayTime 0x3197 — exactly SoH's own
+  blended `fogCol` (57,42,40) minus rounding. SoH's fogColor DATA is already correct; SoH just
+  never applies fog.
+- **The fog curve is a per-frame-uploaded 128-entry LUT indexed by framebuffer depth**
+  (`fog_index = depth·128`, Azahar `sw_rasterizer.cpp:WriteFog`), and ALL of its action is
+  concentrated in the last entries because the scene's depth range is compressed (measured
+  per-pixel depths: near grass 0.969, far grass 0.994, mountain 0.9971-0.9983, horizon-fill
+  0.99995-1.0). Live LUT dumps (new harness cmd `az_fog`, value+diff fields — dumping only
+  the `value` field reads as "no fog" and was this session's own first false negative):
+
+  | dayTime (blended fogNear) | lut[126] α | lut[127] α (start→end) | max fog at far plane |
+  |---|---|---|---|
+  | 0x2bbb (≈48)  | 0.010→0.020 | 0.020→0.793 | **79.3%** |
+  | 0x3197 (≈92)  | 0.008→0.018 | 0.018→0.752 | **75.2%** |
+  | 0x37b5 (≈138) | 0.006→0.016 | 0.016→0.713 | **71.3%** |
+
+  (α = 1−factor; full 128-entry dumps with diffs: soh3d `scratch/dawn_hue/fog_luts.txt`.)
+- **Closure check, exact**: rock pixels at measured depth 0.9971-0.9976 → LUT frac 0.63-0.69
+  → fog mix 0.48-0.53 toward (56,42,40); horizon-fill at depth 0.99995 → mix 0.75. Applying
+  those mixes to SoH's (unfogged) rendered values reproduces the oracle's measured region
+  means: rock (57,68,34)→(52,55,29)+haze layers ≈ oracle (50,48,41); horizon sky fill
+  (75,80,118)→(59,48,52) ≈ oracle (62,51,55). The dome itself is NOT fogged (BlueSky
+  domes; upper sky matches SoH unfogged) — only `isFog=1` scene geometry + the untextured
+  horizon fill take fog. **This one mechanism quantitatively accounts for both the warm rock
+  and the warm-purple horizon sky.**
+- The title palette's per-slot `u16@+0x08 & 0x3ff` (this doc §1's "packed fog field") is the
+  fogNear input: night=40, sunrise=200, day=800, sunset=200 (top bits =1, N64-style
+  blendRate). Blended: 92 @0x3197, 138 @0x37b5 — matching the LUT's fogNear-dependent max/onset.
+
+### 12.3 What SoH is missing (the port surface) and what still needs RE
+
+SoH's renderer has an F3DEX-shaped fog path (`zelda3d_sdl3gpu.cpp` `uFog/uFog2`,
+`zelda3d.c Zelda3D_FogSetPosition`) but it is a triple no-op today: (a) `gZelda3dFogEnable`
+defaults 0 (REPL-only); (b) the title never writes `lightSettings.fogNear/fogFar` (stale
+996/12800 from the N64 path — `applyLightOverride` only writes colors); (c) even if enabled,
+`Zelda3D_FogSetPosition(996,12800)` yields `f=clamp(z·10−10)/255` = **0 at the far plane** —
+the current NDC-ramp parameterization produces literally zero fog.
+
+**Open ground-truth item (needs a dedicated decomp session): the CPU function that fills the
+PICA fog LUT** from (fogNear, fogEnd f32=32000, drawDist). Candidate-formula tests against the
+live LUTs (N64 F3DEX macro on 2·depth−1; linear-in-world-distance with the palette windows;
+fogEnd/drawDist-scaled N64 fogcoord) all fail by >LSB — and the depth→distance conversion is
+itself per-draw state (end-of-frame regs read `wbuffer=1, depthScale=−1, depthOffset=0`, but
+that is the LAST draw's state; the terrain draws' own depth mode was not isolated). Attack
+next: find the GX writer of `GPUREG_FOG_LUT_DATA` (reg 0x0e8) / the float→1.1.11-fixed pack
+loop in code.bin, decompile, and port THAT into SoH's LUT-equivalent shader ramp. Porting a
+fitted curve was deliberately NOT done (no magic constants).
+
+Secondary observed-but-unattributed dawn layers (recorded for completeness, all absent in
+SoH): an untextured ADDITIVE horizon glow (vertex color (182,34,0), α≈0.31-0.37, blend
+srcAlpha/ONE, mostly occluded by nearer terrain), a white-texture mauve haze band
+(`tex0=0x1834c100`, α≈0.08-0.17), and a warm alpha layer (`tex0=0x20ace580` VRAM, α up to
+0.38). These are smaller than the fog term at the measured pixels.
+
+### Anchors (this session)
+
+- soh3d `tools/soh3d_harness/main.cpp` `az_fog` (new) + AZAHAR_PATCH.md Patch 6
+  (`soh3d_fog_dump` in `pica_core.cpp`; per-draw fog fields in `vsuni_log`;
+  `SOH3D_PIXEL_UNTEX`, `SOH3D_PIXEL_XY` pixel probes in `sw_rasterizer.cpp`; uProjection
+  rows in `vsuni_log`).
+- soh3d `scratch/dawn_hue/` — probe scripts, PPM/PNG captures, full LUT dumps, draw logs.
+- soh3d `debug_journal/2026-07-10-dawn-hue-fog-rootcause.md` — the SoH-side session journal
+  with the region-mean tables.
