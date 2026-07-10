@@ -198,3 +198,278 @@ RE ground truth (which kind the title scene binds) — do NOT swap blindly.
 bug: per `debug_journal/2026-07-08-title-sky-color.md` the earlier "base-colour
 divergence" was a `soh_titlecs` clock-desync measurement artifact. The genuine,
 structural gaps are variant SELECTION (gaps 1-2), not a per-pixel tint.
+
+---
+
+## 7. Session 2026-07-10 (decomp stream #3): full dome/cloud colour-pipeline dump —
+NOT vertex-lit (terrain's per-enabled-light ambient sum does NOT apply), and the two
+stable soh3d residuals (night sky too bright/green; dawn sky missing +R, gaining
++G/+B instead) trace to SoH's borrowed **N64** skybox cross-fade SCHEDULE TABLE
+running measurably ahead of the true title-clock phase, not to a lighting-math term.
+
+Task: soh3d `debug_journal/2026-07-10-title-arc-closing-measurement-v2.md` residuals
+(1) night-sky R/G brighter/greener than oracle, stable v1→v2, and (3) dawn sky (cs
+588+) where the oracle warms toward +R but SoH's shift lands on +G/+B instead. Both
+were flagged as "sky-dome path" and asked whether the just-proven terrain
+per-enabled-light ambient sum (`title_env_lighting.md` §10/§11) also explains the
+dome. **It does not** — the real culprit is named in §7.3 below.
+
+### 7.1 Combiner dump (corrected offsets, `scratch/decomp_agent/dump_combiner.py`)
+against every dome/cloud/star material in `/kankyo/BlueSky.zar`
+(`fine/cloud/holy/dark_tenkyu0..3`, `fine/cloud_kumo_a0..3`, `fine_kumo_b1`,
+`fine_star`, 20+ materials sampled): **`isVertexLighting=0` and `isFragmentLighting=0`
+on every one, no exceptions.** This is the terrain material class's structural
+opposite (spot00's ground materials are `vertexLighting=1`) — the whole
+`CmbVShader.shbin` per-enabled-light ambient-sum block (`title_env_lighting.md`
+§10.2, gated `ifu bool=9 IsVertexLighting`) is **provably unreached** for every sky
+asset, the same way it was already ruled out for the fire-glow overlay
+(`2026-07-10-title-arc-closing-measurement-v2.md` §2). This closes the task's
+opening hypothesis cleanly: the dome's brightness/hue residuals are NOT the
+terrain ambient-sum mechanism showing up a second time.
+
+Per-material TEV stage 0 (the only stage; `textureCombinerTableCount=1` throughout):
+
+| asset class | example | combineRGB | RGB sources (slots actually consumed) | scale |
+|---|---|---|---|---|
+| dome gradient (`*_tenkyu*`) | `fine_tenkyu_0..3` | `REPLACE` | src0=`PRIMARY_COLOR` (slotsUsed=1 — src1/src2 unused leftovers) | x1 |
+| cloud band (`*_kumo_a*/_b*`) | `fine_kumo_a0..3` | `MODULATE` | src0=`TEXTURE0`, src1=`PRIMARY_COLOR` (slotsUsed=2) | x1 |
+| star dome | `fine_star` | `MODULATE` | src0=`CONSTANT`(=constColor[0]=(255,255,127,255) warm-white), src1=`TEXTURE0` — **PRIMARY_COLOR (vColor) is NOT an RGB source at all for stars**, only feeds alpha (src0=PRIMARY_COLOR, src1=TEXTURE0) | x1 |
+
+None of the sampled materials source `CONSTANT` in a slot the combine op actually
+consumes for the dome/cloud case (`comb_uses_const` correctly evaluates false —
+verified against `Shipwright/cmb3d/asset/cmb.cpp`'s own `slotsUsed`-gated read, the
+same logic `title_env_lighting.md` §9.1 validated for terrain). So the dome's ground-
+truth pixel formula is simply:
+
+```
+domeGradient = PRIMARY_COLOR                        // = bakedVertexColor, no material tint
+cloudBand    = TEXTURE0 * PRIMARY_COLOR              // = texel * bakedVertexColor
+starDome.rgb = CONST0.rgb * TEXTURE0.rgb             // vColor NOT in the RGB term
+starDome.a   = PRIMARY_COLOR.a * TEXTURE0.a           // vColor's baked twinkle magnitude
+```
+
+**Confirmed at the vertex-shader-bytecode level, not just the CMB material byte
+level**: disassembling `CmbVShader.shbin` words 108–120 (`tools/shbin_disasm.py
+scratch/CmbVShader.shbin --range 108 135`, extending `title_env_lighting.md` §10's
+already-cited disassembly) shows the `IsVertexLighting=0` branch (word 112 onward)
+is a **plain, ambient-free pass-through**:
+
+```
+112  mov  r10.xyzw, c8.xyzw        ; r10 = MatDiffuseColor (fallback if !HasColor)
+113  ifu  bool=5 (HasColor) ...
+114    mul r10.xyzw, c90.zzzz, v2.xyzw   ; HasColor=1 (true for every tenkyu/kumo mesh):
+                                          ; r10 = VertexAttributeScale0.z * aColor  -- OVERWRITES the fallback
+120  mov  o1.xyzw, r10.xyzw        ; o1 (COLOR / PRIMARY_COLOR) = r10
+```
+
+No `LightAmbientColor_i`/`MatAmbientColor` read anywhere in this branch (those only
+appear in the `IsVertexLighting=1` block at word 76+, §10.2). `VertexAttributeScale0.z`
+is a CPU-supplied uniform (not a CMB byte, same "runtime uniform, not static-visible"
+caveat as `title_env_lighting.md` §10's open item) but structurally can only be a
+flat, channel-uniform multiplier (it's a scalar `.z` broadcast via `zzzz` swizzle) —
+it cannot itself produce the channel-SPECIFIC (R-vs-G/B) sign split the residuals
+show, so it is not chased further here.
+
+### 7.2 SoH's port — matches this formula exactly (re-confirmed by tracing the live shader/CPU state)
+
+`Shipwright/soh/src/zelda3d/zelda3d_model.cpp` (`buildFromCmb`, `bakedVertexColor`
+path) keeps the CMB's baked vertex colour unmodified (only a NaN/out-of-range
+sanitizer, `zelda3d_model.cpp:352-368`, dead for tenkyu — values are clean per §7.4).
+`Shipwright/cmb3d/asset/cmb_glgroups.cpp:52` reads `vertex_lighting` straight from the
+real CMB byte (`offs+1`, matches `dump_combiner.py`'s `isVertexLighting` field
+1:1 — `Shipwright/cmb3d/asset/cmb.cpp:193`), so `grp.vertexLighting=false` for every
+sky group. In the shared fragment shader (`Shipwright/libultraship/src/fast/
+zelda3d_sdl3gpu.cpp` `kFrag`):
+
+- `lit` (the half-Lambert `uParams.y` gate) is hardcoded `0` for every sky draw —
+  `gfx_zelda3d_draw_handler_custom` (`interpreter.cpp:4359`) computes `lit = (handle<0)`
+  and the sky emitter (`Zelda3D_TryDrawSky`, `zelda3d.c:3568`) never sets handle's
+  sign bit, only bit 30 (the sky/far-plane flag) — so `shade` never gets the
+  half-Lambert NdotL term for sky draws, and with a plain-white tint (255,255,255,255)
+  `shade` reduces to `(1,1,1)`.
+- `ambGroup = grp.vertexLighting && gZelda3dWorldLit && !forceUnlit` is **false**
+  (vertexLighting=false) → `uAmbient.w=0` → `sceneLitPath=false` → shader takes the
+  `else` branch `rgb = t.rgb * vColor.rgb * shade` = `t.rgb * vColor.rgb`.
+- Fog is skipped for sky draws (`uLightDir.w>0.5` from the sky flag disables the
+  `uFog.w>0.5 && uLightDir.w<0.5` gate).
+- Dome materials have no texture (`tex0_idx=-1`, 0 textures in the CMB); `texIndex`
+  falls back to `DummyTexture()` (white, confirmed by `zelda3d_sdl3gpu.cpp:1775-1784`'s
+  `texIndex<m->textures.size()` guard failing for an empty texture array), so
+  `t.rgb=(1,1,1)` and the dome pixel reduces to exactly `vColor.rgb` — **byte-for-byte
+  the oracle's `REPLACE(PRIMARY_COLOR)` formula.**
+- Cloud materials DO have `TEXTURE0` bound; `rgb = t.rgb*vColor.rgb` again matches
+  `MODULATE(TEXTURE0,PRIMARY_COLOR)` exactly.
+
+**Conclusion: SoH's shader/CPU pipeline for the dome and cloud materials is
+formula-exact against the oracle's real combiner, confirmed at both the CMB-material
+level and the vertex-shader-bytecode level.** (The star material's `CONSTANT`-not-
+`vColor` RGB term is a separate, already-known, smaller residual — see §7.5 — not
+part of residuals (1)/(3), which are dome/cloud-mid-sky-region measurements.)
+
+### 7.3 The real mechanism: SoH's cross-fade INDEX PAIR + BLEND WEIGHT come from N64's
+`D_8011FC1C[0]` schedule table, which reaches "already blending toward sunrise" almost
+immediately — while the oracle (a structurally different, still-undecompiled 3DS
+schedule, §2 above) is still showing genuine night content at the same title-clock
+value.
+
+With §7.1/§7.2 closing off "wrong colour math," the only remaining live input to the
+dome's rendered colour is WHICH baked-colour dome(s) get drawn and at what blend
+weight — i.e. `play->envCtx.skybox1Index` / `skybox2Index` / `skyboxBlend`, computed
+every frame by real, **unmodified N64 game code**, `Environment_UpdateSkybox`
+(`Shipwright/soh/src/code/z_kankyo.c:613-789`) against a **N64-authored** schedule
+table `D_8011FC1C[0]` (the "Fine" weather group; `z_kankyo.c:112-121`):
+
+```
+entry            startTime  endTime   blend  idx1        idx2
+0x0000-0x2AAC    0          10924     0      3 (night)   3 (night)
+0x2AAC-0x3556    10924      13654     1      3 (night)   0 (sunrise)   <- night->sunrise blend
+0x3556-0x4000    13654      16384     0      0 (sunrise) 0 (sunrise)
+0x4000-0x5556    16384      21846     1      0 (sunrise) 1 (day)       <- sunrise->day blend
+0x5556-0xAAAB    21846      43691     0      1 (day)     1 (day)
+  ...(sunset/night mirror, not reached in the title's dayTime window)
+```
+
+This table is fed by `gSaveContext.skyboxTime`, which the 2026-07-10
+`4f05fc90` fix made track the title's own `dayTime` clock 1:1 (`skyboxTime = dayTime`,
+same write site as the ported `TitlePresentation`). The **rate** of that clock —
+`dayTime = 0x2AD7 + 6*cs` (`cs` = title-cs frame count) — was independently RE'd and
+verified against 4 live oracle samples in `f115871f` ("title RE: pin oracle dayTime
+schedule — rate is correct, bug is cursor PHASE"), so it is trustworthy input here.
+
+Feeding the sweep doc's own 10 measured points through `D_8011FC1C[0]` (cs derived
+from the sweep's `az` column via the task's own `cs=(az+176)/2`, matching this doc's
+existing az↔cs convention):
+
+| az | cs | dayTime | idx1(name) | idx2(name) | blendW | sweep's own content label |
+|---|---|---|---|---|---|---|
+| 100 | 138 | 0x2e13 | 3 (night) | 0 (sunrise) | **0.319** | "night, moon rising" |
+| 200 | 188 | 0x2f3f | 3 (night) | 0 (sunrise) | **0.429** | "night, rider distant" |
+| 360 | 268 | 0x311f | 3 (night) | 0 (sunrise) | **0.605** | "moonlit rider crossing" |
+| 500 | 338 | 0x32c3 | 3 (night) | 0 (sunrise) | **0.759** | "grass close-up push" |
+| 700 | 438 | 0x351b | 3 (night) | 0 (sunrise) | **0.978** | "logo fade-in" |
+| 1000 | 588 | 0x389f | 0 (sunrise) | 0 (sunrise) | 0.0 (pure) | "logo display + copyright" |
+| 1300 | 738 | 0x3c23 | 0 (sunrise) | 0 (sunrise) | 0.0 (pure) | "logo display, castle wall" — **dawn-warmth residual named HERE** |
+| 1522 | 849 | 0x3ebd | 0 (sunrise) | 0 (sunrise) | 0.0 (pure) | "logo display" |
+| 1700 | 938 | 0x40d3 | 0 (sunrise) | 1 (day) | 0.039 | "logo display" |
+| 1900 | 1038 | 0x432b | 0 (sunrise) | 1 (day) | 0.148 | "logo display" |
+
+(Computed with `Environment_LerpWeight`'s own linear form, `w=(t-start)/(end-start)`,
+against the schedule literally quoted above — reproducible without the emulator.)
+
+**This is the named mechanism for both residuals:**
+
+- **Residual (1), night sky too bright/green**: at az=100/200/360 — points the
+  sweep's own content description still calls "night"/"moonlit" (moon still visibly
+  rising, i.e. genuinely nocturnal on the oracle) — SoH's schedule has **already
+  blended 32%–60% of the way toward `fine_tenkyu_0` (sunrise)**. §"1. Exact ROM
+  assets" of this doc's own vertex-colour dump (reproduced in `title_env_lighting.md`
+  companion work) shows `fine_tenkyu_0`'s baked colour is warm **yellow-green**
+  (e.g. horizon `(0.96,0.87,0.51)`, mid-band `(0.53,0.65,0.38)`) — high R AND
+  (especially) high G relative to the pure-night `fine_tenkyu_3` band it's blending
+  over (`(0.08,0.10,0.57)`, B-dominant). Blending 32-60% of that warm-yellow-green
+  variant into what should still be a pure dark-blue night dome is EXACTLY a
+  "mid-sky brighter and greener than the oracle" signature — the sweep's measured
+  `d` up to `-52` on G (SoH above Az) is the right order of magnitude for a
+  30-60% mix of a G-heavy variant that shouldn't be present yet.
+- **Residual (3), dawn misses +R / gains +G,+B instead**: at az=1300/1522 — the exact
+  points the sweep doc labels "dawn-sky warmth" — SoH's schedule has moved PAST any
+  blend and is sitting on **pure `fine_tenkyu_0`** (blendW=0.0, no mixing). Two
+  compounding effects from being on this variant at this time: (a) `fine_tenkyu_0`
+  itself is more yellow-green than true warm-red (G ≥ R at most sampled bands, see
+  above) — so even "the right index, faithfully rendered" reads G-leaning rather
+  than R-leaning; (b) by az=1700/1900 SoH has moved on again into the
+  **sunrise→day** blend (idx2=1, `fine_tenkyu_1`, a bright cyan/blue day variant —
+  horizon `(0.80,1.0,1.0)`), actively pulling G/B UP further while the oracle (on
+  its own, separately-timed schedule) is plausibly still deeper in its actual dawn
+  transition, still gaining R. Both effects point the same direction the residual
+  measures: **SoH's sky-dome clock is running measurably AHEAD of the oracle's real
+  transition**, landing on cooler/greener variants earlier than it should.
+
+**Root cause, precisely scoped**: `D_8011FC1C`'s transition BOUNDARIES (`0x2AAC`,
+`0x3556`, `0x4000`, `0x5556`, …) are **N64-authored** values, standing in for the
+3DS's own per-frame dome-variant/blend selection logic — which `title_sky_dome.md`
+§2 already flagged as **not yet located** (search stalled; needs a JIT watchpoint on
+the dome vertex buffer / skybox-selection call, out of this session's static-only
+scope). There is no static evidence the two consoles share transition timing; the
+measurement above is the first concrete, quantified evidence that they very likely
+**don't** — the borrowed N64 table puts SoH about half a "blend window" ahead of
+where the sweep's own frame content says the oracle actually is. This reframes gap 1
+of §5 above (which only established that the schedule WASN'T frozen, post-4f05fc90):
+it now flows, but on the wrong clock-to-variant mapping.
+
+**Port guidance**: do not hand-tune `D_8011FC1C`'s time constants to fit these 10
+points (that is exactly the "fitted constant" anti-pattern the stop-microtuning
+directive bans) — the correct fix is finding and porting the 3DS's OWN schedule
+(§2's open item), which is very likely a small time-boundary table analogous to
+`D_8011FC1C` but living in the 3DS binary, reachable from wherever
+`Environment_Update`/`FUN_0045dd30` or its caller selects the per-frame tenkyu
+variant. Until that table is found, the honest state is: mechanism identified and
+quantified, exact 3DS boundary values not yet recovered (flagged, not fabricated).
+
+### 7.4 Baked vertex-colour sanity (all 4 `fine_tenkyu` variants, zenith-to-horizon bands)
+
+Decoded directly from the CMB `color` attribute (`tools/cmb.py`'s `Cmb.read_attr`,
+UBYTE/255 scale, matches the shader's `VertexAttributeScale0.z*v2` — §7.1) with no
+NaN/out-of-range values anywhere (the `zelda3d_model.cpp:352-368` sanitizer never
+fires for this asset):
+
+| variant | horizon (y≈0) | mid (y≈68) | zenith (y≈108) |
+|---|---|---|---|
+| 0 sunrise | (0.96,0.87,0.51) | (0.23,0.31,0.33) | (0.08,0.09,0.23) |
+| 1 day | (0.80,1.00,1.00) | (0.13,0.53,1.00) | (0.00,0.31,0.95) |
+| 2 sunset | (0.77,0.40,0.15) | (0.45,0.23,0.44) | (0.17,0.09,0.35) |
+| 3 night | (0.08,0.10,0.57) | (0.06,0.04,0.20) | (0.02,0.01,0.08) |
+
+Confirms the N64-order labelling (`sSBVRFine0..3Pal = {gSunriseSkyboxTLUT,
+gDaySkyboxTLUT, gSunsetSkyboxTLUT, gNightSkyboxTLUT}`, `z_vr_box.c:472-509` — real,
+unmodified N64 source, so this index↔semantic mapping is ground truth, not a
+port-side guess) is genuinely correct: idx0 warm yellow-green, idx1 bright cyan-blue,
+idx2 red-orange, idx3 dark blue. **No CMAB animates these colours** — the BlueSky.zar
+manifest (§1) has exactly 6 `.cmab` files and every one is a UV-scroll track for the
+cloud band (`misc/*_kumo_a.cmab`, `misc/*_kumo_b.cmab`); there is no colour-curve CMAB
+anywhere in the archive. The day/night colour progression is entirely the 4-mesh
+discrete cross-fade covered by §7.3 — confirms the task's item-2 question ("any CMAB
+animating dome/cloud colours") has a clean **NO** answer.
+
+### 7.5 Fire-glow texture decode check (`g_title_efc` / `g_title_mable_t`) — clean, no anomaly found
+
+Quick static check per the task brief (flag, don't chase): both textures in
+`g_title.cmb` decode as PICA `GF_L8` (glFormat `0x14016757`, `dtype=0x1401`
+UBYTE, 1 byte/texel — `128*128=16384`/`64*64=4096` matches `data_len` exactly, no
+padding surprise). Detiling (8×8 Morton swizzle, `tools/`-equivalent of
+`Shipwright/cmb3d/asset/pica_texture.cpp`'s `tiled()` helper) and sampling:
+
+- `g_title_efc` (128×128, "flame gradient"): values range 0–208, mean 24.3, radial
+  falloff shape (`corner=0`, `center=103`) consistent with a glow sprite — no
+  anomaly.
+- `g_title_mable_t` (64×64, detail mask): values range 1–255, mean 123.9, no
+  degenerate all-zero/all-max region — no anomaly.
+
+Both match `GF_L8`'s already-fixed decode convention (`pica_texture.cpp:145-162`:
+alpha forced opaque, not aliased from luminance — the star-brightness fix's same
+correction, already ported). **No format/offset/decode bug found in either
+texture** — the fire-glow gap documented in
+`2026-07-10-title-arc-closing-measurement-v2.md` §2 (0.31–0.54x additive-delta
+ratio) is **not** texture-decode-rooted; it remains attributed to that doc's
+still-open candidates (alpha-staging ceiling / the dual-texture `ADD_MULT` mask
+contribution's exact magnitude) — this session adds one more ruled-out cause to
+that list, nothing more.
+
+### Anchors (this session)
+
+- `scratch/decomp_agent/dump_combiner.py` (soh3d, pre-existing from the terrain
+  session) run against every `BlueSky.zar` dome/cloud/star material and against
+  `g_title.cmb` — all commands reproducible offline (`scratch/extract/*.cmb`
+  already extracted by an earlier soh3d session).
+- `tools/shbin_disasm.py scratch/CmbVShader.shbin --range 108 135` (this repo) —
+  the `IsVertexLighting=0` fallback branch, words 108-120.
+- `Shipwright/soh/src/code/z_kankyo.c:112-121` (`D_8011FC1C[0]`) and
+  `Shipwright/soh/src/code/z_vr_box.c:472-509` (`sSkyboxTable`/N64 index↔semantic
+  naming) — real N64 source already vendored in the soh3d tree, unmodified.
+- `Shipwright/soh/src/zelda3d/zelda3d_model.cpp`, `Shipwright/cmb3d/asset/
+  cmb_glgroups.cpp`, `Shipwright/libultraship/src/fast/zelda3d_sdl3gpu.cpp` (`kFrag`)
+  — SoH's sky-draw color path, traced statically, no live probing needed.
+- Schedule-vs-content table (§7.3) computed by a throwaway python snippet
+  reproducing `Environment_LerpWeight`'s linear form against the literal
+  `D_8011FC1C[0]` values quoted above — no tool committed (trivial to
+  reconstruct, ~20 lines).
