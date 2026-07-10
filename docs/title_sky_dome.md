@@ -473,3 +473,166 @@ that list, nothing more.
   reproducing `Environment_LerpWeight`'s linear form against the literal
   `D_8011FC1C[0]` values quoted above — no tool committed (trivial to
   reconstruct, ~20 lines).
+
+---
+
+## 8. Session 2026-07-10 (decomp stream #4): the real 3DS per-frame schedule table
+FOUND — but it is the already-known LIGHT schedule, and it only PARTLY explains §7's
+residuals; falsified for residual (3), not blindly adopted
+
+Task: §7's closing item — find the 3DS's OWN per-frame dome-variant/blend schedule
+(structurally like `D_8011FC1C` but 3DS-authored) via a **byte-level structural scan**
+of `build/code.bin` for a table of ascending `u16` time boundaries ending at `0xFFFF`
+with small index bytes, rather than more call-graph walking (§2/§7.3 already record two
+prior sessions' call-graph search stalling on indirect/heap dispatch). Static RE only,
+per this session's brief.
+
+### 8.1 The scan and what it found
+
+`scratch/decomp_stream/scan_sky_schedule2.py` (this session, committed) brute-force
+scans every 2-byte-aligned offset in `code.bin` for runs of `{u16 start, u16 end, u8
+idx1, u8 idx2}` (6-byte stride — the shape that turned out to be real; an 8-byte
+variant with a separate blend byte, matching N64's literal `struct_8011FC1C` layout,
+was also tried and found nothing outside noise) where the chain starts at `0x0000`,
+each `end` feeds the next `start`, and the chain terminates at `0xFFFF`. It found
+**exactly 5 valid 9-entry chains**, back-to-back, 0x36 (54) bytes apart, at file
+offset `0x00431efc` (VA `0x00531efc`) — using this repo's established
+file-offset→VA base (`+0x00100000`, cross-checked against the `"cmab"` string anchor
+in `title_logo_fireglow_cmab.md`: file-offset `4118250`(`0x3ED6EA`) → VA `0x004ed6ea`
+→ base `0x00100000`, consistent).
+
+**This table is not new** — it is the exact table `soh3d` commit `5ba95e40` ("RE: 3DS
+time-based light schedule") already found and ported as `kTitleLightSchedule`
+(`Shipwright/soh/src/zelda3d/zelda3d_cutscene.cpp:578-588`), consumed by
+`Environment_Update` (`FUN_0045dd30`) to blend `ambientColor`/`light1Color`/
+`light2Color`/`fogColor` — **not** documented anywhere as also driving
+`skybox1Index`/`skybox2Index`. This session's independent byte-scan re-derivation is
+useful corroboration (a second, from-scratch method landing on the identical 9-entry,
+6-byte-stride table at the identical VA) but is not itself new ground truth about the
+table's *consumer*. The 5 chains found correspond to the 5 "config" rows already
+described in the `5ba95e40` commit message (`54B rows`, `row = env[0x21]`); row 0
+(index range 0-3, the one used at title per that commit) is the one analyzed below.
+
+**One dead-end explicitly ruled out this session**: `FUN_002de22c` (the generic
+schedule-blend engine used by the light path, `build/decomp/002de22c.c`) reads what
+*looked* like a second, separate 8-byte-stride table via a cached base pointer
+(`iVar5 = iRam002de568`, then `iVar5+0xd8+n*8`). Checked whether this is a genuine
+second (dome?) table with `FindDataWriters` on `0x002de558..0x002de570` (the block of
+Ghidra-named "Ram" pseudo-globals `iVar5` is assembled from): **zero code references
+anywhere in the binary**, and the addresses themselves fall *inside* `FUN_002de22c`'s
+own body (`0x002de22c`-`~0x002de674`). This is a Ghidra decompiler artifact (almost
+certainly a NEON/coprocessor addressing mode Ghidra's ARM SLEIGH model didn't resolve
+cleanly), not a real second table — **do not chase `iVar5+0xd8` as a lead**, it isn't
+a resolvable static reference and the "8-byte stride, separate table" reading from
+`env_sun_moon_draw.md`'s session-2 notes on this same function should be treated the
+same way (unverified decompiler noise, not a finding).
+
+### 8.2 The exact 3DS-vs-N64 boundary diff (title's active row, config 0 = "fine")
+
+Both schedules use the **identical 9-interval index cycle**
+`(3,3)(3,0)(0,0)(0,1)(1,1)(1,2)(2,2)(2,3)(3,3)` — i.e. the day/night state-machine
+SHAPE (night → night/sunrise blend → pure sunrise → sunrise/day blend → pure day →
+day/sunset blend → pure sunset → sunset/night blend → pure night) is unchanged from
+N64. Only the boundary TIMES differ, and they differ in a clean, systematic way — every
+**blend/transition** window is almost exactly **2×** wider on the 3DS, and the widened
+time is taken out of the **day** hold window (the sunrise/sunset pure-hold widths are
+essentially unchanged):
+
+| interval (state) | N64 `D_8011FC1C[0]` width | 3DS `kTitleLightSchedule` width | ratio |
+|---|---|---|---|
+| pure night (start) | `[0,0x2AAC)` = 10924 | `[0,0x2AAC)` = 10924 | 1.00× (shared boundary) |
+| night→sunrise blend | `[0x2AAC,0x3556)` = 2730 | `[0x2AAC,0x4000)` = **5460** | **2.00×** |
+| pure sunrise | `[0x3556,0x4000)` = 2730 | `[0x4000,0x4AAB)` = 2731 | 1.00× (shifted later, same width) |
+| sunrise→day blend | `[0x4000,0x5556)` = 5462 | `[0x4AAB,0x6000)` = 5461 | 1.00× |
+| pure day | `[0x5556,0xAAAB)` = 21845 | `[0x6000,0xA000)` = **16384** | 0.75× (shorter) |
+| day→sunset blend | `[0xAAAB,0xB556)` = 2731 | `[0xA000,0xB556)` = **5462** | **2.00×** |
+| pure sunset | `[0xB556,0xC001)` = 2731 | `[0xB556,0xC001)` = 2731 | 1.00× (shared boundary) |
+| sunset→night blend | `[0xC001,0xCAAC)` = 2731 | `[0xC001,0xD556)` = **5461** | **2.00×** |
+| pure night (end) | `[0xCAAC,0xFFFF)` = 13651 | `[0xD556,0xFFFF)` = 10921 | 0.80× (shorter) |
+
+Shared boundary values between the two tables: `{0, 0x2AAC, 0x4000, 0xB556, 0xC001,
+0xFFFF}` (6 of 10 boundary points identical); everything else moved. Net effect: on
+the 3DS-authored clock, **every transition takes roughly twice as long** as the
+N64-borrowed table SoH currently uses, and the extra time is funded by shortening the
+"pure day" hold.
+
+### 8.3 Hypothesis test against §7.3's two residuals — PARTIALLY corroborates, PARTIALLY falsifies
+
+§7.3 already showed the mechanism (SoH's schedule clock running ahead of the oracle)
+using `D_8011FC1C`. Since this newly-confirmed 3DS table produces systematically
+*wider* blend windows (i.e. a *slower*-advancing schedule at the same `dayTime`), it is
+a natural candidate to test directly against the same 4 measured points — **without
+assuming it's actually the dome's consumer, just checking whether its numbers move the
+residuals the right direction**:
+
+| point | dayTime | N64 result (already in §7.3) | 3DS-table result (this session) | residual (1)/(3) direction |
+|---|---|---|---|---|
+| az=100/cs=138 | 0x2e13 | idx(3,0) blendW=0.319 | idx(3,0) blendW=**0.160** | **improves** — half the sunrise contamination on a still-night oracle frame |
+| az=360/cs=268 | 0x311f | idx(3,0) blendW=0.605 | idx(3,0) blendW=**0.302** | **improves** — same, ~half |
+| az=1300/cs=738 | 0x3c23 | idx(0,0) — **pure sunrise**, no night left | idx(3,0) blendW=**0.819** — **still 18% night mixed in** | **worsens** — reintroduces up to 18% of `fine_tenkyu_3`'s deep-blue (0.02,0.01,0.08 zenith / 0.08,0.10,0.57 horizon) at exactly the frame the oracle is measured warming toward +R; blending MORE night in pulls bluer, the wrong direction for a "missing +R, gaining +G/+B" residual |
+| az=1522/cs=849 | 0x3ebd | idx(0,0) — pure sunrise | idx(3,0) blendW=**0.941** — still 6% night mixed in | **worsens**, same mechanism, smaller magnitude |
+
+(All 4 numbers independently recomputed this session against the literal boundary/idx
+values quoted in §8.2 and the port's own `Environment_LerpWeight`-shaped linear form;
+reproducible with `scratch/decomp_stream/sky_schedule_check.py`, committed.)
+
+**Honest conclusion — do not adopt this table for the dome wholesale.** It cleanly
+improves residual (1) (both points land closer to the oracle's still-genuinely-night
+content) but it actively moves residual (3) in the wrong direction (both points regain
+a small night-blue contamination that pure-N64-sunrise didn't have, worsening the
+"missing +R" symptom rather than fixing it). This is inconsistent with "the dome just
+needs `D_8011FC1C` swapped for `kTitleLightSchedule`" — either (a) the dome genuinely
+consumes a **different, still-unlocated** 3DS table (this repo's 3 prior sessions
+already established the actual dome/moon per-frame draw dispatch is reached through
+indirect/heap-resident function pointers invisible to static `ListCallers`/xref
+scanning — see §2 and `env_sun_moon_draw.md` §"Why the search stalled" / session 3),
+or (b) the dome and the light both consume this exact table but at a **different `dayTime`
+anchor/offset** than the light path uses (e.g. a scene- or kind-specific bias not
+modeled here), or (c) residual (3)'s "dawn-warmth" characterization in
+`2026-07-10-title-arc-closing-measurement-v2.md` is itself imprecise (az↔cs↔dayTime
+convention drift) and the true oracle transition happens later than `dt=0x3ebd`. This
+session's static-only budget cannot distinguish those — flagging honestly rather than
+picking one and porting it.
+
+### 8.4 Deliverable status vs the task brief
+
+- **3DS schedule table, full entries**: delivered — §8.2's 9-row table, VA
+  `0x00531efc` (config/row 0, the title's active row), independently re-derived by
+  byte-level scan and cross-confirmed against the pre-existing `soh3d` port
+  (`kTitleLightSchedule`).
+- **Selection/blend code decompiled**: NOT newly delivered this session — the
+  consumer is the already-decompiled `Environment_Update` (`FUN_0045dd30`, fully in
+  `build/decomp/0045dd30.c` from prior sessions); this session did not locate new
+  consumer code because the honest finding is that **this table's known consumer
+  (`Environment_Update`) is the LIGHT path, and the DOME's own consumer remains
+  unlocated** (§8.1's dead-end explicitly rules out one static lead so a future
+  session doesn't re-try it).
+- **Diff against N64 `D_8011FC1C` timings**: delivered in full, §8.2.
+- **Title-specific schedule**: confirmed — row/config 0 is the row `env[0x21]`
+  selects at title (per the pre-existing `5ba95e40` port, live-dump-verified there).
+- **Not delivered, flagged honestly**: proof that this exact table (as opposed to a
+  distinct, still-hidden dome table) is what selects `skybox1Index`/`skybox2Index`.
+  §8.3's falsification on residual (3) argues against assuming so. The next
+  concrete step, if pursued, is dynamic (per §2/§7.3/`env_sun_moon_draw.md`'s
+  repeated conclusion): a harness watch on `envCtx.skybox1Index`/`skybox2Index`'s
+  actual FCRAM address across the title's dawn window, correlated against `dayTime`,
+  which would show directly whether the transition times match §8.2's 3DS table, the
+  old `D_8011FC1C` numbers, or neither — static analysis alone has now been tried
+  from multiple angles (this session's structural byte-scan, 3 prior sessions' call
+  graph/indirect-dispatch tracing) and has a well-documented ceiling.
+
+### Anchors (this session)
+
+- `scratch/decomp_stream/scan_sky_schedule2.py` (this session, not committed — scratch/ is gitignored, trivially reproducible) — the structural byte
+  scanner that found the table at VA `0x00531efc`, 5 rows × 9 entries × 6 bytes.
+- `scratch/decomp_stream/sky_schedule_check.py` (this session, not committed — same gitignore convention as the scanner) — recomputes §8.2's width
+  table and §8.3's 4-point hypothesis test from the literal boundary/idx values (no
+  emulator, reproducible offline).
+- `Shipwright/soh/src/zelda3d/zelda3d_cutscene.cpp:568-604` (`soh3d`, commit
+  `5ba95e40`) — the pre-existing `kTitleLightSchedule` port + `Environment_Update`
+  consumer citation this session cross-confirmed byte-for-byte via an independent
+  method.
+- `build/decomp/002de22c.c` (`FUN_002de22c`, pre-existing decompile) — re-examined
+  this session; the `iVar5+0xd8` second-table reading is ruled out as a Ghidra
+  decompiler artifact (`FindDataWriters` on `0x002de558..0x002de570`: 0 refs,
+  addresses fall inside the function's own body).

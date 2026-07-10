@@ -330,6 +330,87 @@ Concretely, for the title logo the player needs to:
   from `loopMode=Once` but not live-observed — verify with the harness before treating "one-shot,
   freeze at frame 300" as final.
 
+## 6. Session 2026-07-10 (decomp stream #4): blend equation + draw count + full alpha-source spec — CLOSED
+
+Task: nail down (a) `g_title.cmb` material 0's exact GPU BLEND equation (function/src/dst
+factors — additive `ADD(srcAlpha,ONE)` vs alpha `(srcAlpha,1-srcAlpha)`), (b) whether the
+glow mesh is drawn once or multiple times per frame, (c) what alpha value feeds the draw at
+steady state. All three are now answered from already-decompiled ground truth — §3 above
+(this doc) plus `title_logo_actor.md` §5–§6 (a separate, later decomp session that fully
+traced the mesh's OWN draw-call actor, `FUN_001da4f4`) — cross-referenced together for the
+first time here, plus one real correction to §3.1's own const5 characterization.
+
+### 6.1 Blend equation — CONFIRMED, standard additive glow, no ambiguity
+
+Already dumped in §3 above from `g_title.cmb`'s material-0 GPU blend-state bytes (not a
+combiner/TEV question — this is the separate fixed-function blend-unit config):
+`blend_enable=True`, `blend_src_rgb=770` (`GL_SRC_ALPHA`), `blend_dst_rgb=1` (`GL_ONE`),
+`blend_eq_rgb=32774` (`GL_FUNC_ADD`), `depth_write=False`. That is
+**`ADD(srcAlpha·src, 1·dst)`** — genuinely additive (not the `(srcAlpha, 1-srcAlpha)` alpha
+"soft" blend some sky/UI materials use, e.g. the wordmark/copyright materials in
+`title_logo_actor.md` §4.1 which ARE `src=0x302/dst=0x303` = `GL_SRC_ALPHA`/
+`GL_ONE_MINUS_SRC_ALPHA` — a different, non-additive material, useful contrast: the engine
+deliberately uses two different blend modes side by side on the same overlay).
+
+### 6.2 Draw count — CONFIRMED ONCE per frame, no layering/second pass
+
+`title_logo_actor.md` §5.1/§6.1 fully decompiled the mesh's draw-call site,
+`FUN_001da4f4` (231 lines, `build/decomp/001da4f4.c`) — the function that actually issues
+`g_title.cmb`'s draw for the title-logo actor (id `0x171`). It has **exactly three
+conditional draw blocks** (backdrop = `g_title`/idx0, wordmark, copyright), each of which
+"enqueue[s] it into the scene draw-list **exactly once** (`FUN_003679b4` 'already queued'
+latch + `FUN_0033d220` submit)" (§6.1 of that doc, quoted verbatim). There is no second draw
+block, no layered/duplicate submission, and no reference anywhere in this function or its
+traced callees to a second draw target for `g_title` — **rules out "drawn twice doubles the
+additive contribution" as an explanation for the glow residual.** (The `g_title_fire_ura.cmab`
+"second target" hypothesis from §2/§5 above is about a *different* handle/asset — `ura.ctxb`
+— not a second draw of `g_title.cmb` itself; `title_logo_actor.md` §6.4 separately confirms
+`FUN_001da4f4` has no `ura.ctxb` draw block at all, so that hypothesized second target isn't
+reachable from this function either way.)
+
+### 6.3 What alpha feeds the draw at steady state — BOTH `+0x1D0` and the CMAB curve, on two DIFFERENT constant-color registers, and §3.1's "const5 is static" claim is WRONG
+
+This is the one genuine correction this session makes to this doc. §3.1 above reads
+`g_title.cmb`'s material dump as: `constColor[0] = (255,255,255,255)` "the material's OWN
+baked default — the CMAB's ConstColor animates THIS register" and `constColor[5] =
+(255,255,255,255)` "**static, never CMAB-driven**". The first half is still correct. The
+second half is falsified by `title_logo_actor.md` §6.2's independent decompile of the
+ACTOR's draw function: `FUN_001da4f4` writes the actor's own alpha-ramp field
+(`+0x1D0`, the backdrop/`g_title` fade-in alpha, ramped `0→255` over cs-frames 466-525 per
+that doc's §5.3, and held at 255 for the DISPLAY hold) into **exactly constant-color
+register index 5** every frame, via `FUN_003589cc`/`FUN_00358964` (`ch=5` at every call
+site). So `constColor[5]` is **not** a compile-time-static CMB default at runtime — the
+`255,255,255,255` `cmb.py` reads is only the material's *authored fallback/initial* value;
+the live actor overwrites its alpha channel every frame the backdrop block draws. §3.1's own
+stage-2 alpha equation (`stage2.a = stage1.a * constColor5.a`) is unaffected by this
+correction — it was already using the right register, just describing its *source*
+incorrectly (asset-static vs actor-driven). Corrected per-register table:
+
+| register | driven by | value at steady state (post fade-in, DISPLAY hold) |
+|---|---|---|
+| `constColor[0]` (`.rgb`) | `g_title_fire.cmab` entry-1 `ConstColor` Hermite curve (§2) | **loopMode=Once**: frozen at the frame-300 keyframe value (R≈0.8, G≈0.43, B=0 — see §2's table) for the rest of the ~32s demo, since the curve never loops and the actor's own fade timeline (fade-in completes at cf569, §5.3 of `title_logo_actor.md`) runs well past cf300 of the *cmab's own* 0-300 frame cursor by the time DISPLAY is reached |
+| `constColor[5]` (`.a`) | title-logo actor `FUN_001da4f4`, field `+0x1D0` (`title_logo_actor.md` §5.2/§6.2), NOT the CMAB | ramped 0→255 over cf466-525, **held at 255 (1.0) for the entire DISPLAY hold** — i.e. at steady state this term is a no-op multiplier (1.0), only visible during the ~1-second fade-in window |
+
+**Full steady-state pixel formula** (combining §3.1's stage equations with the corrected
+register sourcing): `finalColor.rgb = 2.0 * ((efc.rgb + mableT.rgb) * efc.rgb) *
+constColor0.rgb` (constColor0 = frozen CMAB curve value, ≈(0.8,0.43,0)), `finalColor.a =
+primaryColor.a * efc.a * constColor5.a` (constColor5.a = 1.0 at steady state, i.e. no
+attenuation), composited via `ADD(srcAlpha·final, 1·dst)`. **Priority for the port agent
+unchanged from §3.2**: the ×2 hardware scale (fix 1) and the missing `mableT` dual-texture
+term (fix 2) are still the two live, unaddressed gain gaps; this session found no third
+gain-reducing mechanism (no double-draw, no extra alpha attenuation) — the "0.31-0.54× of
+oracle" residual's remaining magnitude, once fix 1+2 are applied, should be re-measured
+before assuming a fourth cause exists.
+
+### Anchors (this session)
+
+- `title_logo_actor.md` §5.1 (actor `0x171`, draw fn `FUN_001da4f4`), §6.1-6.2 (three draw
+  blocks, `constColor[5]` write via `FUN_003589cc`/`FUN_00358964`, `ch=5` literal) — a
+  separate decomp session's work, cross-referenced here for the first time against this
+  doc's §3.1 combiner dump to resolve the const5-source question.
+- This doc's own §3 (blend-state bytes) and §3.1 (combiner/stage dump) — re-confirmed
+  unchanged, only the const5 *source* narrative corrected (§6.3).
+
 ## 4. Cross-ref 2026-07-10: staging-timing discrepancy reconciled in `title_logo_actor.md` §8, not here
 
 soh3d's `2026-07-10-fireglow-combiner-and-terrain-decomposition.md` also reported an apparent
