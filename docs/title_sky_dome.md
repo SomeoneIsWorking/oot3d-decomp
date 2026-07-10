@@ -74,13 +74,16 @@ VA **0x0054984c**, stride **0x50**, each entry `char name[0x40] + 3×u32`:
 | 5    | `rom:/kankyo/BlueSky.zar` | 0 | 0x10 | 0x2 |
 
 The trailing u32s are small object/UV indices into the zar (NOT floats/scale).
-This is init-time asset binding (called once from scene-init `0x004490d8`,
-`param_3` = a scene config byte) — it picks WHICH zar + sub-object set is bound,
-i.e. the 3DS analog of "which sky group". The per-frame variant (time-of-day 0..3)
-selection + the actual dome/cloud/star draw emission live in a per-frame draw
-function not yet located (search stalled — see `env_sun_moon_draw.md` §"Why the
-search stalled"; recommended next step is a JIT watchpoint on the dome vertex
-buffer, not more static xref walking).
+
+**CORRECTION (§9, 2026-07-10 session 5): `FUN_002e47c8` is NOT init-only asset
+binding.** It IS called once from scene-init `0x004490d8` for asset binding, but the
+same function is ALSO the per-call time-of-day variant/blend SELECTOR and the DRAW
+SUBMISSION site for kind values `{1,4,6,8}` (kind 1 = "fine", title's dome group) — see
+§9 for the full decompiled selection/blend logic, its own schedule table (VA
+`0x0053200a`, boundary-identical to `kTitleLightSchedule`), and a plausible (not fully
+dynamically confirmed) second, likely-per-frame caller `FUN_00450b40`. The "search
+stalled, needs a JIT watchpoint" framing below is SUPERSEDED for the dome (kept for the
+record; may still apply to the moon, which §9 does not address).
 
 ## 3. Direction math (CONFIRMED, N64-identical)
 `Environment_Update` (0x0045dd30) computes the sun/moon light direction with
@@ -636,3 +639,242 @@ picking one and porting it.
   this session; the `iVar5+0xd8` second-table reading is ruled out as a Ghidra
   decompiler artifact (`FindDataWriters` on `0x002de558..0x002de570`: 0 refs,
   addresses fall inside the function's own body).
+
+---
+
+## 9. Session 2026-07-10 (decomp stream #5): the DOME's own selector/blend function
+FOUND — `FUN_002e47c8`, with its OWN schedule table at VA `0x0053200a`, boundary-
+identical to `kTitleLightSchedule`. This closes §2/§7/§8's repeated "dome per-frame
+draw dispatch not located" open item.
+
+Task: locate the exact per-frame dome-variant/blend selection code (not just a table),
+reconcile it against the sweep's 5 named residual points. Static RE only.
+
+### 9.1 The draw site: `FUN_002e47c8` is NOT init-only asset binding — it's also the
+per-call time-of-day selector AND the draw submission
+
+§2 mis-scoped this function as "init-time asset binding (called once from scene-init
+`0x004490d8`)". Re-decompiling its **full** body (previously only excerpted) shows it
+is a generic **per-env-"kind" object handler** — a big switch on `param_3` (the "kind"
+byte, same table VA `0x0054984c` as §2's kind table) — and for kind values `{1,4,6,8}`
+(kind **1 = "fine"**, BlueSky.zar's day/night dome group — the one title uses; kind 4 =
+Dark.zar; 6/8 unidentified, not chased) it does NOT just bind an asset. It:
+
+1. **Looks up the current index pair + blend weight from a live time value** via an
+   8-byte-stride range table (§9.2).
+2. **Writes the result into a small per-kind state struct** (`unaff_r5+0x10`=idx1,
+   `+0x11`=idx2, `+0x13`=blend byte 0-255) — Ghidra's `unaff_r5` naming means this base
+   pointer is set by the caller/earlier in-function code the decompiler didn't fully
+   resolve to a clean C expression; not pinned to an exact `play+K` offset this session
+   (see caveat below).
+3. **Immediately issues the actual draw**, using the *local* `idx1`/`idx2`/blend values
+   (not a re-read of the struct) as direct arguments to
+   `FUN_002d50e8(ctx, idx1, idx2, blendByte, 0)` / `FUN_002d5468(ctx, idx1, idx2,
+   blendByte, 0)` — a small mesh-bind-and-submit primitive (not decompiled further this
+   session; out of the task's scope, which asked for the selection/blend mechanism, not
+   the CMB-binding internals).
+
+So **`FUN_002e47c8` IS the draw site** for the dome cross-fade — selection, blend-weight
+computation, and draw submission are one function, not three separate stages spread
+across static/dynamic code as §2/§7 assumed.
+
+**Caveat — exact struct base (`unaff_r5`) not pinned to a `play+K` offset.** An older,
+unrelated live-RAM-diff session (`docs/ram_map.md` §"dayTime → slot selector", a
+different, generic-gameplay investigation, NOT title-specific) independently found and
+DYNAMICALLY confirmed a `play+0x3370` `u8[2]` byte pair that "drives both skybox and
+environment lighting" and cycles through slot values matching exactly this doc's idx0-3
+semantics. This is a plausible match for `unaff_r5+0x10/+0x11` (kind=1's instance of
+this struct) but was not re-derived or cross-confirmed this session — flagged as
+corroborating, not proven identical.
+
+### 9.2 The schedule table — VA `0x0053200a`, immediately adjacent to (and boundary-
+identical with) `kTitleLightSchedule`
+
+The range table `FUN_002e47c8` reads (row-select logic omitted — a small rain/weather
+check against a separate global, row 0 = the non-rain "fine" case, which is what runs at
+title) sits at pool-literal-resolved VA **`0x0053200a`** (Ghidra's `iRam002e4ddc` —
+another literal-pool artifact, same shape as §8.1's ruled-out lead, but this one
+resolves cleanly via `ReadWord` to a real, dumpable table, not a decompiler ghost).
+Row stride `0x48` (72 = 9×8 bytes); row 0 dumped directly from `build/code.bin`
+(file-offset = VA − `0x00100000`, this repo's established base):
+
+```
+entry: {u16 start, u16 end, u8 blendFlag, u8 idx1, u16 idx2(low byte used)}
+
+idx  start   end     blendFlag  idx1  idx2
+0    0x0000  0x2aac    0         3     3    (pure night)
+1    0x2aac  0x4000    1         3     0    (night→sunrise blend)
+2    0x4000  0x4aab    0         0     0    (pure sunrise)
+3    0x4aab  0x6000    1         0     1    (sunrise→day blend)
+4    0x6000  0xa000    0         1     1    (pure day)
+5    0xa000  0xb556    1         1     2    (day→sunset blend)
+6    0xb556  0xc001    0         2     2    (pure sunset)
+7    0xc001  0xd556    1         2     3    (sunset→night blend)
+8    0xd556  0xffff    0         3     3    (pure night)
+```
+
+**This is byte-for-byte the same 9-boundary shape §8.2 already documented for
+`kTitleLightSchedule` at VA `0x00531efc`** — and the two tables are **contiguous in
+memory**: `0x531efc` (light table, 5 rows × 9 entries × 6 bytes = `0x10E` bytes) ends at
+exactly `0x531efc + 0x10E = 0x53200a` — the dome table's row 0 starts at the very next
+byte. Two separate, purpose-built tables (6-byte light-color-slot entries vs 8-byte
+dome-index+blend entries) compiled back-to-back into the same data blob, sharing
+identical time boundaries. This explains why §8.1's static byte-scanner (which searched
+`code.bin`'s `.rodata` region generically) never flagged this specific 8-byte-stride
+table as a *distinct* finding — it read the boundary values correctly enough to note
+the two tables' widths matched (§8.2 already observed shared boundaries), but concluded
+the *consumer* was unconfirmed; this session found and decompiled that consumer
+directly (`FUN_002e47c8`), removing the "coincidence vs shared consumer" ambiguity.
+
+**Blend-weight formula** — `FUN_00361490(end, start, curTime)`, decompiled this
+session (`build/decomp/00361490.c`):
+```c
+float LerpWeight(int end, int start, int curTime) {
+    float span = (float)(end - start);
+    if (span == 0.0f) return 1.0f;             // fRam003614dc = 1.0f
+    float w = 1.0f - (float)(end - curTime) / span;   // == (curTime-start)/span
+    return (w < 1.0f) ? w : 1.0f;               // clamp ceiling only
+}
+```
+then `blendByte = round_or_trunc(LerpWeight(...) * 255.0f)` (the `255.0f` pool constant
+independently confirmed via `ReadWord` on `0x2e4de0` = `0x437f0000` = `255.0`). This is
+the exact `Environment_LerpWeight` shape already assumed by §7.3/§8.3 — now confirmed
+as the DOME's real formula, not an assumption borrowed from the light path.
+
+**Time source (`curTime`)** — `*(short*)(0x00588e58 + 0xa8)` = VA **`0x00588f00`**, a
+**static** global (`ReadWord` on the literal-pool slot `0x2e4dd4` resolves to
+`0x00588e58`, a `.bss`/`.data` address, NOT a per-boot heap pointer). This is a
+different global from `envCtx`'s own light-interpolation slot index
+(`play+0x31DA`/`unk_BF`, `env_context_layout.md`) — the dome and the light schedule
+read the *same conceptual* dayTime but through two structurally separate globals/tables,
+not one shared field.
+
+### 9.3 Draw-site call graph — two confirmed static callers, one likely per-frame
+
+`ListCallers` on `0x002e47c8` found exactly 2 callers:
+
+1. **`FUN_004490d8`** (already known, §2's "scene-init asset binding" caller) —
+   confirmed once more, still plausibly a one-shot/scene-load call.
+2. **`FUN_00450b40`** — new this session. Calls `FUN_002e47c8(play, play+0x564, 1)`
+   unconditionally near the top of its body. Static evidence this is itself a
+   per-frame **GameState `main` tick function**, not a one-shot init: `r2`-verified raw
+   memory at VA `0x004164cc` (one of `Graph_ThreadEntry`'s exit-value comparison slots,
+   `title_gamestate_driver.md`'s "9-slot `gGameStateOverlayTable`" dispatch) literally
+   contains the value `0x00450b40` — i.e. this engine's state-transition scheme appears
+   to use a GameState's own `main`-function VA as its self-identifying "exit code" for
+   comparison, meaning `0x00450b40` is registered as a real GameState main, called every
+   `GameState_Update` tick while that state is active (the same calling shape as
+   `Play_Main`).
+   - **Not fully closed this session**: which GameState `0x00450b40` belongs to, and
+     whether it runs *concurrently with* or *instead of* `Play_Main` during the title
+     demo, was not traced (would need either a call-graph walk from
+     `Play_Main`'s two untraced sub-calls `FUN_002e4514`/`FUN_002e25f0` — neither
+     references `0x002e47c8` or `0x564` directly, checked this session, dead end — or a
+     live watchpoint on `0x00450b40`'s entry during title, which is dynamic work,
+     out of this session's static-only scope). Flagged as the one remaining open item:
+     the mechanism and its table are now fully decompiled and reproducible offline; the
+     exact frame-cadence of its title invocation is inferred (very likely per-frame,
+     given it recomputes a live time-driven blend every call with no caching) but not
+     dynamically confirmed.
+
+### 9.4 Reconciliation against the 5 named residual points
+
+Recomputing `LerpWeight` directly against §9.2's literal table (row 0, "fine") for the
+task's named points (`dayTime = 0x2AD7 + 6·cs`, `cs=(az+176)/2`, both already RE'd and
+verified — `f115871f`):
+
+| az | cs | dayTime | active entry | idx1,idx2 | blendW | predicted horizon colour (lerp of §7.4's baked bands) |
+|---|---|---|---|---|---|---|
+| 100  | 138 | 0x2e13 | 1 `[0x2aac,0x4000)` | 3,0 | 0.160 | (0.22,0.22,0.56) — still strongly blue/night |
+| 200  | 188 | 0x2f3f | 1 | 3,0 | 0.214 | (0.27,0.26,0.55) — still blue/night |
+| 360  | 268 | 0x311f | 1 | 3,0 | 0.302 | (0.35,0.33,0.55) — blue-dominant, warming |
+| 1300 | 738 | 0x3c23 | 1 (still, `0x3c23<0x4000`) | 3,0 | 0.819 | (0.80,0.73,0.52) — strongly red/warm, R>G>B |
+| 1522 | 849 | 0x3ebd | 1 (still, `0x3ebd<0x4000`) | 3,0 | 0.941 | (0.90,0.82,0.52) — strongly red/warm |
+
+(horizon-band colours: idx3 night `(0.08,0.10,0.57)`, idx0 sunrise `(0.96,0.87,0.51)`,
+linear lerp `night·(1-blendW) + sunrise·blendW`, matching the N64-precedent two-dome
+draw-then-alpha-blend compositing; §7.1/§7.2 already established the combiner does no
+extra tinting, so this is the literal on-screen colour this mechanism predicts.)
+
+**Residual (1) — night too bright/green (az 100/200/360): EXPLAINED, and the real
+table meaningfully IMPROVES on the old N64-table framing.** At these points the real
+3DS boundaries put SoH only 16-30% of the way through the night→sunrise blend — half to
+a third of the 32-60% contamination §7.3 computed off the *borrowed N64* `D_8011FC1C`
+table. The predicted colour stays blue-dominant (`B` ≈ 0.55, well above `R`/`G` ≈
+0.22-0.35) at all three points — consistent with the oracle's own "still night/moonlit"
+content labels, i.e. the real 3DS mechanism does NOT itself demand an early green
+contamination; the residual's *size* (SoH currently even greener/brighter than this
+predicts) points at SoH's port not yet implementing this table, not at the table's own
+math.
+
+**Residual (3) — dawn missing +R, gains +G/+B (az 1300/1522): NOT fully explained by
+schedule mechanism alone — direction is right, magnitude falls short, and the real
+table's own prediction is actually LESS red than the N64-fallback SoH renders today.**
+At both points the real table predicts a genuinely warm, R-dominant colour (R≈0.80-0.90,
+clearly R>G>B) — so the *mechanism* is not broken and does produce "dawn warmth." But
+it is **not pure sunrise** at these `dayTime`s (both still fall inside entry 1, the
+night→sunrise blend, at 82%/94% toward sunrise) — compared to SoH's current N64-table
+fallback, which (per §7.3) is already at **pure** `fine_tenkyu_0` (blendW=1.0, no night
+residual at all) by these points, because N64's `D_8011FC1c` blend window is narrower
+and finishes earlier. Swapping in the real table's 18%/6% remaining night contamination
+therefore **pulls R and G down together** (night's R,G are both low; night's B is close
+to sunrise's B) — net effect: **less red-dominant than SoH's current render**, the wrong
+direction to fix a "missing +R" residual, confirming §8.3's "worsens" call now on a
+provably-real (not hypothesized) table.
+  - **What's still missing, honestly**: the schedule mechanism is closed; the residual
+    gap is best explained by the **already-flagged dayTime clock PHASE bug**
+    (`f115871f`: "rate is correct, bug is cursor PHASE") — if SoH's derived `dayTime` at
+    a given `cs`/`az` step runs slightly behind the oracle's true internal `dayTime` at
+    the same visual frame, the oracle would already be further into (or past) the
+    sunrise blend window than SoH's clock computes, which is exactly a "missing warmth"
+    signature. This session did not re-derive the phase offset (dynamic oracle work,
+    out of static-RE scope) — flagging as the concrete next step rather than guessing a
+    correction constant.
+
+### 9.5 Port-ready spec
+
+```c
+// Per-frame, for the title's "fine" dome group (kind=1):
+//   dayTime: u16, SoH's already-ported title clock (kTitleLightSchedule's own input)
+struct { u16 start, end; u8 blendFlag; u8 idx1; u8 idx2; } kDomeSchedule[9] = {
+    {0x0000,0x2aac,0,3,3}, {0x2aac,0x4000,1,3,0}, {0x4000,0x4aab,0,0,0},
+    {0x4aab,0x6000,1,0,1}, {0x6000,0xa000,0,1,1}, {0xa000,0xb556,1,1,2},
+    {0xb556,0xc001,0,2,2}, {0xc001,0xd556,1,2,3}, {0xd556,0xffff,0,3,3},
+};
+// find the entry with start<=dayTime<end (last entry treated end-inclusive)
+// idx1/idx2 = play->envCtx.skybox1Index/skybox2Index (fine_tenkyu_<idx>)
+// blend = entry.blendFlag ? clamp01((dayTime-start)/(float)(end-start)) : 0.0f
+//         maps directly to play->envCtx.skyboxBlend (was previously assumed to be the
+//         SAME schedule as the light path; it is a SEPARATE, boundary-identical table —
+//         port this literal table, do not reuse kTitleLightSchedule's index field for
+//         the dome, even though the numbers happen to currently overlap 1:1)
+```
+
+This table is a straight drop-in replacement for whatever schedule currently drives
+`Zelda3D_ApplyTitleCam`'s skybox fields (§6's gap-1 fix) — it happens to be
+numerically identical to `kTitleLightSchedule`'s boundaries, so if SoH's port already
+uses `kTitleLightSchedule` to select `skybox1Index`/`skybox2Index`/`skyboxBlend` (as a
+consequence of the §7.3-era stopgap), **no port-side change is required for the
+boundary values themselves** — only the *justification* changes (this is now the real,
+independently-confirmed dome consumer, not a borrowed light-path assumption). The
+outstanding correctness gap (residual 3) is the dayTime phase bug, not this table.
+
+### Anchors (this session)
+
+- `build/decomp/002e47c8.c` (re-dumped in full, 5227 bytes C; was previously only
+  excerpted for its init-time asset-binding half) — the draw-site function.
+- `build/decomp/00361490.c` (72 bytes C) — the lerp-weight helper.
+- `build/decomp/00450b40.c` (15880 bytes C, 427 lines) — candidate per-frame caller;
+  only its head (through the `FUN_002e47c8` call) was read this session.
+- `build/decomp/00416208.c` (`Graph_ThreadEntry`, re-dumped) — the exit-value dispatch
+  table cross-checked via `r2`'s raw memory read (`ldr r1,[0x4164cc] ; [0x4164cc:4]=
+  0x450b40`) to support the "state main-as-ID" reading of `FUN_00450b40`'s caller
+  status.
+- `ReadWord` on `0x2e4dc8/dcc/dd0/dd4/dd8/ddc/de0` — resolved all of `FUN_002e47c8`'s
+  literal-pool "`iRamXXXXXXXX`" pseudo-globals to real addresses/constants:
+  `0x0054984c` (kind table, confirms §2), `0x00588958`, `0x00531eb4`, `0x00588e58`
+  (curTime struct base), `0x0000ffff`, `0x0053200a` (**the dome schedule table**),
+  `0x437f0000` (=255.0).
+- Direct `build/code.bin` byte dump (this session's throwaway python, not committed —
+  reproducible via the file-offset formula and the entry layout in §9.2) — the 2-row,
+  9-entry table content quoted above.
