@@ -130,11 +130,12 @@ past frame 300, and should be done before hard-committing SoH3D's player to "one
 ## 3. `g_title.cmb` — the fire-glow mesh (ground truth via `tools/cmb.py`)
 
 - **1 material, 1 mesh** (`Mesh(sepd_index=0, material_index=0)`), 21760 B.
-- **2 embedded textures**: `g_title_efc` (128×128 — almost certainly the flame/glow gradient
-  sprite; "efc" = effect) at `tex0_idx=0` (the one actually bound to the material), and
-  `g_title_mable_t` (64×64, unused by material 0 — possibly a leftover/alternate, or bound by a
-  2nd texture-coordinate unit not modeled by `cmb.py`'s single-texture material dump; not
-  resolved this session).
+- **2 embedded textures, BOTH bound** (falsifies the earlier "`g_title_mable_t` unused" guess —
+  see §3.1): `g_title_efc` (128×128, `tex0_idx=0`, the flame/glow gradient sprite) at texture
+  **binding 0**, and `g_title_mable_t` (64×64) at texture **binding 1** — both slots are live
+  (`textureBindingTableCount=2` at material offs+0xC; binding1's `textureIdx=1`, same
+  min/mag/wrap as binding0). `cmb.py`'s `Material` dataclass just never modeled binding
+  1/2 or the combiner table, which is why this looked unused.
 - **Material blend state — additive glow, confirmed**: `blend_enable=True`,
   `blend_src_rgb=770` (`GL_SRC_ALPHA`), `blend_dst_rgb=1` (`GL_ONE`), `blend_eq_rgb=32774`
   (`GL_FUNC_ADD`) → **`srcAlpha·src + 1·dst`**, the standard "additive glow" blend (each texel
@@ -142,11 +143,124 @@ past frame 300, and should be done before hard-committing SoH3D's player to "one
   `depth_write=False` (never occludes anything after it — consistent with a screen-space overlay
   layer, not a depth-tested 3D prop). `cull=1`.
 - This confirms the mechanism directly: **`g_title.cmb` is drawn AFTER the wordmark/bg-card, with
-  additive blending and no depth write, so its `g_title_efc` texture — tinted by the ConstColor
+  additive blending and no depth write, so its texture output — tinted by the ConstColor
   gold-flicker curve above — composites as a warm glow wash over the already-rendered logo.** The
   `ura.ctxb` vertical strip (separate external texture, per §1/§2 and the existing draw-log finding
   in `title_2d_overlay_logo.md` §2) is a second, independent additive overlay quad, most likely
   driven by the *second* `(Translation, ConstColor)` pair in each cmab.
+
+## 3.1 Full TEV combiner chain for material 0 (byte-level, `dump_combiner.py`)
+
+**Method**: `cmb.py`'s `Material` dataclass only modeled `tex0_idx`/blend/alpha-test — it never
+parsed the PICA200 texture-combiner (TEV) stage table. Extended it (standalone script, not yet
+folded into `cmb.py` itself — see "Tooling" below) per noclip's `readMatsChunk` byte layout
+(`soh3d:scratch/noclip_cmb.ts` lines 399–620, the same cached decompiled TypeScript reference
+already used for the CMAB format): `textureCombinerTableCount` @ material-offset `+0x120`, a
+table of u16 combiner indices @ `+0x124`, indexing into a **shared combiner-settings table**
+located immediately after the last material record (`matTableOff + materialCount*stride`), each
+entry 0x28 bytes (`combineRGB/Alpha` u16 @ +0x00/+0x02, `scaleRGB/Alpha` u16 @ +0x04/+0x06,
+sources/ops @ +0x0C.., `constantIndex` u32 @ +0x24). Six baked `constColor[0..5]` RGBA8 registers
+live at material-offset `+0xB4..+0xC8` (big-endian RGBA8, i.e. `struct.unpack_from(">I", ...)`).
+
+**Dump** (`g_title.cmb`, `Model/g_title.cmb` in `/actor/zelda_mag.zar`, material 0 — the only
+material in the file):
+
+```
+constColor[0] = (255,255,255,255)   # material's OWN baked default — the CMAB's ConstColor
+                                     # (materialIndex=0, channelIndex=0) animates THIS register
+constColor[5] = (255,255,255,255)   # static, never CMAB-driven
+
+textureBindings: 0 -> g_title_efc (128x128, "flame gradient")   1 -> g_title_mable_t (64x64, mask)
+textureCoordinators: coord0 scale(1,1) trans(0,0)   coord1 scale(3,2) trans(0, 0.9433)  # BAKED,
+                                                     # pre-scroll static UV transform on TEXTURE1
+
+-- TEV stage 0 --
+  combineRGB=ADD_MULT scaleRGB=x1
+  RGB: src0=TEXTURE0 src1=TEXTURE1 src2=TEXTURE0   op=SRC_COLOR (all 3)
+  combineAlpha=MODULATE scaleAlpha=x1
+  A:   src0=PRIMARY_COLOR src1=TEXTURE0             op=SRC_ALPHA
+
+-- TEV stage 1 --
+  combineRGB=MODULATE  scaleRGB=x2                 <-- THE MISSING FACTOR (see below)
+  RGB: src0=PREVIOUS src1=CONSTANT(idx0)            op=SRC_COLOR
+  combineAlpha=REPLACE scaleAlpha=x1
+  A:   src0=PREVIOUS                                op=SRC_ALPHA
+
+-- TEV stage 2 --
+  combineRGB=REPLACE  scaleRGB=x1
+  RGB: src0=PREVIOUS                                op=SRC_COLOR
+  combineAlpha=MODULATE scaleAlpha=x1
+  A:   src0=PREVIOUS src1=CONSTANT(idx5=1,1,1,1)    op=SRC_ALPHA   (a no-op multiply by 1)
+```
+
+**Per-stage equation** (PICA200 `MULT_ADD` = `src0*src1 + src2`; `ADD_MULT` = `(src0+src1)*src2`;
+`MODULATE` = `src0*src1`; `REPLACE` = `src0`; all confirmed against noclip's `CombineResultOpDMP`
+enum and cross-checked against every other combiner consumer already ported in SoH3D):
+
+```
+stage0.rgb = (efc.rgb + mableT.rgb) * efc.rgb              // dual-texture combine, scale x1
+stage0.a   = primaryColor.a * efc.a
+stage1.rgb = 2.0 * (stage0.rgb * constColor0.rgb)           // <-- hardware scaleRGB=x2
+stage1.a   = stage0.a                                        // passthrough
+stage2.rgb = stage1.rgb                                      // passthrough
+stage2.a   = stage1.a * constColor5.a  (= stage1.a * 1.0)     // no-op
+finalColor = (stage2.rgb, stage2.a)   // then additive-blended: srcAlpha*final + 1*dst
+```
+
+`constColor0` is exactly the register the CMAB's entry-1 ConstColor (R/G/B Hermite gold-flicker
+curve, §2) drives every frame — so **stage 1's hardware combiner doubles the CMAB's animated tint
+before it composites**, on top of the material's own static `mableT` detail-mask blend in stage 0.
+
+## 3.2 Named diff against SoH3D's port (`title_fireglow.cpp`, read-only)
+
+`Shipwright/soh/src/zelda3d/behaviors/title/title_fireglow.cpp`'s `Zelda3D_TryDrawTitleFireGlow`
+draws via `gSPZelda3DDrawUV(modelId | FORCE_UNLIT, a8, 0, vFx, r8,g8,b8)`, which samples **one**
+texture (the model's bound `tex0`, `g_title_efc`) and tints it through the shared fragment shader
+`rgb = t.rgb * vColor.rgb * shade` — i.e. it implements **stage 1's `MODULATE` at `scaleRGB=x1`**
+(`texel * constColor`) and nothing else in the chain:
+
+1. **Missing `scaleRGB=x2` on the ConstColor-modulate stage — the direct, quantifiable cause of
+   "half brightness."** SoH's tint seam has no scale factor at all (a flat multiply); the
+   hardware doubles the modulated result before continuing. This alone is an exact **2×** gain
+   gap on the fire-glow's RGB, independent of any texture-content difference — closing it is a
+   single multiply (`rgb[i] *= 2.0f` before packing to `r8/g8/b8`, or fold into the shader's
+   tint path with a per-draw scale uniform if `r8/g8/b8*2` risks 8-bit clipping on saturated
+   curve peaks — the R channel peaks at 1.0 in the CMAB curve, §2, so `1.0*1.0*2=2.0` DOES clip
+   at 255 without headroom; clamp is correct, but the *unclipped* mid-range frames (R≈0.6–0.9)
+   are exactly where the "faint" complaint applies and where doubling matters most).
+2. **Missing stage 0's dual-texture `ADD_MULT`** — SoH never samples `g_title_mable_t`
+   (binding 1) at all; the port treats `g_title.cmb` as a single-texture draw. Stage 0's
+   `(efc + mableT) * efc` means the mask texture ADDS into the glow's own texture before the
+   self-multiply — for any pixel where `mableT > 0`, the true stage-0 output is brighter than
+   `efc` alone (bounded above by `2*efc` where `mableT` saturates at 1.0, so stage0 can itself
+   contribute up to another 2× on top of the confirmed stage-1 2×). This is the second,
+   currently-unquantified contributor to "faint tinge vs prominent wash" — needs `mableT`'s
+   actual pixel data (not decoded this session) to size precisely, but is structurally a
+   brightening term SoH is dropping entirely, not just under-scaling.
+3. **UV-scroll target mismatch (secondary, cosmetic not a gain bug)**: the CMAB's Translation
+   track (materialIndex=0, **channelIndex=1**) matches texture **coordinator 1** — the baked
+   `scale(3,2) trans(0,0.9433)` UV transform on **`g_title_mable_t`** (binding 1), not on
+   `g_title_efc`/coordinator 0. SoH's port applies the sampled `uvV` scroll to its only sampled
+   texture (`efc`, coordinator 0) via `gSPZelda3DDrawUV`'s `uvV` argument — scrolling the wrong
+   texture's UV (moot today since `mableT` isn't drawn at all, but will need re-targeting
+   alongside fix 2, not fix 1 alone).
+
+**Priority for the port agent**: fix 1 (the ×2 scale) is a one-line, fully-specified, purely
+multiplicative correction — do it first, it is the "weak gain" root cause named in the residual.
+Fix 2 (drawing `mableT` through a real 2-texture ADD_MULT combine stage) is the larger, correct
+long-term fix (needs either a second texture-sample slot in the shared Zelda3D shader/draw op, or
+a bespoke 2-tex draw path for this one mesh) and should close whatever gap remains after fix 1 —
+don't skip it as "good enough" once fix 1 alone narrows the score gap, since it is a real,
+non-approximated part of the material's combiner chain, not a tuning knob.
+
+## Tooling
+
+`dump_combiner.py` (this session, `soh3d:scratch/decomp_agent/dump_combiner.py` — machine-local
+scratch, not committed) is a standalone extension of `tools/cmb.py`'s `Cmb` class that parses the
+full TEV chain per §3.1's layout; folding it into `cmb.py`'s `Material` dataclass proper (so
+`cmb.py <file> --dump` prints combiners for every future material-shading investigation, not just
+this one) is a natural follow-up but wasn't done in-place this session to avoid touching the
+already-relied-upon `Material`/`_parse_mats` shape without a broader regression pass.
 
 ## 4. What a SoH3D CMAB material-anim player needs
 
@@ -202,12 +316,15 @@ Concretely, for the title logo the player needs to:
   consumers in the game, not title-specific — the facial eye/mouth cmabs use the SAME `mads`/`mmad`
   format per `zelda3d_model.cpp`'s existing decode, so this function is high-value beyond the
   title screen too).
-- **`g_title_mable_t` (64×64, second embedded texture) role unresolved** — not referenced by
-  material 0's single `tex0_idx`; may be a second TEV stage / unused leftover / accessed via a
-  material field `cmb.py` doesn't currently expose (its dataclass only models `tex0_idx`, not a
-  full multi-stage TEV combiner). Low priority for the port (the additive glow already accounts for
-  the main visual), but worth a quick `cmb.py` field audit if the ported fire-glow looks wrong on
-  one texture unit.
+- **RESOLVED 2026-07-10 (§3.1/§3.2): `g_title_mable_t` role.** Not unused — it's texture
+  **binding 1**, consumed by TEV stage 0's `ADD_MULT` (`(efc+mableT)*efc`) as a detail/mask
+  layer, and it's the target of the CMAB's own UV-scroll track (coordinator 1's baked
+  scale(3,2)/trans(0,0.9433) transform, animated further by the Translation V-track). The
+  "not referenced by `tex0_idx`" read was correct as far as it went — `cmb.py`'s dataclass
+  never parsed binding 1 or the combiner table, which is exactly what made it look unused.
+  Was NOT a low-priority leftover: it's a real, currently-unported contributor to the
+  fire-glow's brightness (see §3.2 fix 2) — the SAME session's "faint tinge" residual is
+  partly explained by SoH never sampling this texture at all.
 - Whether the flicker literally halts after frame 300 (holds a frozen value) for the rest of the
   ~32-second demo loop, vs. some other continuation mechanism restarting/reversing it, is inferred
   from `loopMode=Once` but not live-observed — verify with the harness before treating "one-shot,

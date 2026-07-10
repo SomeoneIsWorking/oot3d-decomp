@@ -102,5 +102,62 @@ f0–3036), 2 misc triggers (types 0x1E@f345, 0x1F@f1930), set-time
 with 8 shots (f0–2455).
 
 Repro tooling (soh3d repo): `tools/walk_oot3d_cs.py` (stride walker),
-`tools/cs_camera_eval.py` (camera parser + evaluator, A/B-verified),
+`tools/oot3d_cs_camera.py` (camera parser + evaluator, A/B-verified — the
+file was renamed from `cs_camera_eval.py` at some point; this doc's older
+references to that name are stale, use `oot3d_cs_camera.py`),
 `tools/dump_oot3d_title_cs.py` (extract blob from RomFS).
+
+## cs-438 segment/interpolation audit (2026-07-10) — camera ruled out
+
+`debug_journal/2026-07-10-title-arc-closing-measurement.md` residual 5 flagged one
+frame-matched A/B sweep pair (az_step=700, cs frame 438) where SoH's camera framing
+diverges from the oracle (Az: wide hillside + road; SoH: closer grass) despite the cs
+cursors being verified frame-EXACT at that pair — and hypothesized "a per-segment
+boundary issue in the OP97 camera port (segment active at cs 438)". Static audit of the
+byte-exact segment table (spot99's OP97 block, `oot3d_cs_camera.py` dump against
+`spot99_info.zsi+0x3980`, the payload start after the `+0x3978 OP97(spline) len=0x2200`
+header located via `walk_oot3d_cs.py`):
+
+```
+idx=0 start=   0 end= 299   idx=1 start= 300 end= 929   idx=2 start= 930 end=1379
+idx=3 start=1380 end=1619   idx=4 start=1620 end=1656   idx=5 start=1657 end=1776
+idx=6 start=1777 end=2031   idx=7 start=2032 end=2455
+```
+
+**cs 438 sits solidly inside segment 1 (300–929), 138 frames past its start and 491
+before its end — not adjacent to any segment boundary.** The two OTHER matched pairs the
+same sweep says frame correctly (cs 588, also in segment 1; cs 738, in segment 2,
+930–1379) straddle the SAME segment-1→2 boundary that 438 is nowhere near — if a
+boundary-selection off-by-one were the mechanism, 738 (11 frames past the 930 boundary)
+would be the one to show it, not 438. This alone falsifies "segment selection" as the
+cause.
+
+Checked the actual math at and around cs 438 (`oot3d_cs_camera.py` eval, segment 1's
+`eyeDef`/`atDef` Hermite tracks, keyframe times 300/303/396/456/462/673/794/932 for the
+X-axis track — no keyframe within 5 frames of 438, nearest is 456): eye/at/fwd/up are all
+smooth and continuous across f=430..460 (eye moves ~15 world units/frame, forward vector
+rotates gradually, `|cross(fwd,worldUp)|` stays in [0.97,0.99] — nowhere near the
+near-parallel/gimbal guard SoH's up-vector derivation (`zelda3d_cutscene.cpp:463`, `if (m
+< 1e-6f) return 0`) would trip). Roll and FOV are both segment-1 STATIC (no roll/fov
+track on this segment — `tracks=[1,2]` only, types eye/at) — fov=45.40° the whole
+segment, so a per-frame FOV glitch is also ruled out for this specific pair.
+
+**SoH's port (`zelda3d_cutscene.cpp:421-476`, `Zelda3D_TitleCsCamera`) is a literal,
+line-for-line transcription of this evaluator** — same strict `s.start < frame < s.end`
+segment-selection inequality (line 426, matches `FUN_002c5ba0` case 0x97's documented
+`start < curFrame < end` exactly), same Hermite/Linear/Step `Curve::Eval` formula (lines
+33-49, byte-identical to `oot3d_cs_camera.py`'s `Curve.eval`, including the `keys[idx].frame
+>= t` bracket search and the `FUN_003087a4` cubic-Hermite form). No divergence found
+between the ported C++ and the decompiled/re-derived reference at this frame or its
+neighborhood.
+
+**Conclusion: the OP97 camera evaluator (selection + interpolation) is NOT the source of
+the cs-438 divergence — ruled out by direct data audit, not by re-running the live
+harness (out of this session's static-RE scope).** The residual's own framing is
+consistent with this: eye/at position tracks were already "byte-verified previously" at
+every OTHER sampled point in this same sweep, and this audit adds the specific frame in
+question to that same clean bill. Recommend the next investigation session treat this as
+a SCENE/terrain rendering gap at that particular eye position (e.g. a road/hillside mesh
+piece not loaded, or a room-streaming boundary the flyover's segment-1 path crosses
+around cs 400-470 that segments 0/2+ don't) rather than continuing to audit the camera
+math — the camera pose itself is confirmed correct.
