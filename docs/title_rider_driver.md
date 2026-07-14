@@ -150,10 +150,10 @@ the full derivation):
 | `+0x28..+0x34` | Vec3f | `world.pos` |
 | `+0x36` | s16 | `world.rot.y` (binang) |
 | `+0x60/+0x68` | f32 | `velocity.x` / `velocity.z` |
-| `+0x64` | f32 | `fwdSpeed` |
+| `+0x64` | f32 | `velocity.y` (CORRECTED 2026-07-14 — was misread as "fwdSpeed"; see below) |
 | `+0x6C` | f32 | `speed_xz` |
-| `+0x70` | f32 | `forceMagnitude` |
-| `+0x74` | f32 | `maxSpeed` |
+| `+0x70` | f32 | `gravity` (CORRECTED — was "forceMagnitude") |
+| `+0x74` | f32 | `minVelocityY` / terminal fall velocity (CORRECTED — was "maxSpeed") |
 | `+0xA4..+0xB0` | Vec3f | `scriptedDelta` (cutscene/demo per-frame bias; **verified always zero** across all title-demo shots, `scriptedDelta_probe_shots.py`, 11 tick bands) |
 
 (Note: this is a *different* Actor struct region than the generic
@@ -167,11 +167,18 @@ future arc doesn't assume they're the same struct without checking.)
 ### The three primitives (bodies in `src/code/z_actor.c`, decompiled + hand-authored, VERIFIED via JIT watchpoint)
 
 1. **`Actor_MoveXZByYawSpeed` — `FUN_00376864`** (`build/decomp/00376864.c`).
-   Per-frame integrator: `velocity = (sin(yaw), cos(yaw)) * speed_xz`;
-   `fwdSpeed` accelerates toward `maxSpeed` by `forceMagnitude`; then
-   `world.pos += scriptedDelta + velocity * dt` (dt from a global tick
-   source, `Grezzo_GetTickDelta`, not fully resolved — runtime state, not a
-   compile-time constant).
+   Per-frame integrator: `velocity.xz = (sin(yaw), cos(yaw)) * speed_xz`.
+   CORRECTED 2026-07-14 (title_rider_cs_dispatch arc re-read the body): the
+   middle block is N64 `Actor_MoveXZGravity`'s GRAVITY integration, not a
+   forward-speed ramp — `velocity.y (+0x64) += gravity (+0x70) * dtTicks *
+   k`, clamped from below at `minVelocityY (+0x74)` (the fp compare takes
+   the max, i.e. a terminal-fall clamp; the earlier "fwdSpeed accelerates
+   toward maxSpeed by forceMagnitude" reading was WRONG — same insns, wrong
+   field roles). Then `world.pos += scriptedDelta + velocity * dt` with
+   `dt = (s16)[global+0x110] * 0.5f`-shape (the 3DS analog of N64's
+   `R_UPDATE_RATE * 0.5f`; = 1.0 at the title's 30 fps cadence — the
+   XZ step is exactly `speed_xz` per frame, live-confirmed 8.0 u/cs-frame
+   mean by soh3d `tools/title_rider_traj.py`).
 2. **`Actor_TurnToPoint` — `FUN_003326F0`** (`build/decomp/003326f0.c`).
    Turns `world.rot.y` toward `atan2S(target.z - pos.z, target.x - pos.x)`,
    capped at `max_step` binang/frame. Also writes a mirror copy to `+0xBE`
