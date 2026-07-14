@@ -204,6 +204,41 @@ selection for free, faithfully, through the same system real riding uses.
   updated to the current names — separate small workflow fix, flagged
   here rather than done inline since it's outside this task's file scope.
 
+## Addendum (2026-07-15) — spec steps 1-3 confirmed ALREADY LANDED; remaining bug was SoH3D-side only
+
+Re-checked this doc against `soh3d/Shipwright/soh/src/zelda3d/behaviors/title/title_rider.cpp`
+while investigating the user-reported "Link renders N64-blocky AND floats detached above/behind
+Epona" bug. Steps 1-3 of the port spec above are already fully implemented (landed across the
+2026-07-14 `title-rider-cs-dispatch-port` work, see `soh3d/debug_journal/
+2026-07-14-title-rider-cs-dispatch-port.md`): `TitleRider::applyToActor` mounts Link onto the
+title's own `EN_HORSE` instance via the literal `Actor_MountHorse` + `Player_Action_8084CC98`
+native call (the exact `z_player.c` ~13825 function this doc's step 2 named), and Link's
+`actor.world.pos` is written every frame by that native function itself
+(`this->actor.world.pos = rideActor->actor.world.pos + rideActor->riderPos` family, z_player.c
+:13912-13914) — NOT by any title-specific code. So the OoT3D-side ground truth (world-pos
+attach mechanism) needed **no new decompilation this session** — it was already correctly
+ported and position-verified (`tools/title_rider_traj.py`, maxdXZ 19.7u pass).
+
+**The actual remaining bug was 100% on the SoH3D draw side, not a missing OoT3D behavior:**
+`Zelda3D_PlayerDrawImpl` (`zelda3d_link.cpp`) was (a) gated behind the WIP `ZELDA3D_LINK`
+env var (default OFF) so the OoT3D Link body never drew at all — the N64 fallback rendered
+instead, and (b) even when force-enabled, its feet-grounding heuristic
+(`Zelda3D_PosedGroundOffset`, the #29b/#79 "measure the posed model's lowest vertex and snap
+it to `actor.world.pos.y`" logic) assumes every pose is a standing pose with feet on the floor.
+For the mounted riding pose, `actor.world.pos.y` is already the correct SADDLE height (set by
+the native mount code above, not ground level), and the pose's lowest vertex is a bent
+knee/stirrup, not a planted foot — so the grounding heuristic shoved the whole body by that
+mismatch, which IS the reported "floats above/behind Epona" symptom. Same failure class as
+the already-known climb-pose grounding bug (#79), just never special-cased for mount.
+
+Fix (SoH3D-side, `zelda3d_link.cpp`): (1) force the OoT3D Link draw path ON whenever
+`player->stateFlags1 & PLAYER_STATE1_ON_HORSE`, regardless of the general WIP gate (a
+code-level narrowing to a verified-correct case, not a new N64/3DS toggle); (2) zero
+`groundOff` outright (not frozen-last, since the seat height genuinely changes every frame as
+Epona crosses terrain) whenever mounted. No new addresses decompiled — this was a SoH3D
+render-path bug, verified live via `tools/zelda3d_repl.py` (see soh3d
+`debug_journal/2026-07-15-title-mounted-link-port.md`).
+
 ## Files referenced
 
 - `Shipwright/soh/src/zelda3d/zelda3d.c` (read-only this session — the

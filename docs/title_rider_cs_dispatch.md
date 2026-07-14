@@ -116,6 +116,47 @@ across the full dense window (cs 925-1130) and all cue-boundary crossings;
 before the port, plain-0x24 boundaries diverged 170-200 u. See soh3d
 `debug_journal/2026-07-14-title-rider-cs-dispatch-port.md` for the tables.
 
+## Addendum 2026-07-14 — idx5 (0x41 WarpRearing) anim slot / rate / end-behavior resolved
+
+Closes the "0x41 rearing ANIMATION" residual left open by the rider-cs-dispatch port
+(`soh3d/debug_journal/2026-07-14-title-rider-cs-dispatch-port.md`'s "deliberately out of
+scope" list: "trajectory-correct speed-0 idle approximation stays; EnHorse has no exposed
+mounted-rearing Reset helper"). That framing was wrong — the helper exists, it just wasn't
+being called. Re-read `build/decomp/002b6c00.c` (idx5 init) and `build/decomp/002535f0.c`
+(idx5 action) field-by-field against soh3d's **already-vendored, unused** N64-side
+`EnHorse_CsWarpRearingInit`/`EnHorse_CsWarpRearing` (`z_en_horse.c` lines 2314-2355) — Grezzo
+kept the N64 EnHorse cutscene-dispatch struct layout close enough that the vendored N64
+handler bodies serve as a direct Rosetta stone for the raw ARM decompile:
+
+| 3DS field (raw offset) | write | N64 equivalent (`z_en_horse.c`) | meaning |
+|---|---|---|---|
+| `param_1+0xe74` (anim-table selector) | `002b6c00.c:33` sets **3** | `EnHorse_CsWarpRearingInit:2321` sets `this->animationIdx = ENHORSE_ANIM_REARING` (enum value **3**) | init selects the REARING clip, confirming the doc's existing "anim slot 3" line with an exact enum match, not just a plausible guess |
+| `param_1+0x1c4` region + `FUN_003204a4`/`FUN_00320d28`/`FUN_00358338` calls | Animation-transition helper triplet (both `002b6c00.c` and `002535f0.c` call the same three) | `Animation_Change(..., 1.0f, 0.0f, Animation_GetLastFrame(...), ANIMMODE_ONCE, -3.0f)` (`z_en_horse.c:2330`/`2251`/`2331`) | **rate/mode**: full clip (startFrame 0 → last frame), played **ONCE** (not looped), morph **3 frames** (the `-3.0f` — N64 SkelAnime's morph-frame-count param, sign encodes blend-from-previous-pose direction) |
+| `param_1+0xe74` write inside the `iRam00253740 < *(param_1+0xe78)` — `!(flags&0x800)` gated block, `002535f0.c:26-34` | sets to **0** | `EnHorse_CsWarpRearing`'s `if (SkelAnime_Update(...)) { this->animationIdx = ENHORSE_ANIM_IDLE; ... }` (`z_en_horse.c:2343-2354`) — `ENHORSE_ANIM_IDLE` enum value is **0** | **end-behavior**: the gate is the anim-complete check (`SkelAnime_Update` returns true when the ONCE clip reaches its last frame); on completion the action func switches to the **IDLE** clip (own `Animation_Change` call, NOT a hold-on-last-frame, NOT a loop back into gallop) |
+| (no equivalent write) | `002535f0.c`'s first store — sets `param_1+0x6c = fRam0025373c` unconditionally every call | `EnHorse_CsWarpRearing:2335` — `this->actor.speedXZ = 0.0f;` every call | **speed**: 0 every frame while rearing (matches TitleRider's pre-existing `mSpeed=0.0f` for funcIdx 3/5 — that part of the port was already correct) |
+| `iRam00253740 < *(param_1+0xe78)` timer check gating the `FUN_0037547c(...)` SFX call (`002535f0.c:26-29`) | one-shot SFX once past a frame threshold, gated on `!(flags&0x800)` | `if (this->curFrame > 25.0f) { if (!(stateFlags & ENHORSE_LAND2_SOUND)) { ...; Audio_PlaySoundGeneral(NA_SE_EV_HORSE_LAND2, ...); } }` (`z_en_horse.c:2336-2341`) | landing-thud SFX once, past curFrame 25 — audio-only, no motion/anim effect (matches the existing doc's dispatcher-level note about a *different*, title-only neigh one-shot; this is a second, per-clip SFX inside the rearing handler itself) |
+
+**Conclusion:** idx5 (0x41 WarpRearing) plays the REARING clip **once** (`ANIMMODE_ONCE`,
+not looped, not held), with a 3-frame morph in and a 3-frame morph out (same `-3.0f` param
+both at entry via `EnHorse_CsWarpRearingInit` and at the auto-transition), a landing-thud SFX
+past frame 25, and **auto-transitions to the IDLE clip** when the once-clip completes — it
+does not stay reared for the rest of the cue window, nor does it revert straight to gallop
+(the cs script's own next cue-boundary, not this handler, is what starts gallop again).
+Link gets no separate cue during this action — table B (his mounted SkelAnime pose,
+`title_rider_driver.md` §3) is driven purely by his ordinary mounted-rider animation-id
+selector reading Epona's `animationIdx`/pose via the standard mount attachment, not a
+bespoke rearing-specific Link pose.
+
+No new decompilation was required to resolve this — idx5's init/action bodies were already
+decompiled (`build/decomp/002b6c00.c`, `002535f0.c`); the residual was a documentation/
+cross-reference gap (the doc's original per-function summary table already said "anim slot 3
+(rearing)" and "speed_xz = 0 every frame; rest is anim/sfx" but never named the concrete N64
+counterpart or resolved what "rest" meant). Port: soh3d `title_rider.cpp`'s `applyToActor()`
+now calls the vendored N64 `EnHorse_CsWarpRearingInit`/`EnHorse_CsWarpRearing` (and
+`EnHorse_CsRearingInit`/`EnHorse_CsRearing` for the unused-by-title-cs idx3 sibling, for
+dispatch-table completeness) directly instead of approximating with the mounted-idle gait —
+see `soh3d/debug_journal/2026-07-14-title-rider-rearing-port.md`.
+
 ## Files
 
 - `build/decomp/0026a30c.c` — dispatcher (Ghidra source of truth)
