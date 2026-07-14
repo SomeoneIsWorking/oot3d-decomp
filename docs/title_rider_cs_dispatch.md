@@ -86,12 +86,26 @@ new target from wherever it is. (This falsified the SoH3D port's `>100u ->
 teleport` guess; live A/B showed ~170-200 u divergence on every such
 boundary. Fixed in soh3d `title_rider.cpp` 2026-07-14.)
 
-## Latch predicate reminder
+## Latch predicate + overlap resolution (byte-verified, `build/decomp/002c5ba0.c` case 10)
 
-The interpreter (`FUN_002c5ba0`) latches a cue record when
-`startFrame < curFrame <= endFrame` (`cutscene_format.md`) — strict lower,
-inclusive upper. A port using `[start, end)` runs every window one cs frame
-early.
+```c
+do {                                             // per record, NO break on match
+    if (rec->start < csCtx->curFrame && csCtx->curFrame <= rec->end)
+        csCtx->playerCue = rec;                  // param_2 + 0x40
+    rec = (CsCmdActorCue*)((u8*)rec + 48);
+} while (++i < count);
+```
+
+- Predicate `startFrame < curFrame <= endFrame` — strict lower, INCLUSIVE
+  upper. A port using `[start, end)` runs every window one cs frame early.
+- **Last match wins**: the record loop has no break, and the outer command
+  loop walks the script in order with every op-0x0A command storing into the
+  SAME channel slot. The title cs depends on this: at `curFrame == 925` both
+  the plain-move window `[750,925]` (earlier command) and the 1-frame
+  `[924,925]` 0x40 warp cue (later command) match, and the warp must win or
+  the rider never crosses the shot cut. Live-falsified the first-match
+  alternative: SoH's rider ended ~2500 u off-course for the rest of the loop
+  (soh3d `scratch/title_ab/rider_traj_green.csv`, first attempt).
 
 ## Cross-check vs live oracle
 
