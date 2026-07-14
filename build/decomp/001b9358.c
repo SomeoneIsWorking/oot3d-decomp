@@ -11,7 +11,7 @@ void FUN_001b9358(int param_1)
   float local_14;
   
   FUN_0035e3a4(param_1 + 0x228,0,(int)*(short *)(param_1 + 0x480));
-  FUN_0035e3a4(param_1 + 0x228,1,*(undefined *)(DAT_001b943c + *(short *)(param_1 + 0x482)));
+  FUN_0035e3a4(param_1 + 0x228,1,*(undefined1 *)(DAT_001b943c + *(short *)(param_1 + 0x482)));
   FUN_0035e330(param_1 + 0x228);
   if (*(short *)(param_1 + 0x484) != 0) {
     local_20 = *DAT_001b9440;

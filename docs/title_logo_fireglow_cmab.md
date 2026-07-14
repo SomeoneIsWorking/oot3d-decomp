@@ -411,6 +411,95 @@ before assuming a fourth cause exists.
 - This doc's own §3 (blend-state bytes) and §3.1 (combiner/stage dump) — re-confirmed
   unchanged, only the const5 *source* narrative corrected (§6.3).
 
+## 7. Session 2026-07-14: frame-domain (60fps vs 30fps) confirmed as the SHAPE-residual root cause; runtime binder function STILL not located (two more static anchors tried, both dead-end)
+
+Task: close the SoH3D cs1093 gold-mask-extent residual (`0.783` of oracle, per
+`soh3d:debug_journal/2026-07-14-title-cs464-composition-exonerated-fireglow-remeasure.md`),
+which that entry already attributed to "SoH advances the fire CMAB cursor in cs-frames (30fps)
+while the CMAB's duration=300 is authored at 60fps." This session's job was to nail the exact
+runtime function down via Ghidra before porting the fix.
+
+### 7.1 Two more static anchors tried for the runtime CMAB-consumer/binder function — both dead-end, same as `title_logo_fireglow_cmab.md` §5's prior attempt
+
+1. **Pool-constant hunt for the chunk-magic tags** (`SearchU32.py`, `OOT3D_SEARCH_U32=` the
+   little-endian u32 encodings of `"mads"` (`0x7364616D`), `"mmad"` (`0x64616D6D`), `"cmab"`
+   (`0x62616D63`)) over all initialized memory (code + data): **zero hits**. This rules out the
+   hypothesis that the parser validates these ASCII tags via an inline 32-bit compare against a
+   pool/movw-movt literal anywhere in `code.bin` — the CTR H3D middleware that reads this format
+   apparently trusts the asset pipeline and does not runtime-check the magic bytes at all (or
+   checks them via a byte-at-a-time compare that this word-granular search can't catch — not
+   fully excluded, but the straightforward literal-compare pattern is ruled out).
+2. **Enumerate every caller of `FUN_00358964`** (`ListCallers.py`, `OOT3D_CALL_TARGET=0x00358964`
+   — the confirmed constant-color-register-write helper, `title_logo_actor.md` §6.2:
+   `*(matCtx+ch*0x10+8) = rgba`). Got 19 distinct caller functions; decompiled all 19
+   (`build/decomp/00146*.c` etc, this session). **Every single call site passes a literal
+   immediate channel index** (`3`, `4`, or `5` — never a register/variable), i.e. every one of
+   these 19 functions is a conventional per-actor draw routine writing its OWN actor's alpha
+   (matching the same pattern already known for the title-logo actor's own `ch=5` writes). **None
+   of them is a generic, data-driven CMAB-track-apply loop** (which would need to pass a
+   *computed* `channelIndex` read from the `mmad` entry, not a compile-time literal). This
+   affirmatively rules out "the CMAB ConstColor-apply path re-uses this exact helper" as a
+   hypothesis — if the generic material-animation player exists in `code.bin`, it either inlines
+   the register write itself (never calling out to `FUN_00358964`) or targets a completely
+   different write primitive not yet identified.
+
+**Conclusion**: the runtime CMAB binder/tick function remains unlocated by static means after
+three independent anchor attempts across two sessions (the `"cmab"` string xref in §5, and this
+session's two above). Per the task's constraint, the next concrete step is a harness memory-write
+watchpoint on `g_title.cmb`'s live `matCtx` constant-color register **index 0** (not index 5,
+which is the already-identified actor-owned alpha register) during a real title cs run, to
+recover the writer PC directly — this requires first locating the live heap VA of `g_title.cmb`'s
+material context (no existing tooling does this; `soh3d`'s harness has generic watchpoint
+infrastructure, `tools/soh3d_harness/watchhook.cpp`, but nothing yet resolves a *model handle* to
+its `matCtx` heap pointer). Not attempted this session — flagged as the concrete blocker for
+whoever needs the exact binder address (e.g. to also settle the still-open "two draw targets /
+`_ura` cmab" question from §2/§5).
+
+### 7.2 What WAS nailed down this session (sufficient to port the fix without the binder address): the frame-domain ratio, confirmed from a DIFFERENT already-decompiled anchor
+
+The binder function's *address* isn't needed to fix the timing bug — the relevant fact is the
+**tick-rate ratio between the cs-frame domain the port anchors the cmab cursor on and the cmab's
+own native authoring domain**, and that ratio is already pinned down, independently, twice, by
+prior decomp work that has nothing to do with `g_title.cmb` specifically:
+
+- **Static**: `title_logo_actor.md` §5.5 — `csCtx.curFrame` (`play+0x2298+0x20`) is explicitly
+  documented as running at **half** the raw emulated-frame-tick rate (contrasted against the
+  `0x0054CC3C` counter, which ticks ~1/emulated-frame).
+- **Live**: `soh3d:Shipwright/soh/src/zelda3d/behaviors/title/title_logo.cpp:282`'s own comment
+  records a direct trace (`ZELDA3D_DBG_TITLESKIP`) showing "the same csFrame value logged twice
+  per tick" — i.e. SoH3D's own ported `Zelda3D_TitleCsFrame()` cursor (`zelda3d_cutscene.cpp`'s
+  `sFrame`, driven by `Zelda3D_TitleCsAdvance()`) is *deliberately* built to reproduce this same
+  half-rate relationship: `Zelda3D_TitleCsAdvance()` is called once per real engine tick from
+  `TitlePresentation::update()`, but only increments `sFrame` every other call (`sTickParity`).
+
+Since `g_title_fire.cmab`'s own `duration=300`/keyframe-time fields are H3D material-animation
+data authored in the SAME per-engine-tick domain every other CTR material/skeletal animation in
+this game runs in (there is no reason, and no evidence anywhere in this doc's byte-level decode,
+for this ONE cmab to use a different tick convention than the rest of the format §1 describes),
+feeding it `(csFrame - fadeInFrame)` directly — as SoH3D's port did before this fix — samples it
+at exactly HALF its intended rate. **Doubling the delta before sampling
+(`cmabFrame = 2*(csFrame - fadeInFrame)`) is therefore not a fitted "×2 to match cs1093" constant;
+it is the same tick-domain conversion `Zelda3D_TitleCsAdvance` already performs for every other
+cs-frame consumer, applied at the one remaining place (the fire cmab cursor) that had been left in
+the half-rate (cs-frame) domain instead of the cmab's native domain.** Ported in
+`soh3d:Shipwright/soh/src/zelda3d/behaviors/title/title_fireglow.cpp`
+(`Zelda3D_TryDrawTitleFireGlow`) this session — see that file's own updated header comment for the
+exact derivation, and the paired debug_journal entry for the close-test numbers.
+
+### 7.3 Anchors (this session)
+
+- `SearchU32.py` run: `OOT3D_SEARCH_U32=0x7364616D,0x64616D6D,0x62616D63` — 0 hits (both code and
+  data blocks scanned).
+- `ListCallers.py` run: `OOT3D_CALL_TARGET=0x00358964` — 19 caller functions; decompiled via
+  `DecompDump.py` (`build/decomp/0014690c.c`, `0014bfb4.c`, `0014c864.c`, `001b72b4.c`,
+  `001b878c.c`, `001b9358.c`, `001bd664.c`, `001c0310.c`, `001da4f4.c` (already known — the logo
+  actor itself), `001e06a4.c`, `001f1974.c`, `001f6614.c`, `001ff5c4.c`, `0020a3b0.c`, `0020f5c8.c`,
+  `003b4308.c`, `0046245c.c`, `00471e58.c`, `004bf618.c`) — all literal-channel writers, none
+  data-driven.
+- Frame-domain ratio: not re-derived this session — cited from `title_logo_actor.md` §5.5 (static)
+  and `soh3d:title_logo.cpp:282` (live trace), both pre-existing, cross-referenced together here
+  for the first time specifically against the fire-glow cmab's own `duration` field.
+
 ## 4. Cross-ref 2026-07-10: staging-timing discrepancy reconciled in `title_logo_actor.md` §8, not here
 
 soh3d's `2026-07-10-fireglow-combiner-and-terrain-decomposition.md` also reported an apparent
