@@ -199,6 +199,25 @@ by target-yaw sign (Grezzo divergence from N64's always-right).
 0x34  turn-around
 ```
 Each picked by control-stick direction; morph = -6.0f (typical Grezzo side-walk morph).
+
+**SoH3D cross-check (2026-07-15, soh3d task "backwalk/sidestep_l/sidestep_r/turn_in_place
+parity"):** confirmed the SAME gate exists in the N64-twin `z_player.c` these two Grezzo funcs
+port: `func_8083FC68`/`func_8083FD78` (~z_player.c:8073/8092) compute a yaw-vs-facing delta and
+only take the backward/side branches when `this->focusActor != NULL` — i.e. these action funcs
+(backwalk `func_8083CBF0`→`Player_Action_808423EC`→`gPlayerAnim_link_normal_back_walk`; side-walk
+`func_8083CC9C`→`Player_Action_8084193C`; turn-in-place `Player_SetupTurnInPlace`→
+`Player_Action_TurnInPlace`→`PLAYER_ANIMGROUP_45_turn`) are unreachable without an active
+Z-target lock-on, on BOTH the OoT3D and N64 sides. SoH3D added a headless REPL primitive for
+this, `ztarget <0|1>` (`Shipwright/soh/src/zelda3d/zelda3d.c`), driving the real native
+`Player_SetAutoLockOnActor` entry point every frame (that function is a one-frame latch by
+design — see the REPL handler comment) rather than hand-poking `focusActor`.
+sidestep_l/sidestep_r/turn_in_place were reliably driven+verified this session (see
+`docs/link_parity_checklist.md` in soh3d). `backwalk` itself (the `func_8083FC68` return-value
+`-1` branch specifically, as opposed to the `0`/side-walk branch) was NOT reliably triggered by
+any camera-relative backward stick magnitude swept under the `ztarget` primitive — it
+consistently resolved to side-walk instead despite a measured ~179.8° yawTarget-vs-facing delta;
+root cause not isolated (see the soh3d STATE_MATRIX comment in `tools/link_sweep.py` for the
+concrete next investigative step). Left UNREACHABLE, not faked.
 N64 used a continuous blend; OoT3D uses discrete CSAB selection. This is the only action-func
 where OoT3D REIMPLEMENTS the anim layer vs N64 (not just tweak parameters).
 
