@@ -421,6 +421,74 @@ Same `_free`/non-free split as jump_climb: type 0/3/4/5 = `nml_landing_roll_free
 group (verified `tools/link_sweep.py sweep`, 2026-07-15). Note `ft_landing_roll_long` (360) is a
 SEPARATE CSAB (the long fighter-stance landing roll), not this dodge-roll group.
 
+### pickup_carry → **nml_carryB** family (two-handed carry-hold)
+
+Ground truth for soh3d `link_sweep.py` state `pickup_carry` (2026-07-16). The generic-liftable
+carry-hold (z_player.c ~5573, the `else` branch of the pickup-completion dispatch that installs
+`Player_Action_80846050` for any liftable actor id that isn't `BG_HEAVY_BLOCK`/silver `EN_ISHI`/
+strength-gated `EN_BOMBF`|`EN_KUSA`) plays `GET_PLAYER_ANIM(PLAYER_ANIMGROUP_carryB,
+modelAnimType)`. Same anim-group table as `landing_roll` (base `0x53a5f8`, stride `0x18`), located
+this session by ANIMID (not comment-order counting — the source's `/* PLAYER_ANIMGROUP_x */`
+comment position does NOT linearly match the compiled table index; confirmed by first locating
+`nml_carryB`(215)/`nml_carryB_free`(214) via `player_animid_names.json`, then finding that exact
+value pair in a `ReadWord.py` dump of the table range):
+
+| table VA | animIds (type 0..5) | → CSAB |
+|---|---|---|
+| `0x53a778` | 214,215,215,214,214,214 | nml_carryB_free (214) / nml_carryB (215) |
+
+Same `_free`/non-free split pattern as jump_climb/landing_roll: type 0/3/4/5 = `nml_carryB_free`,
+type 1/2 = `nml_carryB`. soh3d ported `Zelda3D_PlayerForceCarry` (z_player.c, installs
+`Player_Action_80846050` + `GET_PLAYER_ANIM(PLAYER_ANIMGROUP_carryB, modelAnimType)` directly,
+bypassing only the requirement for a live `interactRangeActor` — no liftable actor reliably spawns
+in the headless save) → resolves **`nml_carryB_free`** for the free-hands adult type → MATCH
+against this binary-derived group (verified `tools/link_sweep.py sweep`, 2026-07-16).
+
+### throw → **nml_throw** family (throw-release of a carried actor)
+
+Ground truth for soh3d `link_sweep.py` state `throw` (2026-07-16). The real throw-release path
+(`Player_ActionHandler_9`, z_player.c ~7472-7490: once `func_8083EAF0` selects THROW over PUT_DOWN
+— moving fast enough, or the held actor is `EN_BOM_CHU` — it calls `func_8083EA94`, z_player.c
+~7458) installs `Player_Action_80846578` + `GET_PLAYER_ANIM(PLAYER_ANIMGROUP_throw,
+modelAnimType)`. Located the same way as carryB: `nml_throw_free`(93)/`nml_throw`(94) from
+`player_animid_names.json`, then matched against the `ReadWord.py` table dump:
+
+| table VA | animIds (type 0..5) | → CSAB |
+|---|---|---|
+| `0x53a970` | 93,94,94,93,93,93 | nml_throw_free (93) / nml_throw (94) |
+
+soh3d ported `Zelda3D_PlayerForceThrow` (z_player.c) as a THIN wrapper that calls the existing
+`func_8083EA94(this, play)` directly — no new action-func/anim derivation needed, since that
+internal helper already IS the real throw-release install path — and resolves
+**`nml_throw_free`** for the free-hands adult type → MATCH against this binary-derived group
+(verified `tools/link_sweep.py sweep`, 2026-07-16).
+
+### item_bottle_use → **bt_bug_miss** family (bottle raise/swing, C-button item use)
+
+Ground truth for soh3d `link_sweep.py` state `item_bottle_use` (2026-07-16). Unlike the three
+groups above, this is a **direct anim ref, not the `PLAYER_ANIMGROUP` table** — the held-bottle
+C-button dispatch (`func_8083C6B8`, z_player.c ~6564-6577) installs `Player_Action_SwingBottle`
++ `sBottleSwingInfo[this->av2.inWater].missAnimation`, where `sBottleSwingInfo` is a small static
+table of `{missAnimation, catchAnimation, firstActiveFrame, numActiveFrames}` pairs keyed by
+whether Link is over water:
+
+| `av2.inWater` | missAnimation | catchAnimation |
+|---|---|---|
+| 0 (dry land) | gPlayerAnim_link_bottle_bug_miss → `bt_bug_miss` (444) | gPlayerAnim_link_bottle_bug_in → `bt_bug_in` (445) |
+| 1 (over water) | gPlayerAnim_link_bottle_fish_miss → `bt_fish_miss` (437) | gPlayerAnim_link_bottle_fish_in → `bt_fish_in` (438) |
+
+Ground truth is the byte-faithful player-logic layer itself (`divergence_map.md`: player rings
+2-4 = 0 divergent), not a group-table lookup — there's no table row to derive since the anim is a
+direct `LinkAnimationHeader*` reference in `sBottleSwingInfo`, same class of direct-ref ground
+truth as the `run_jump_water_fall`/`run_dive` entry below. soh3d ported
+`Zelda3D_PlayerForceItemUse` (z_player.c: forces `av2.inWater=false` for a deterministic dry-land
+pick, then installs `Player_Action_SwingBottle` + `sBottleSwingInfo[0].missAnimation` directly,
+bypassing only the requirement for a bottle actually equipped in the headless save) → resolves
+**`bt_bug_miss`** → MATCH against this direct-ref ground truth (verified `tools/link_sweep.py
+sweep`, 2026-07-16). Chose the dry-land (bug) variant over fish because it needs no water-depth
+state; both are equally valid "item_bottle_use" representatives per the checklist row's intent
+(raising/swinging the bottle on a C-button press), and the checklist doc records which was picked.
+
 ### run_jump_water_fall → **run_dive** family (run-jump into deep water)
 
 Direct anim refs (not the group table). In `func_8083AA10` @ `0x1cf9ac` (N64 z_player.c:5809),
