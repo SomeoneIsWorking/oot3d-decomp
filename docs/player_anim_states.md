@@ -675,6 +675,103 @@ vs the offline csab.py sampler at the same tagged frame, per-bone geodesic angle
 - carry-walk regression check: steady `nml_carryB_free` **0.00°**, only the carry-idle→walk seam frame
   elevated (the known §6f hard-cut) — no regression.
 
+## 6b. 6-state Link parity expansion (2026-07-15, soh3d `docs/link_parity_checklist.md`)
+
+Each of these ports the SAME contract as `landing_roll` above: install the real N64-twin action
+func + canonical anim, bypass only the entry gate headless SoH3D control can't hit, and compare
+the SELECTED CSAB family against the ground truth below. All were driven+verified live in SoH3D
+(`Shipwright/soh/src/overlays/actors/ovl_player_actor/z_player.c`, `Zelda3D_PlayerForce*` /
+`Zelda3D_PlayerIsZTargetIdleStance`) — see soh3d's `tools/link_sweep.py` STATE_MATRIX for the
+exact drive recipe each one used.
+
+### attack_combo → combo-swing 2 — `D_80854190[PLAYER_MWA_FORWARD_COMBO_1H]` (Player_Action_808502D0)
+
+Live combo-chain advancement (`Player_ActionHandler_7` → `func_80837818` → `func_80837948`,
+entered from `Player_Action_808502D0`'s animation-finished branch on a well-timed repeat A press)
+picks `this->meleeWeaponAnimation` from `D_80854190`; row 2 (`PLAYER_MWA_FORWARD_COMBO_1H`) is the
+literal combo-swing-2 CSAB, `gPlayerAnim_link_fighter_normal_kiru_finsh` → CSAB `ft_nml_kiru_fin`
+(soh3d `zelda3d_player_animmap.inc`), distinct from swing-1's `ft_nml_kiru`. SoH3D installs this
+row directly (skipping the two-tap input timing, which is a driving concern, not a selection one)
+via `Zelda3D_PlayerForceAttackCombo2`. **Verified MATCH** (soh3d sweep 2026-07-15).
+
+### swim_dive → underwater dive-swim — `Player_Action_8084DC48` settled loop (`func_8083D330`)
+
+`func_8083D12C`'s A-press branch from swim-wait (z_player.c ~6797) installs
+`Player_Action_8084DC48` + the one-shot `gPlayerAnim_link_swimer_swim_deep_start` entry anim; once
+`av1.actionVar1` reaches its settled value the function calls `func_8083D330` (~6861), which loops
+`gPlayerAnim_link_swimer_swim` → CSAB `sw_swim` — the representative "swimming underwater" pose,
+distinct from the SURFACE tread `gPlayerAnim_link_swimer_swim_wait` → CSAB `sw_swim_wait` that the
+existing `swim_surface`/`Zelda3D_PlayerForceSwim` state already covers. SoH3D's
+`Zelda3D_PlayerForceSwimDive` installs the settled state directly (the deep_start entry anim is a
+one-shot flourish, not a selectable steady-state CSAB). **Verified MATCH** (soh3d sweep 2026-07-15).
+
+### getitem_pose → raised-arm get-item — `func_8083A434` (`Player_SetupWaitForPutAway`) + `gPlayerAnim_link_demo_get_itemB`
+
+The non-cutscene item-pickup path (z_player.c ~7354/7391, the caller of `func_8083E4C4`) does
+`Player_SetupWaitForPutAway(play, this, func_8083A434)` +
+`Player_AnimPlayOnceAdjusted(play, this, &gPlayerAnim_link_demo_get_itemB)` under
+`GETTING_ITEM|CARRYING_ACTOR|IN_CUTSCENE` — CSAB `dm_get_itemB`. This is a SEPARATE entry from the
+Get-item / `FUN_004bc22c` (`Player_Action_8084E6D4`) action func documented in §"Get-item (#)"
+above (that's the settled hold action; this is the raised-arm reveal pose it holds after playing
+`dm_get_itemB`/`dm_get_itemA`). SoH3D's `Zelda3D_PlayerForceGetItem` installs the reveal pose
+directly (no live chest/EnItem00 interaction actor needed). **Verified MATCH** (soh3d sweep
+2026-07-15).
+
+### death → `func_80836448` (grounded branch) — `gPlayerAnim_link_derth_rebirth`
+
+`func_8083D53C`'s existing PER-FRAME check (z_player.c ~12248, runs every `Player_Update` via the
+normal update path — no new dispatch needed) triggers `func_80836448` as soon as
+`gSaveContext.health == 0` while grounded/in-water and not mid-ledge-climb; the grounded/
+non-shocked branch plays `gPlayerAnim_link_derth_rebirth` → CSAB `derth_rebirth` (already mapped in
+`zelda3d_player_animmap.inc`, §"General CSAB name table"). SoH3D's `Zelda3D_PlayerForceDeath`
+supplies ONLY the precondition (`gSaveContext.health = 0`) and lets the real per-frame code drive
+the transition over the following few frames — deliberately NOT a duplicate hook, since the engine
+already runs this check unconditionally (writing a second dispatch would have been the exact
+"bandaid duplicates the shared path" anti-pattern). `Zelda3D_PlayerForceIdle` (the existing safe
+reset out of any forced state) was extended to restore `gSaveContext.health` and clear
+`PLAYER_STATE1_DEAD`/`gameOverCtx.state`, since HP=0 is global save data that otherwise persists
+across warps/states. **Verified MATCH** (soh3d sweep 2026-07-15).
+
+### ztarget (as its OWN state, not the locomotion-gate) → `Player_Action_80840450` = OoT3D `FUN_00488b40`
+
+Ground truth is the ALREADY-documented §"Standing-aim / Z-hold (#88-aim)" entry above:
+`Player_Action_80840450` is entered automatically (`func_80839E88`/`func_80839F90`) once a
+HOSTILE-category `focusActor` is locked (`Player_CheckHostileLockOn`) and the stick returns to
+neutral — no forcing needed, just a live query. SoH3D added a read-only query hook
+`Zelda3D_PlayerIsZTargetIdleStance` (compares the live `actionFunc` pointer, which is file-local to
+`z_player.c` and not otherwise visible from `zelda3d.c`) + REPL `ztargetstate`. Kokiri Forest's own
+spawn has NO `ACTORCAT_ENEMY` actors loaded within 3000u (confirmed live via `actorsnear 3000`,
+2026-07-15 — matches vanilla OoT, no monsters at that spawn); the Deku Tree entrance
+(`ENTR_DEKU_TREE_ENTRANCE`, warp id `0x0`) has live `En_Dekubaba` (id `0x55`) within a few hundred
+units and was used instead. This is a decomp-ground-truth check (no live-oracle A/B — the
+embedded harness's `az_linkanim` only reads the SoH-side animId convention; adding an OoT3D-side
+Z-lock camera-mode readback command was judged out of this session's time budget vs. the
+already-solid decomp citation above, which the task brief explicitly allows as a fallback).
+**Verified MATCH** (soh3d sweep 2026-07-15): `idleStance=1 focusActor=0x55` after
+`asel 0x55 0; ztarget 1; walkhold 60 0 0`.
+
+### climb_updown → traversal — CONFIRMED reachable via the EXISTING `forceclimb` primitive, blocked only on wall geometry
+
+RE finding (real progress, not a re-statement of "no recipe"): `func_8083EC18` — the function
+soh3d's existing `forceclimb` REPL primitive (added in a PRIOR session for the #79/#74 climb
+repro) already drives — unconditionally installs `Player_SetupWaitForPutAway(func_8083A3B0)` and
+sets `PLAYER_STATE1_CLIMBING_LADDER` regardless of which internal branch (real ladder-flagged poly
+vs. the forced-wall bit `forceclimb` ORs in) it took. `func_8083A3B0` (z_player.c ~5605) installs
+`Player_Action_8084BF1C` — the REAL ladder-TRAVERSAL action func (as opposed to the static
+wall-HANG `Player_Action_8084BF1C`'s sibling reached via `jump_climb`) — once the grab-start anim
+finishes. So **no new C++ hook is needed at all**: `forceclimb` (on any sufficiently tall wall,
+`yDistToLedge >= 79`) + holding the stick up/down already reaches the traversal action func, which
+would read `nml_climb_up`/`nml_Fclimb_up` (or the `Fclimb` age-variant) from
+`zelda3d_player_animmap.inc` — distinct from the static `nml_climb_startA/B` grab pose and from
+`Zelda3D_PlayerForceHang`'s `nml_hang_*` wall-HANG family (a different action func entirely, the
+`jump_climb` short-climb, not the ladder-traversal one). **Left UNREACHABLE**, not faked: an
+8-heading × graduated-distance walk sweep from the Deku Tree and Kokiri Forest spawns (`0x0`,
+`0xee`) found exactly one wall in range, and it consistently reports `yDistToLedge<79` (too short
+— a fence/step, not a ladder-height wall), not `NO wallPoly`; every other heading finds no wall at
+all within the swept radius. Next step for a future session: either a scene/coordinate known to
+have a genuine tall climbable wall near an open-ground spawn, or a collision-poly enumeration REPL
+query (parallel to `floorat`) to locate one programmatically instead of blind directional walking.
+
 ## 7. Cross-links
 
 - Full action-func table with N64 twins: `docs/player_port.md § Player_UpdateCommon special-cased action funcs`
