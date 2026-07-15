@@ -379,6 +379,29 @@ The type 0/3/4/5 = `_free`, type 1/2 = non-free split matches N64 `sPlayerAnimGr
 z_player.c:13457) sets `jump_climb_up_free` with the **immediate** animId `0x91`=145=`nml_hang_up_free`
 — same as the table. (Same branch clears CLIMBING_LADDER `bic ...,#0x200000` and does `yaw+=0x8000`.)
 
+### landing_roll → **nml_landing_roll** family (the forward dodge-roll)
+
+Ground truth for soh3d `link_sweep.py` state `roll` (2026-07-15). The forward dodge-roll
+(`Player_SetupRoll` → `Player_Action_Roll`, N64 z_player.c:6292) plays
+`GET_PLAYER_ANIM(PLAYER_ANIMGROUP_landing_roll, modelAnimType)` — and the whole player-logic
+layer is **byte-faithful to N64 on 3DS** (`divergence_map.md`: player rings 2-4 = 0 divergent,
+"the decompile-and-diff the player phase is essentially complete"), so OoT3D runs the same
+action and the same anim group. Derived straight from the **anim-group table @ `0x53a5f8`**
+(base + stride `0x18`; same table the jump_climb/dive entries below use). The `landing_roll`
+group sits at **`0x53a7c0`** (base + `0x1c8`), six u32 animIds for modelAnimType 0..5, read
+out of the binary via `tools/ghidra_scripts/ReadWord.py`:
+
+| table VA | animIds (type 0..5) | → CSAB |
+|---|---|---|
+| `0x53a7c0` | 138,139,139,138,138,138 | nml_landing_roll_free (138) / nml_landing_roll (139) |
+
+Same `_free`/non-free split as jump_climb: type 0/3/4/5 = `nml_landing_roll_free` (138), type
+1/2 = `nml_landing_roll` (139). soh3d's on-foot Link (ZELDA3D_LINK, `linkstate roll` →
+`Zelda3D_PlayerForceRoll` → the real N64 `Player_SetupRoll`) independently resolves
+**`nml_landing_roll_free`** for the free-hands adult type → MATCH against this binary-derived
+group (verified `tools/link_sweep.py sweep`, 2026-07-15). Note `ft_landing_roll_long` (360) is a
+SEPARATE CSAB (the long fighter-stance landing roll), not this dodge-roll group.
+
 ### run_jump_water_fall → **run_dive** family (run-jump into deep water)
 
 Direct anim refs (not the group table). In `func_8083AA10` @ `0x1cf9ac` (N64 z_player.c:5809),
