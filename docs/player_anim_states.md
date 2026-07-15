@@ -215,9 +215,20 @@ sidestep_l/sidestep_r/turn_in_place were reliably driven+verified this session (
 `docs/link_parity_checklist.md` in soh3d). `backwalk` itself (the `func_8083FC68` return-value
 `-1` branch specifically, as opposed to the `0`/side-walk branch) was NOT reliably triggered by
 any camera-relative backward stick magnitude swept under the `ztarget` primitive — it
-consistently resolved to side-walk instead despite a measured ~179.8° yawTarget-vs-facing delta;
-root cause not isolated (see the soh3d STATE_MATRIX comment in `tools/link_sweep.py` for the
-concrete next investigative step). Left UNREACHABLE, not faked.
+consistently resolved to side-walk instead despite a measured ~179.8° yawTarget-vs-facing delta
+(a live input-decoder precision issue, not a missing code path).
+
+**backwalk CLOSED — MATCH (soh3d sweep 2026-07-15):** rather than keep fighting the live decoder,
+added `Zelda3D_PlayerForceBackwalk` (`Shipwright/soh/src/overlays/actors/ovl_player_actor/z_player.c`)
+which calls the REAL `func_8083CBF0(this, this->actor.shape.rot.y + 0x8000, play)` DIRECTLY — the
+byte-for-byte identical function+args the `func_8083FC68 < 0` branch (z_player.c ~8420) calls, with
+`yawTarget` forced to a literal 180° dead-behind push (`+0x8000` is one half-turn in the engine's
+s16-angle convention, not a tuned constant). This reproduces the branch's exact result state:
+`Player_Action_808423EC` + `gPlayerAnim_link_anchor_back_walk`. Resolved CSAB **`ac_back_walk`**
+(`zelda3d_player_animmap.inc`; a direct anim ref, NOT a `PLAYER_ANIMGROUP` table entry, so there's
+no anim-group table address — the anim is selected by `LinkAnimation_Change` inside `func_8083CBF0`
+at z_player.c ~6694). REPL `linkstate backwalk`.
+
 N64 used a continuous blend; OoT3D uses discrete CSAB selection. This is the only action-func
 where OoT3D REIMPLEMENTS the anim layer vs N64 (not just tweak parameters).
 
@@ -818,7 +829,7 @@ already-solid decomp citation above, which the task brief explicitly allows as a
 **Verified MATCH** (soh3d sweep 2026-07-15): `idleStance=1 focusActor=0x55` after
 `asel 0x55 0; ztarget 1; walkhold 60 0 0`.
 
-### climb_updown → traversal — CONFIRMED reachable via the EXISTING `forceclimb` primitive, blocked only on wall geometry
+### climb_updown → traversal — CLOSED (MATCH) via `Zelda3D_PlayerForceClimbMove` (2026-07-15)
 
 RE finding (real progress, not a re-statement of "no recipe"): `func_8083EC18` — the function
 soh3d's existing `forceclimb` REPL primitive (added in a PRIOR session for the #79/#74 climb
@@ -832,13 +843,28 @@ finishes. So **no new C++ hook is needed at all**: `forceclimb` (on any sufficie
 would read `nml_climb_up`/`nml_Fclimb_up` (or the `Fclimb` age-variant) from
 `zelda3d_player_animmap.inc` — distinct from the static `nml_climb_startA/B` grab pose and from
 `Zelda3D_PlayerForceHang`'s `nml_hang_*` wall-HANG family (a different action func entirely, the
-`jump_climb` short-climb, not the ladder-traversal one). **Left UNREACHABLE**, not faked: an
-8-heading × graduated-distance walk sweep from the Deku Tree and Kokiri Forest spawns (`0x0`,
-`0xee`) found exactly one wall in range, and it consistently reports `yDistToLedge<79` (too short
-— a fence/step, not a ladder-height wall), not `NO wallPoly`; every other heading finds no wall at
-all within the swept radius. Next step for a future session: either a scene/coordinate known to
-have a genuine tall climbable wall near an open-ground spawn, or a collision-poly enumeration REPL
-query (parallel to `floorat`) to locate one programmatically instead of blind directional walking.
+`jump_climb` short-climb, not the ladder-traversal one). The only remaining *live* route
+(`forceclimb` on a genuine `yDistToLedge >= 79` wall) was geometrically blocked: an 8-heading ×
+graduated-distance walk sweep from the Deku Tree and Kokiri Forest spawns (`0x0`, `0xee`) found no
+wall tall enough near open-ground spawn (one wall found, `yDistToLedge<79` — a fence/step).
+
+**climb_updown CLOSED — MATCH (soh3d sweep 2026-07-15):** closed via a direct Force* hook instead
+of continuing the wall-geometry hunt, exactly parallel to how the other 10 previously-unreachable
+states were closed (forced-CSAB-vs-decomp verdict, not necessarily live-input-driven). Added
+`Zelda3D_PlayerForceClimbMove(this, play, dir)`
+(`Shipwright/soh/src/overlays/actors/ovl_player_actor/z_player.c`) which calls `func_8083A3B0`
+DIRECTLY — the identical install `func_8083EC18` makes — after setting `av1.actionVar1 = 2` (the
+forced-wall branch `forceclimb` itself ORs in) and `av2.actionVar2 = 0`, then plays
+`this->ageProperties->unk_AC[actionVar1 + actionVar2]` = `unk_AC[2]` =
+`gPlayerAnim_link_normal_Fclimb_upL` — the SAME traversal anim family a real tall wall resolves to
+(the moving-family selection `Player_Action_8084BF1C` performs at z_player.c ~13641/13657). Key RE:
+`sAgeProperties[].unk_AC` (the anim-group array read live by the traversal action func; init table
+at z_player.c ~469/521) is **NOT age-split for indices 2/3** — both the adult and child rows point
+at `gPlayerAnim_link_normal_Fclimb_upL/upR`, so no age branch is needed. `dir < 0` (down) only
+flips `skelAnime.playSpeed` negative — the same clip played in reverse, which is the live
+function's own down-encoding (z_player.c ~13591-13597; both the `sp84>0` and `sp84<0` branches
+terminate at `unk_AC[sp68]`, no separate down-only CSAB exists). Resolved CSAB **`nml_Fclimb_upL`**
+(contains `climb_up`). REPL `linkstate climbup` / `linkstate climbdown`.
 
 ## 7. Cross-links
 
