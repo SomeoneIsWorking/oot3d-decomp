@@ -218,16 +218,34 @@ any camera-relative backward stick magnitude swept under the `ztarget` primitive
 consistently resolved to side-walk instead despite a measured ~179.8° yawTarget-vs-facing delta
 (a live input-decoder precision issue, not a missing code path).
 
-**backwalk CLOSED — MATCH (soh3d sweep 2026-07-15):** rather than keep fighting the live decoder,
-added `Zelda3D_PlayerForceBackwalk` (`Shipwright/soh/src/overlays/actors/ovl_player_actor/z_player.c`)
-which calls the REAL `func_8083CBF0(this, this->actor.shape.rot.y + 0x8000, play)` DIRECTLY — the
-byte-for-byte identical function+args the `func_8083FC68 < 0` branch (z_player.c ~8420) calls, with
-`yawTarget` forced to a literal 180° dead-behind push (`+0x8000` is one half-turn in the engine's
-s16-angle convention, not a tuned constant). This reproduces the branch's exact result state:
-`Player_Action_808423EC` + `gPlayerAnim_link_anchor_back_walk`. Resolved CSAB **`ac_back_walk`**
-(`zelda3d_player_animmap.inc`; a direct anim ref, NOT a `PLAYER_ANIMGROUP` table entry, so there's
-no anim-group table address — the anim is selected by `LinkAnimation_Change` inside `func_8083CBF0`
-at z_player.c ~6694). REPL `linkstate backwalk`.
+**backwalk CLOSED — MATCH via the REAL decode (soh3d, 2026-07-15, hack removal pass):**
+`Zelda3D_PlayerForceBackwalk` (`Shipwright/soh/src/overlays/actors/ovl_player_actor/z_player.c`) no
+longer bypasses `func_8083FC68` — it now DRIVES it. `func_8083FC68` (fully RE'd, z_player.c:8236-8253)
+is a dual-threshold curve selector:
+```
+temp = |(s16)(yawTarget - shape.rot.y)| / 32768.0f
+return  1 if speedTarget > temp*temp*50 + 6      // forward-walk branch
+return -1 if speedTarget > (1-temp)*10 + 6.8      // backward-walk branch
+return  0 otherwise                               // side-walk band
+```
+A dead-behind stick push (`yawTarget = shape.rot.y + 0x8000`) makes the `s16` subtraction wrap to
+exactly `-32768`, so `temp == 1.0` exactly — the forward threshold becomes `speedTarget > 56.0f` and
+the backward threshold collapses to `speedTarget > 6.8f`. Any `speedTarget` in `(6.8, 56]` is
+unambiguously the backward branch; the port passes `8.0f` (matching the `linearVelocity`
+`func_8083CBF0` itself installs) and calls `func_8083FC68(this, 8.0f, yawTarget)` for real, honoring
+its actual return value, only calling `func_8083CBF0` if it returns `< 0` — the exact same
+`if (func_8083FC68(...) < 0) func_8083CBF0(...)` shape as the live site (z_player.c ~8460-8469).
+This closes the last tracked hack in `docs/re-frontier.md` (`player.backwalk-decode`): earlier
+live-stick sweeps under Z-target lock got within ~179.8° of dead-behind but never closed the last
+bit of round-trip precision to land inside the real decode's threshold band; feeding the exact
+wrap-to-32768 `yawTarget` sidesteps that precision problem while still running the genuine decode
+function. Reproduces the branch's exact result state: `Player_Action_808423EC` +
+`gPlayerAnim_link_anchor_back_walk`. Resolved CSAB **`ac_back_walk`** (`zelda3d_player_animmap.inc`;
+a direct anim ref, NOT a `PLAYER_ANIMGROUP` table entry, so there's no anim-group table address — the
+anim is selected by `LinkAnimation_Change` inside `func_8083CBF0` at z_player.c ~6694). REPL
+`linkstate backwalk`. Re-verified MATCH via `tools/link_sweep.py sweep --only backwalk` (sidestep_l/
+sidestep_r/turn_in_place, which share `func_8083FC68`'s sibling `func_8083FD78`, unaffected — also
+re-verified MATCH in the same pass).
 
 N64 used a continuous blend; OoT3D uses discrete CSAB selection. This is the only action-func
 where OoT3D REIMPLEMENTS the anim layer vs N64 (not just tweak parameters).
