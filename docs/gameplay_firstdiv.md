@@ -774,6 +774,18 @@ distinct implementation. This is consistent with the RE finding that
 Kakariko (and other outdoor scenes) actually run under NORMAL1 rather
 than NORMAL0 despite scene-table defaults.
 
+> **DEFINITIVE (2026-07-17, verified on the SoH/N64 side which shares the
+> dispatch structure):** `CAM_FUNC_NORM0` is dispatched by **ZERO** camera
+> settings/modes — 0 references across the entire `z_camera_data.inc` mode
+> table (and 0 in `z_camera.c`), with no runtime `.funcIdx =` override, so
+> dispatch is purely table-driven. Even the `CAM_SET_NORMAL0` setting routes
+> its NORMAL mode to `CAM_FUNC_NORM1` (`z_camera_data.inc:1147`). So
+> `Camera_Normal0` is **dead code on BOTH engines** — Grezzo's return-1 stub is
+> behaviorally irrelevant because nothing ever calls it. Porting it is a no-op;
+> the real camera-mode work is the modes that ARE dispatched (NORM1 done as a
+> scaffold, NORM2/PARA*/KEEP*/BATT* still legacy). See `docs/re-frontier.md`
+> `camera.normal0-and-others`.
+
 sCameraFuncTable dump (first 20 entries):
 
     [ 0] 0x00000000  CAM_FUNC_NONE
