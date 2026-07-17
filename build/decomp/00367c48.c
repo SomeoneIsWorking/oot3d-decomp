@@ -3,7 +3,7 @@
 void FUN_00367c48(int param_1)
 
 {
-  *(undefined *)(param_1 + 0x1b6) = 1;
+  *(undefined1 *)(param_1 + 0x1b6) = 1;
   return;
 }
 

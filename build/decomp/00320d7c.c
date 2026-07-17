@@ -1,4 +1,4 @@
-// OoT3D decomp @ 00320d7c  name=FUN_00320d7c  size=36
+// OoT3D decomp @ 00320d7c  name=FUN_00320d7c  size=56
 
 void FUN_00320d7c(int param_1,int param_2,int param_3)
 
