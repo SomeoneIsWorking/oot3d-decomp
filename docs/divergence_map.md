@@ -164,10 +164,39 @@ veto/variant-2; `0x800000`=ledge-grab (set 0x33ebfc); `0x200000`=movement/weight
 the picker (Grezzo's replacement for N64 `behaviorType2 == TYPE2_3`). The "weird yawn" is the authored
 per-room HOT flag + which idle table the version gate selects.
 
-⇒ **PORT BOTTOM LINE (decision needed):** to be faithful we (a) extract from ROM room headers: room
+⇒ **PORT BOTTOM LINE:** to be faithful we (a) extract from ROM room headers: room
 num, behaviorType1/2, the Grezzo room-behavior bits (incl. bit9 HOT) + the `+0x223c` spawn mask;
-(b) live-capture the `0x54ac55` build-version byte from the Azahar oracle (it decides if the alt path is
-even active); (c) extract the alt anim-id tables from code.bin. **Then DECIDE: replicate the 3DS
+(b) ~~live-capture~~ **RESOLVED STATICALLY (2026-07-22)** — the `0x54ac55` build-version byte is a baked
+constant, no oracle needed; (c) **RESOLVED STATICALLY (2026-07-22)** — alt anim-id tables read from code.bin.
+
+### (b)+(c) RESOLVED — `Player_GetIdleAnim` decompiled and its pool constants read (2026-07-22)
+
+`FUN_0034d628` is 84 bytes and decompiles to a pure table selector (`build/decomp/0034d628.c`):
+
+```c
+if ((player[+0x29b8] & 0x200) == 0 &&
+    (player[+0x174e] != 1 || *(char*)0x54ac55 < 'Q' || (player[+0x29b8] & 0x400) != 0))
+    return idleTable[player[+0x1b3]];        // default
+return idleTable[player[+0x1b3] + 0x4f8/4];  // ALT
+```
+
+Its literal pool sits immediately after the body and resolves every symbol — no live capture required:
+
+    pool @0034D67C = 0x000029B8   variant-word offset   (confirms the documented +0x29b8)
+    pool @0034D680 = 0x0053A5F8   idle table base
+    pool @0034D684 = 0x0054AC55   version-byte pointer  (confirms the documented address)
+
+    default @0x53A5F8 = {0x50, 0x58, 0x58, 0x119}      <- matches this doc, byte-exact
+    alt     @0x53AAF0 = {0x1F9, 0x1F8, 0x1F8, 0x1FA}   <- matches this doc, byte-exact
+    *0x54AC55 = 0x7F  ->  0x7F >= 'Q'(0x51)  =>  THE VERSION GATE IS OPEN
+
+**So the shipped USA ROM DOES use the alt idle table** (whenever `+0x174e == 1` and variant bit 0x400 is
+clear, or unconditionally when variant bit 0x200 is set). Faithful-3DS is therefore not hypothetical:
+N64-default idles are simply WRONG for this ROM, which is what "#88 weird yawn" has been all along.
+Index is `player[+0x1b3]` (byte, 4 entries). The `+0x4c37` HOT override lives in the CALLER, not here.
+
+CAVEAT not yet closed: 0x7F is read from the static image; if anything rewrites `0x54AC55` at runtime the
+gate could differ live. Cheap to confirm on the oracle before shipping behavior that depends on it. **Then DECIDE: replicate the 3DS
 alt-anim path (faithful-3DS, idles match OoT3D) vs force the default table (faithful-N64).** Per the
 "indistinguishable" north star → **faithful-3DS** (replicate the alt path), gated on the captured
 version byte. (See `## OPEN DECISIONS`.)
