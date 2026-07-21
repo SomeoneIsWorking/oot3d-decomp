@@ -74,14 +74,18 @@ color-matching each OoT3D CMB against the N64 DL it replaces — `switch_N` forc
 | `switch_11_model.cmb` | **blue** flat trapezoid pad | `gFloorSwitch2DL`  (floor subType 2,3) |
 | `switch_6_model.cmb`  | upright **crystal diamond** (colored gem on base) | `gCrystalSwitchDiamond*` (crystal) |
 | `switch_9_model.cmb`  | upright **white crystal diamond** | crystal variant |
-| `switch_10_model.cmb` | **orange** flat pad | not a floor/rusty match — crystal-core / eye? (TBD) |
+| `switch_10_model.cmb` | **orange** flat pad | `gRustyFloorSwitchDL` (rusty floor, type 1) |
 | `switch_4,5,7`        | tall (h≈450-517), untested | crystal core / eye (TBD) |
 
 **PORTED:** floor pads (subType 0/1/2/3 → switch_1/2/11/11) via `behaviors/actor/obj_switch.cpp`
 (door-pattern static CMB at the actor transform; the up/down press is the actor's own Y-translation).
 Verified: all three resolve via the behavior key and render the correct colored 3DS pad, grounded, at
-Hyrule Field. **NOT yet ported:** rusty floor (brown — no `switch_N` match found among the tested set),
-EYE (animated eye-frame texture) and CRYSTAL (translucent + env-color on/off state + UV scroll) — these
+Hyrule Field. **Rusty floor (type 1) -> switch_10, ported.** An earlier by-eye pass wrongly rejected switch_10 as
+"orange, not brown": the OoT3D CMBs render markedly brighter than the N64 DLs (N64 subjects measure
+val 0.19-0.25 vs 0.50-0.80 for CMBs), so raw colour impressions mislead. `tools/model_match.py`
+ranked it #1 (shape 0.83, colour 0.85) and elimination confirms it — the four flat pads are colour
+variants of ONE mesh, and gold/red/blue are taken by the three floor subtypes.
+**NOT yet ported:** EYE (animated eye-frame texture) and CRYSTAL (translucent + env-color on/off state + UV scroll) — these
 have dynamic material state a static CMB won't capture, so they still fall through to N64. Subtype =
 `params>>4 & 7`; type = `params & 7`.
 
