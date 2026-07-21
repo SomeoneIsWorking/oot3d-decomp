@@ -75,8 +75,8 @@ color-matching each OoT3D CMB against the N64 DL it replaces — `switch_N` forc
 | `switch_10_model.cmb` | **orange** flat pad | `gRustyFloorSwitchDL` (rusty floor, type 1) |
 | `switch_4_model.cmb`  | **gold** curved blade | `gEyeSwitch1DL` (eye, type 2 subType 0 — GOLD eye textures) |
 | `switch_5_model.cmb`  | **silver** curved blade | `gEyeSwitch2DL` (eye, type 2 subType 1 — SILVER eye textures) |
-| `switch_6_model.cmb`  | crystal gem in diamond housing, **GREEN** gem | crystal switch, one STATE |
-| `switch_7_model.cmb`  | SAME mesh, **RED** gem | crystal switch, the OTHER STATE |
+| `switch_6_model.cmb`  | crystal gem in diamond housing, **GREEN** gem | `gCrystalSwitchCore*` (crystal, subType 0) |
+| `switch_7_model.cmb`  | same housing, **RED** gem | `gCrystalSwitchDiamond*` (crystal, subType 1) |
 | `switch_9_model.cmb`  | same silhouette, **white/untextured** gem | crystal variant, role unresolved |
 
 **PORTED:** floor pads (subType 0/1/2/3 → switch_1/2/11/11) via `behaviors/actor/obj_switch.cpp`
@@ -92,14 +92,18 @@ variants of ONE mesh, and gold/red/blue are taken by the three floor subtypes.
   pairing exactly; identical curved-blade mesh, colour is the discriminator. N64 animates the eye by
   swapping `eyeTextures[subType][eyeTexIndex]` (open/opening/closing/closed); OoT3D ships only the two
   colour CMBs, so a static swap would freeze the blink. Needs texture-frame handling.
-- **CRYSTAL** = `switch_6` (green gem) / `switch_7` (red gem). KEY FINDING: these are the SAME mesh
-  (gem in a translucent diamond housing on a dark base) differing only in gem colour — i.e. Grezzo
-  baked the crystal's two STATES as separate CMBs rather than driving an env colour. So the crystal
-  port is a **state-driven static model swap** (pick switch_6 or switch_7 from the actor's on/off
-  state), NOT the env-colour tint plumbing an earlier attempt started. Remaining unknown: which CMB is
-  the activated state — determine by capturing the N64 crystal in both states and colour-matching.
-  Note the N64 core (subType 0) vs diamond (subType 1) baselines render the SAME housing and differ
-  only in `crystalColor`, so subType does not select a different mesh.
+- **CRYSTAL** = `switch_6` (core, subType 0) / `switch_7` (diamond, subType 1). The two CMBs are the
+  two SUBTYPE models (same housing silhouette, different base gem colour — green vs red), matched by
+  `model_match` (diamond->switch_7 confidently at 0.908 vs 0.788; core->switch_6 by elimination, since
+  its own margin was only 0.011).
+  **The on/off STATE is a brightness modulation, not a model swap** — ground truth in
+  `z_obj_switch.c`: `ObjSwitch_CrystalOffInit` sets `crystalColor = (0,0,0)` and `CrystalOnInit` sets
+  `(255,255,255)`, applied by `gDPSetEnvColor(crystalColor)`. So an OFF crystal renders DARK and an ON
+  crystal renders at full brightness, over whichever subtype model is drawn. A faithful port therefore
+  needs BOTH: the per-subType CMB *and* a per-draw colour modulation carrying `crystalColor`.
+  (CORRECTION: a previous revision of this file claimed switch_6/7 were two baked STATES of one mesh
+  and that no env-colour path was needed. That was wrong — it over-read two captures that were both in
+  the OFF state, where the core reads dark grey purely because crystalColor is (0,0,0).)
 
 Subtype = `params>>4 & 7`; type = `params & 7`.
 
