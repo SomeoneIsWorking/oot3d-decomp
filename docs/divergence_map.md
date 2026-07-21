@@ -196,7 +196,32 @@ N64-default idles are simply WRONG for this ROM, which is what "#88 weird yawn" 
 Index is `player[+0x1b3]` (byte, 4 entries). The `+0x4c37` HOT override lives in the CALLER, not here.
 
 CAVEAT not yet closed: 0x7F is read from the static image; if anything rewrites `0x54AC55` at runtime the
-gate could differ live. Cheap to confirm on the oracle before shipping behavior that depends on it. **Then DECIDE: replicate the 3DS
+gate could differ live. Cheap to confirm on the oracle before shipping behavior that depends on it.
+
+### (a) RESOLVED — the room-header HOT bit is authored in exactly 4 rooms (2026-07-22)
+
+Scanned all **390** OoT3D room ZSIs (`/scene/*_N_info.zsi`, raw `ZSI\x01`) for header command **0x08**
+(Room Behavior; `cmd1.byte1` = behaviorType1, `cmd2` = behaviorType2 + Grezzo's added bits):
+
+    bit histogram over cmd-0x08 cmd2:  {0: 45, 1: 39, 2: 45, 8: 22, 9: 4}
+
+    bit9 "HOT" set in 4 rooms, all with cmd2 == 0x200 exactly:
+      /scene/ddan_0, /scene/ddan_3     (Dodongo's Cavern)
+      /scene/men_4,  /scene/men_6      (Gerudo Training Ground)
+
+Bits 0-2 are the ordinary N64 `behaviorType2` value; bit8 (-> `+0x4c35`) appears in 22 rooms.
+
+**This SHRINKS the #88 port.** N64/SoH already selects the fidget from room behavior —
+`z_player.c:8651  fidgetType = play->roomCtx.curRoom.behaviorType2` — so Grezzo's HOT bit is a
+re-encoding of a mechanism SoH ALREADY HAS, not a new system to build. Provided SoH's own room data
+gives `behaviorType2 == ROOM_BEHAVIOR_TYPE2_3` for those same four rooms (verify before relying on it),
+the HOT half of #88 needs NO port at all.
+
+⇒ What actually remains for #88 is only the **anim TABLE**: which clip each fidget slot resolves to.
+OoT3D uses `{0x1F9, 0x1F8, 0x1F8, 0x1FA}` where N64 uses `{0x50, 0x58, 0x58, 0x119}`, and since the
+version gate is open on the shipped ROM, those 3DS clips are what OoT3D actually plays. The port is to
+resolve Link's idle/fidget CSAB from the ALT ids. Remaining unknown: the id -> CSAB-name mapping for
+0x1F8/0x1F9/0x1FA. **Then DECIDE: replicate the 3DS
 alt-anim path (faithful-3DS, idles match OoT3D) vs force the default table (faithful-N64).** Per the
 "indistinguishable" north star → **faithful-3DS** (replicate the alt path), gated on the captured
 version byte. (See `## OPEN DECISIONS`.)
