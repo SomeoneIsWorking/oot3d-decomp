@@ -58,10 +58,32 @@ with a swappable texture (silver/base/gray) and a per-scene RGB tint (`sColors`)
   `spawnp 0xFF 2` (large `soul_La`) — both render the themed sandstone brick, grounded, sized correctly
   relative to Link (large ≈ 2× small). Repro: `spawnp 0xFF <params>` in any dungeon with the keep loaded.
 
-## Switch (OBJ_SWITCH 0x12A) — not started
-Animated (floor switch depresses, crystal/eye switches have tex scroll + on/off state). Multiple
-`switch_N_model.cmb`. More complex than a static prop — needs the up/down + tex-scroll state, so it's
-a poorer early target than the static pot/crate. Subtype = `params>>4 & 7`.
+## Switch (OBJ_SWITCH 0x12A) — floor pads DONE (2026-07-21), crystal/eye follow-up
+N64 `z_obj_switch.c` selects the draw by `type = params & 7` (0 floor, 1 rusty-floor, 2 eye, 3/4
+crystal); floor picks `floorSwitchDLists[(params>>4)&7] = {gFloorSwitch1DL, gFloorSwitch3DL,
+gFloorSwitch2DL, gFloorSwitch2DL}`.
+
+**switch_N CMB identities** (confirmed live 2026-07-21 by spawning Obj_Switch in Hyrule Field and
+color-matching each OoT3D CMB against the N64 DL it replaces — `switch_N` forced via the module's
+`gscale 25 <N>` bring-up override, N64 side viewed with the subtype's params):
+
+| OoT3D CMB | appearance | N64 DL / subtype |
+|---|---|---|
+| `switch_1_model.cmb`  | **gold** flat trapezoid pad | `gFloorSwitch1DL`  (floor subType 0) |
+| `switch_2_model.cmb`  | **red** flat trapezoid pad  | `gFloorSwitch3DL`  (floor subType 1) |
+| `switch_11_model.cmb` | **blue** flat trapezoid pad | `gFloorSwitch2DL`  (floor subType 2,3) |
+| `switch_6_model.cmb`  | upright **crystal diamond** (colored gem on base) | `gCrystalSwitchDiamond*` (crystal) |
+| `switch_9_model.cmb`  | upright **white crystal diamond** | crystal variant |
+| `switch_10_model.cmb` | **orange** flat pad | not a floor/rusty match — crystal-core / eye? (TBD) |
+| `switch_4,5,7`        | tall (h≈450-517), untested | crystal core / eye (TBD) |
+
+**PORTED:** floor pads (subType 0/1/2/3 → switch_1/2/11/11) via `behaviors/actor/obj_switch.cpp`
+(door-pattern static CMB at the actor transform; the up/down press is the actor's own Y-translation).
+Verified: all three resolve via the behavior key and render the correct colored 3DS pad, grounded, at
+Hyrule Field. **NOT yet ported:** rusty floor (brown — no `switch_N` match found among the tested set),
+EYE (animated eye-frame texture) and CRYSTAL (translucent + env-color on/off state + UV scroll) — these
+have dynamic material state a static CMB won't capture, so they still fall through to N64. Subtype =
+`params>>4 & 7`; type = `params & 7`.
 
 ---
 
