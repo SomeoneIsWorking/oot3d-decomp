@@ -263,7 +263,7 @@ variant/force state word (bits enumerated above).
 | 0x3589dc | per-boots/region camera settings | +0x4c33 per-region cam override block |
 | 0x34b288 | **func_8084B158** (SWIM/DIVE playSpeed setter — NOT run/walk; corrected 2026-07-22) | adds a one-call press latch: after an A/B press bumps playSpeed to full, bit 0x200000 is latched in the variant word +0x29b8 |
 | 0x34b17c | **func_8084B000** (water buoyancy/vertical-velocity updater — NOT func_8083CF5C; corrected 2026-07-22) | buoyancy rescaled by 2/3 (sink bump 1.0->0.6666667, rise damping -0.3->-0.2, rise accel 0.1->0.06666667) + Iron-Boots velocity floor anim-gated to -6.0f during sw_swim_wait |
-| 0x3438a4 | Player_InitItemActionWithAnim | N64 fn-ptr table → inline switch, CMB DMA-load, renumbered item ids, +HUD restriction SM |
+| 0x3438a4 | **Message_StartOcarina** (z_message_PAL.c) — NOT Player_InitItemActionWithAnim; corrected 2026-07-22 | FAITHFUL. Deltas are 3DS-engine-local only: async text-resource lock around each Message_OpenText; scarecrow text id 0x86F->0x8A0 (also used for SCARECROW_LONG_PLAYBACK); textBoxType 0x63->4; stateTimer 2->3 and 3->5 (30Hz vs 20Hz); Message_Decode dropped in the MEMORY_GAME arm; R_TEXTBOX_X/Y unset (dual-screen); Font_LoadCharWide preload absent. **Do NOT rewrite Player_InitItemAction's dispatch on the strength of the old row** — the "renumbered item ids" were actually OcarinaAction ids (0x2B/0x2D/0x2E/0x2F/0x30) and text ids. |
 | 0x355830 | Inventory_ChangeAmmo | same clamp, dispatch re-keyed to slot-id table |
 | 0x34cc78 | Player_UpdateUpperBody | inlines item-button scan + 3DS scratch state |
 | 0x3518dc | Player_ActionHandler_13 | fused grab/climb/door/get-item dispatch on +0x1749 + 3DS scratch |
