@@ -6,7 +6,7 @@ from the romfs ZSI scene headers.
 Usage:
     python3 tools/scene_lighting.py [output.json]
 
-Reads SOH3D_3DS_ROM from env (or from soh3d/.env).
+Reads ZELDA3D_OOT3D_ROM from env (or from the superproject's .env).
 Writes per-scene JSON to <output.json> (default: data/scene_lighting.json).
 
 Output format:
@@ -53,31 +53,18 @@ from pathlib import Path
 
 # ---- ROM path ---------------------------------------------------------------
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from zelda3d_paths import find_oot3d_rom, zelda3d_tools  # noqa: E402
+
+
 def find_rom() -> str:
-    rom = os.environ.get("SOH3D_3DS_ROM")
-    if rom:
-        return rom
-    env_path = Path(__file__).resolve().parents[2] / "soh3d" / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            m = re.match(r'^\s*SOH3D_3DS_ROM\s*=\s*"?([^"#\n]+)"?', line)
-            if m:
-                return m.group(1).strip()
-    raise RuntimeError("SOH3D_3DS_ROM not set and not found in soh3d/.env")
+    return find_oot3d_rom()
 
 
 # ---- CtrRom (inline copy of the relevant parts) ----------------------------
-# We inline what we need so this tool works standalone from oot3d-decomp without
-# a Python path dependency on soh3d/tools.
-
-try:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "soh3d" / "tools"))
-    from ctr_romfs import CtrRom
-except ImportError:
-    raise ImportError(
-        "Cannot import CtrRom from soh3d/tools/ctr_romfs.py. "
-        "Make sure /home/<user>/repo/soh3d/tools/ctr_romfs.py exists."
-    )
+# Reuse the superproject's CtrRom rather than keeping a second copy in sync.
+zelda3d_tools()
+from ctr_romfs import CtrRom  # noqa: E402
 
 
 # ---- ZSI parsing ------------------------------------------------------------

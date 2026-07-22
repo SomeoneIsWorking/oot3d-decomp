@@ -8,9 +8,9 @@ This gives game-wide static spawn coverage without running the emulator.
 
 Usage
 -----
-  SOH3D_3DS_ROM=<decrypted.3ds> python3 tools/scene_actors.py
-  SOH3D_3DS_ROM=<decrypted.3ds> python3 tools/scene_actors.py --scene spot04
-  SOH3D_3DS_ROM=<decrypted.3ds> python3 tools/scene_actors.py --list-scenes
+  ZELDA3D_OOT3D_ROM=<decrypted.3ds> python3 tools/scene_actors.py
+  ZELDA3D_OOT3D_ROM=<decrypted.3ds> python3 tools/scene_actors.py --scene spot04
+  ZELDA3D_OOT3D_ROM=<decrypted.3ds> python3 tools/scene_actors.py --list-scenes
   python3 tools/scene_actors.py --stats                     # summary (uses existing JSON)
 
 Output
@@ -63,12 +63,15 @@ import re
 import struct
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "soh3d", "tools"))
+import os as _os, sys as _sys  # noqa: E402
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from zelda3d_paths import ZELDA3D_ROOT as _ZELDA3D_ROOT, zelda3d_tools as _zpaths  # noqa: E402
+_zpaths()
 from ctr_romfs import CtrRom
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOH3D_REPO = os.path.join(REPO, "..", "soh3d")
-SCENE_NAMES_INC = os.path.join(SOH3D_REPO, "Shipwright", "soh", "src", "soh3d", "soh3d_scene_names.inc")
+SOH3D_REPO = str(_ZELDA3D_ROOT)
+SCENE_NAMES_INC = os.path.join(SOH3D_REPO, "Shipwright", "soh", "src", "zelda3d", "tables", "zelda3d_scene_names.inc")
 OUT_DIR = os.path.join(REPO, "data", "scene_actors")
 
 # ZSI command IDs
@@ -272,8 +275,8 @@ def main():
     ap.add_argument("--stats", action="store_true",
                     help="Print summary stats from existing JSON files and exit")
     ap.add_argument("--rom", metavar="PATH",
-                    default=os.environ.get("SOH3D_3DS_ROM"),
-                    help="Path to decrypted OoT3D .3ds (or set SOH3D_3DS_ROM)")
+                    default=os.environ.get("ZELDA3D_OOT3D_ROM"),
+                    help="Path to decrypted OoT3D .3ds (or set ZELDA3D_OOT3D_ROM)")
     args = ap.parse_args()
 
     if args.stats:
@@ -281,7 +284,7 @@ def main():
         return
 
     if not args.rom:
-        sys.exit("error: set SOH3D_3DS_ROM env var or pass --rom <path>")
+        sys.exit("error: set ZELDA3D_OOT3D_ROM env var or pass --rom <path>")
 
     rom = CtrRom(args.rom)
 

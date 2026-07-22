@@ -369,7 +369,7 @@ def main():
         env_file = os.path.join(os.path.dirname(TOOLS_DIR), ".env")
         if os.path.exists(env_file):
             for line in open(env_file):
-                m = re.match(r'export\s+SOH3D_3DS_ROM=["\']?([^"\']+)["\']?', line.strip())
+                m = re.match(r'export\s+ZELDA3D_OOT3D_ROM=["\']?([^"\']+)["\']?', line.strip())
                 if m:
                     rom_path = m.group(1).strip()
                     break

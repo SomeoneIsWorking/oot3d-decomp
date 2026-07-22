@@ -15,9 +15,9 @@ game in the target scene to confirm the proposed CSAB name matches what plays.
 
 Usage:
   cd .
-  SOH3D_REPO=<SOH3D_REPO> python3 tools/wrong_zar_patch.py
-  SOH3D_REPO=<SOH3D_REPO> python3 tools/wrong_zar_patch.py --apply
-  SOH3D_REPO=<SOH3D_REPO> python3 tools/wrong_zar_patch.py --json scratch/wrong_zar_proposals.json
+  python3 tools/wrong_zar_patch.py        # superproject auto-resolved; override with ZELDA3D_REPO
+  python3 tools/wrong_zar_patch.py --apply
+  python3 tools/wrong_zar_patch.py --json scratch/wrong_zar_proposals.json
 
 Note: as of 2026-06-23, running anim_parity.py will show 0 CSAB_WRONG_ZAR rows
 because the prior bug that used a last-write-wins by_name dict has been fixed —
@@ -36,8 +36,10 @@ TOOLS_DIR     = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR      = os.path.dirname(TOOLS_DIR)
 CSAB_CATALOG  = os.path.join(TOOLS_DIR, "skeldata", "csab_catalog.json")
 
-SOH3D_REPO    = os.environ.get("SOH3D_REPO",
-                               os.path.join(os.path.dirname(REPO_DIR), "soh3d"))
+sys.path.insert(0, TOOLS_DIR)
+from zelda3d_paths import ZELDA3D_ROOT  # noqa: E402
+
+SOH3D_REPO    = str(ZELDA3D_ROOT)
 SOH3D_ANIMMAP   = os.path.join(SOH3D_REPO, "tools", "skeldata", "animmap.json")
 SOH3D_OVERRIDES = os.path.join(SOH3D_REPO, "tools", "skeldata", "charcompare_overrides.tsv")
 

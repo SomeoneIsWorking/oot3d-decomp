@@ -23,7 +23,10 @@ scene (re)load. Entrance table @ 0x543bb8 (4-byte entries). Verified live 2026-0
 Link's House (52) -> Kokiri Forest (85) with entrance 0xEE. Entrance indices match N64 OoT.
 """
 import sys, os, struct
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "soh3d", "tools"))
+import os as _os, sys as _sys  # noqa: E402
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from zelda3d_paths import ZELDA3D_ROOT as _ZELDA3D_ROOT, zelda3d_tools as _zpaths  # noqa: E402
+_zpaths()
 from azahar_rpc import Rpc  # noqa: E402
 
 GPLAYSTATE = 0x0050AF34

@@ -70,7 +70,10 @@ from typing import NamedTuple, Optional, Tuple
 
 # ── path setup ────────────────────────────────────────────────────────────────
 _HERE = Path(__file__).resolve().parent
-_SOH3D = _HERE.parent.parent / "soh3d"
+import os as _os, sys as _sys  # noqa: E402
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from zelda3d_paths import ZELDA3D_ROOT as _ZELDA3D_ROOT, zelda3d_tools as _zpaths  # noqa: E402
+_SOH3D = _ZELDA3D_ROOT
 sys.path.insert(0, str(_SOH3D / "tools"))
 sys.path.insert(0, str(_HERE))
 

@@ -2,29 +2,34 @@
 
 Task: locate the 3DS En_Mag-equivalent (title logo/fade manager) actor, confirm it gates on
 `Flags_GetEnv(play,3)`/`(4)`, and confirm the "two draw targets" fire-glow hypothesis, via a
-LIVE actor-list walk on the prebuilt harness. **The live walk could not be run this session** (see
-§0); the deliverable instead comes from static decomp, and the headline result **revises, rather
-than confirms, the working hypothesis** left by `title_gamestate_driver.md` §4 item 1.
+LIVE actor-list walk on the harness. The deliverable comes from static decomp, and the headline
+result **revises, rather than confirms, the working hypothesis** left by
+`title_gamestate_driver.md` §4 item 1. The live walk has since been run (§0) and agrees: the
+title actor list is empty.
 
-## 0. Harness blocker (report honestly, not silently worked around)
+## 0. Live actor walk — RUN, and it corroborates the headline result
 
-No prebuilt `soh3d_harness` binary exists anywhere on this machine: checked
-`Azahar/build-libretro/bin/Release/`, `Shipwright/build-libretro/bin/Release/` (the path named in
-the task brief — does not exist; `harness_ctl.py`'s actual `HARNESS_BIN` is under `Azahar/`, also
-absent), the primary `soh3d` checkout, and every sibling `.claude/worktrees/*` directory. One
-sibling worktree (`agent-af111390d261d0222`) was mid-build of the full SoH library at the time of
-this check, but that is a different agent's workspace and its output isn't shared into this one.
-Per the task's hard constraint ("do NOT rebuild the harness or soh3d"), no build was started.
-**This blocks the live actor-list walk entirely** — items 1–3 of the task's stated method (asel/
-enumerate live actors at the settled title, filter by category, decompile the found actor's
-update/draw) are not executable without it. Flagging this as the concrete tooling gap for
-whoever next has a built harness available: run `titleactors`/an extended `actors`-at-title dump
-(the existing `actors` REPL command already walks the correct 3DS actor-list chain — see §2 — it
-just needs `CurrentPlayState()` fixed to fall back to the `0x00539F98`/`0x0871E840` live-play
-pointer the same way `CompareLightingImpl` already does, since `GPLAYSTATE_VA` genuinely reads 0
-throughout title per `title_gamestate_v2.md`).
+*(Originally a blocker section: no built `soh3d_harness` existed on the machine, and
+`CurrentPlayState()` did not yet fall back to the live title PlayState pointer. Both are long
+fixed — the harness builds in `Azahar/build-harness`, and `CurrentPlayState()` falls back to
+`TITLE_PLAYSTATE_PTR_VA = 0x00539F98`. The walk has now been run, 2026-07-22.)*
 
-Given the blocker, this session instead pursued the same discovery goal by a **static** route:
+At the settled title (`scratch/title_settled.state`, +120 frames) the harness reports:
+
+    playstate            ok 0x0871e854 mode=title
+    *0x0050afa0          0x51          (TITLE_SCENE_OFF — title scene)
+    *0x0050afac          0x01          (TITLE_ACTIVE_OFF — title active)
+    actors               ok actors 0
+    titleactors a        ok titleactors epona 25
+
+**Zero actors.** The `actors` REPL command walks the correct 3DS actor-list chain
+(`docs/actor_layout.md`, §2 below) and resolves the title PlayState fine — the list is genuinely
+empty. So the title logo/fade manager is **not reachable as an actor at all**, which is live
+confirmation of this document's static conclusion rather than a contradiction of it: the title
+demo does not populate a conventional actor list, and its animated content comes from the
+statically pre-allocated pose tables `titleactors` reads (25 limbs, Epona).
+
+This document pursued the same discovery goal by a **static** route:
 the OoT3D actor system's overlay table and `ActorProfile` structs are compile-time `.data`
 (`docs/actor_layout.md`), so the "which actor uses object X" question is answerable by parsing
 `build/code.bin` directly — no running emulator needed for that specific sub-question. That

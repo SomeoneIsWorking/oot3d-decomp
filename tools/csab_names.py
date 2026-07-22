@@ -54,7 +54,8 @@ USAGE
   python3 tools/csab_names.py --zar zelda_km1  # single ZAR lookup (print to stdout)
   python3 tools/csab_names.py --dur 19 --zar zelda_km1  # find all CSABs with duration 19
 
-Set SOH3D_3DS_ROM to the decrypted OoT3D .3ds image path (or put it in soh3d/.env).
+Set ZELDA3D_OOT3D_ROM to the decrypted OoT3D .3ds image path (or put it in the
+superproject's .env).
 """
 from __future__ import annotations
 
@@ -64,11 +65,12 @@ import os
 import sys
 from collections import defaultdict
 
-# ---- Resolve path to soh3d tools (sibling repo) -------------------------
+# ---- Resolve the superproject's tools (zelda3d, our parent) -------------
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(_HERE)           # oot3d-decomp root
-_SOH3D_TOOLS = os.path.join(_REPO_ROOT, "..", "soh3d", "tools")
-sys.path.insert(0, os.path.abspath(_SOH3D_TOOLS))
+sys.path.insert(0, _HERE)
+from zelda3d_paths import find_oot3d_rom, zelda3d_tools  # noqa: E402
+zelda3d_tools()
 
 from ctr_romfs import CtrRom   # noqa: E402
 from zar import Zar            # noqa: E402
@@ -82,19 +84,10 @@ _CATALOG_MD = os.path.join(_DOCS, "csab_catalog.md")
 
 
 def _load_rom() -> CtrRom:
-    path = os.environ.get("SOH3D_3DS_ROM")
-    if not path:
-        # Try loading .env from the soh3d repo
-        env_path = os.path.join(_REPO_ROOT, "..", "soh3d", ".env")
-        if os.path.exists(env_path):
-            for line in open(env_path):
-                line = line.strip()
-                if line.startswith("SOH3D_3DS_ROM="):
-                    path = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    if not path:
-        sys.exit("Set SOH3D_3DS_ROM to the decrypted OoT3D .3ds path (or define it in soh3d/.env)")
-    return CtrRom(path)
+    try:
+        return CtrRom(find_oot3d_rom())
+    except RuntimeError as e:
+        sys.exit(str(e))
 
 
 def catalog_zar(rom: CtrRom, zar_path: str) -> dict | None:

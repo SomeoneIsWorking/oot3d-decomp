@@ -14,7 +14,10 @@ stateFlags2+0x1714, linearVelocity+0x221c (f32), yaw+0x2220 (s16), shape.rot.y+0
 bgCheckFlags+0x90, focusActor+0x16f8, curAnimId+0x284.
 """
 import sys, os, struct, time
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "soh3d", "tools"))
+import os as _os, sys as _sys  # noqa: E402
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from zelda3d_paths import ZELDA3D_ROOT as _ZELDA3D_ROOT, zelda3d_tools as _zpaths  # noqa: E402
+_zpaths()
 from azahar_rpc import Rpc  # noqa: E402
 
 GPLAYSTATE = 0x0050AF34

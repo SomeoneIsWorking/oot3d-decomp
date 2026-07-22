@@ -18,9 +18,10 @@ No crypto here — decrypted dumps only (same constraint as ctr_romfs.py).
 """
 import argparse, os, struct, sys
 
-# reuse the soh3d NCCH/ExeFS parser (locates exefs/exheader offsets).
-SOH3D_TOOLS = os.path.expanduser("<engine>/tools")
-sys.path.insert(0, SOH3D_TOOLS)
+# reuse the superproject's NCCH/ExeFS parser (locates exefs/exheader offsets).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from zelda3d_paths import zelda3d_tools
+zelda3d_tools()
 import ctr_romfs as C
 
 
@@ -122,7 +123,7 @@ def main():
             o.write(code)
         print(f"wrote {a.out}")
     if a.verify:
-        sys.path.insert(0, SOH3D_TOOLS)
+        zelda3d_tools()
         import azahar_rpc as A
         r = A.Rpc()
         for pid, tid, _ in r.processes():

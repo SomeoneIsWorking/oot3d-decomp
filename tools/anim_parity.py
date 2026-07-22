@@ -38,7 +38,7 @@ Overridden rows are down-weighted (×0.2) because a human already verified them.
 
 ## Usage
   cd .
-  SOH3D_REPO=<SOH3D_REPO> python3 tools/anim_parity.py
+  python3 tools/anim_parity.py        # superproject auto-resolved; override with ZELDA3D_REPO
   python3 tools/anim_parity.py --top 50
   python3 tools/anim_parity.py --zar /actor/zelda_km1.zar
   python3 tools/anim_parity.py --missing-only
@@ -60,8 +60,10 @@ TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR  = os.path.dirname(TOOLS_DIR)
 CSAB_CATALOG = os.path.join(TOOLS_DIR, "skeldata", "csab_catalog.json")
 
-SOH3D_REPO = os.environ.get("SOH3D_REPO",
-                            os.path.join(os.path.dirname(REPO_DIR), "soh3d"))
+sys.path.insert(0, TOOLS_DIR)
+from zelda3d_paths import ZELDA3D_ROOT  # noqa: E402
+
+SOH3D_REPO = str(ZELDA3D_ROOT)
 SOH3D_ANIMMAP   = os.path.join(SOH3D_REPO, "tools", "skeldata", "animmap.json")
 SOH3D_OVERRIDES = os.path.join(SOH3D_REPO, "tools", "skeldata", "charcompare_overrides.tsv")
 SOH3D_ANIMMAP_SRC = os.path.join(SOH3D_REPO, "tools", "animmap_source.py")

@@ -22,7 +22,10 @@ ActorProfile: id@0, category@2, flags@4, objectId@8, instanceSize@0xC, init@0x10
 """
 import argparse, struct, sys, os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "soh3d", "tools"))
+import os as _os, sys as _sys  # noqa: E402
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+from zelda3d_paths import ZELDA3D_ROOT as _ZELDA3D_ROOT, zelda3d_tools as _zpaths  # noqa: E402
+_zpaths()
 from azahar_rpc import Rpc  # noqa: E402
 
 GPLAYSTATE = 0x0050AF34      # .data global holding the current PlayState pointer (30 code refs)
