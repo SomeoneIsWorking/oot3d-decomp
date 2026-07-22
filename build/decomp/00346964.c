@@ -39,7 +39,7 @@ undefined4 FUN_00346964(int param_1)
     }
     iVar4 = func_0x002c2700(iVar4,uVar7);
     if ((uVar3 & uVar5) != 0 || iVar4 != 4 && (uVar3 & uVar6) != 0) {
-      func_0x0037547c(uRam00346ab0,0,4,uRam00346aac,uRam00346aac,uRam00346aa8);
+      FUN_0037547c(uRam00346ab0,0,4,uRam00346aac,uRam00346aac,uRam00346aa8);
       return 1;
     }
   }
