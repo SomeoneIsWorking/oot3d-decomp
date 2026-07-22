@@ -213,6 +213,26 @@ by Play_Update.** To warp: set `PlayState.nextEntranceIndex @ play+0x5c32` (s16)
 index, then write `play+0x5c2d = 20` (TRANS_TRIGGER_START). Play_Update runs the fade-out and
 (re)loads the scene at that entrance. Entrance indices == N64 OoT (e.g. 0xEE = Kokiri Forest).
 
+## gSaveContext clocks — dayTime is NOT the one lighting reads
+
+`gSaveContext` @ **0x00587958** (global .bss) carries TWO time-of-day fields:
+
+| Offset | Field | Drives |
+|---|---|---|
+| +0x000C | `dayTime` | the game clock (`az_daytime` reads this) |
+| +0x15A8 | `skyboxTime` | the SKY and the ENVIRONMENT LIGHTING |
+
+**Writing `dayTime` alone changes nothing visible.** The clock moves, the render does not: the
+oracle kept rendering dusk at `dayTime = 0x6000` while a matched Zelda3D run rendered morning.
+Any lighting/colour A/B set up that way is invalid — it compares two different times of day while
+reporting them as matched (this cost a full round of wrong conclusions on 2026-07-22).
+
+N64 keeps `skyboxTime` at `SaveContext+0x141A`; OoT3D moved it to **+0x15A8**. Located by dumping
+gSaveContext and scanning for the u16 that mirrors `dayTime` (both read 0xf483 at a night spawn) —
+then confirmed by poking it: sky and ambient snap to daylight within ~120 frames.
+
+Write BOTH via `harness_ctl.set_time_of_day(h, 0x6000)`.
+
 - **Tool:** `tools/harness_ctl.py warp <entrance>` (e.g. `warp 0xEE`). Verified live: Link's House
   (scene 52) → Kokiri Forest (scene 85), and back (0xBB), repeatedly. Lands in the populated scene
   (98 actors incl. 8× En_Ko id=355). This UNBLOCKS #87.
