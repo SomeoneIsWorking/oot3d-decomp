@@ -264,8 +264,17 @@ resolution:
   press must not trigger the action sound.
 
 STILL MISSING for a faithful port: the value -> texture/label binding. Neither caller indexes a
-label table, so the binding lives further out (HUD draw). Find the code that turns these ids into
-do-action textures before porting anything here.
+label table, so the binding lives further out (HUD draw).
+
+**NEGATIVE RESULT (2026-07-22), so this is not retried statically:** `ListCallers 0x003769d8`
+returns **zero** callers. The resolver is reached by FUNCTION POINTER, which the Ghidra Reference DB
+does not resolve (the known limitation documented in the ghidra-re skill §4 — the same one that hid
+`PathFollow_Update`'s caller). So walking the call graph will NOT find the HUD consumer.
+
+Use the dynamic route instead: set a watchpoint on the resolver's return path (or on whatever field
+the HUD reads) in the embedded oracle and capture the PC/LR at fire time, then resolve those with
+`FnAt.py`. That is the documented escape hatch for fn-pointer dispatch and is what unblocked the
+path_node work.
 
 ## OPEN DECISIONS (need a user call)
 - **Idle/variant anim path (from #88):** replicate the 3DS alt-anim path (faithful-3DS — idles match
