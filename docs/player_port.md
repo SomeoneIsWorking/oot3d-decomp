@@ -307,7 +307,7 @@ action.** Verified statement-for-statement against N64 8084377C (z_player.c:9491
   locomotion** (run/turn-in-place family).
 
 ## LIVE-CONFIRMED action funcs (oracle, Azahar, scene 52 Link's House, 2026-06-21)
-Read straight from `playerInstance+0x1708` while driving Link (tools/link_action_probe.py). These are
+Read straight from `playerInstance+0x1708` while driving Link. These are
 GROUND TRUTH — they pin the bug→address mapping the static work narrowed:
 
 | state | actionFunc | anim (+0x284) | notes |
@@ -375,7 +375,7 @@ Now that **actionFunc is at Player+0x1708**, the exact OoT3D function for any be
 read away: in the live oracle (Azahar), drive Link into state X (idle/yawn, carrying an object,
 wall-climbing, in a door, walk-stop) and read `read32(playerInstance + 0x1708)` — that value IS the
 action function to decompile + align to N64 + port. (playerInstance via gPlayState→actorCtx→PLAYER
-head, see link_skel_live.py.) Do this for each bug below to get its precise target address.
+head.) Do this for each bug below to get its precise target address.
 
 ## Bug → behavior → N64 function (decompile these OoT3D twins first)
 | reported bug | N64 function family (start here) |
@@ -418,7 +418,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   garbage was a persisted wrong-mode context). 0x183634 looks like the **climb/ledge action (#79)**:
   sets DISABLE_ROTATION_Z_TARGET, gates on anim id +0x284 (0xe6/0x3a), compares anim height to
   +0x2270, sets ledge timer +0x2238. All 11 UpdateCommon special-cased funcs now in build/decomp/.
-- 2026-06-21 (cont.4): **LIVE oracle run** (Azahar, scene 52). Added tools/link_action_probe.py.
+- 2026-06-21 (cont.4): **LIVE oracle run** (Azahar, scene 52). Read the action-func fields live while driving Link.
   Confirmed actionFuncs by reading +0x1708 while driving Link: idle=0x4ba538 (Player_Action_Idle,
   yawn=anim 0x50), run=0x4ba378, walk-start=0x4a34d0. **#86 ROOT CAUSE CONFIRMED**: run→idle applies
   morphWeight (+0x288) 1.0→0 over ~5 frames (cross-fade) — soh3d hard-cuts; fix = apply the morph.

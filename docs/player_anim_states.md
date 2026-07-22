@@ -49,7 +49,7 @@ float[12]    = trailing pad/flag (0.0 at rest)
 Verified: bone0 (root) = identity 3×4 at origin; bone2's local translation ≈ 0 matches its CMB bind
 offset (so the matrices are PARENT-LOCAL, not world); leg-bone local rotations cycle 36–128° over a
 run cycle. **This array updates every LOGIC frame regardless of rendering** — unlike the render-side
-bone-world-matrix array (`actor+0x25c → +0x20 → +0xd4`, see `tools/link_skel_live.py`), which is a
+bone-world-matrix array (`actor+0x25c → +0x20 → +0xd4`), which is a
 GPU-skinning product that stays FROZEN under headless Azahar (no display present). So per-frame pose
 read-back for the parity sweep MUST use this jointTable, NOT the render array.
 

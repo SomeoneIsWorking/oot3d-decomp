@@ -9,7 +9,7 @@ mesh→bone bindings — NOT by guessing from the N64 decomp. All three agree.
 - **Static rest skeleton** — `soh3d/tools/link_skel_dump.py` parses `childlink_v2` out of
   `/actor/zelda_link_child_new.zar` (the exact asset OoT3D loads): 25 bones, per-bone parent +
   rest rot/trans, and the computed bind-pose **world position** of each bone origin.
-- **Live confirmation** — `oot3d-decomp/tools/link_skel_live.py` reads Link's per-bone world
+- **Live confirmation** — a live per-bone world-matrix read off the oracle gave Link's
   matrices from the running game: `PLAYER actor (id 0) + 0x25c` → embedded skeleton object
   (vtable `0x4ec030`) `+ 0x20` → anim-player object (vtable `0x4ec018`) `+ 0xd4` → bone-matrix
   array (column-major 4x3, stride `0x30`; world (x,y,z) = floats m[6], m[10], m[2]).
@@ -135,4 +135,4 @@ both deterministically (`linktwo` forced blend) and on a live cucco carry-walk.
 
 ## Tools
 - `soh3d/tools/link_skel_dump.py [zar]` — static rest skeleton + world positions.
-- `oot3d-decomp/tools/link_skel_live.py` — live per-bone world matrices from the oracle.
+- Live per-bone world matrices are read off the oracle at the chain below.

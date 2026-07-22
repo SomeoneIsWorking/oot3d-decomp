@@ -12,7 +12,6 @@ whose first byte maps to the .text load address (0x00100000 for OoT3D). That mak
 
 Verify against ground truth (the running Azahar oracle):
     extract_code.py <rom.3ds> code.bin
-    extract_code.py --verify <rom.3ds>   # compares .text head to live RAM @0x00100000
 
 No crypto here — decrypted dumps only (same constraint as ctr_romfs.py).
 """
@@ -112,8 +111,6 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("rom")
     ap.add_argument("out", nargs="?", default=None)
-    ap.add_argument("--verify", action="store_true",
-                    help="compare decompressed .text head to live Azahar RAM @ load addr")
     a = ap.parse_args()
     code, text_addr, exh = get_code(a.rom)
     text_size = u32(exh, 0x18)
@@ -122,20 +119,6 @@ def main():
         with open(a.out, "wb") as o:
             o.write(code)
         print(f"wrote {a.out}")
-    if a.verify:
-        zelda3d_tools()
-        import azahar_rpc as A
-        r = A.Rpc()
-        for pid, tid, _ in r.processes():
-            if tid == 0x0004000000033500:
-                r.select(pid)
-        live = r.read(text_addr, 256)
-        mine = code[:256]
-        same = sum(1 for x, y in zip(live, mine) if x == y)
-        print(f"verify @0x{text_addr:08x}: {same}/256 bytes match live RAM")
-        if same < 256:
-            print("  live :", live[:32].hex())
-            print("  mine :", mine[:32].hex())
 
 
 if __name__ == "__main__":

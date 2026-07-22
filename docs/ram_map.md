@@ -18,7 +18,7 @@ To find a value by behavior, alternate **still / move / still / move / still**, 
 each time, and keep floats that are **unchanged across every *still* interval** AND **changed across
 every *move* interval**. Camera/animation jitter fails "unchanged while still"; constants fail "changed
 while moving". (A single move+diff gives hundreds of false positives — camera, anim, particles. The
-alternation is what isolates it.) Implemented in `soh3d:tools/azahar_scan.py` `find_player_pos`.
+alternation is what isolates it.) Isolated by a still/move RAM narrowing search over the oracle.
 - Result: 277 candidates (naive 1-move diff) → **40** (still/move/still/move/still). Validated 2026-06-21.
 
 ## Findings
@@ -69,7 +69,7 @@ These are STATIC (.data/.bss) → **run-stable every boot**, unlike the heap add
 
 ### ACTOR SYSTEM — SOLVED 2026-06-21 (see `docs/actor_layout.md`)
 The actor list, actorCtx, Actor struct, gActorOverlayTable, ActorProfile, and gPlayState are all
-recovered and **verified live** at Link's House. Enumerate with `tools/actors.py`. Key anchors:
+recovered and **verified live** at Link's House. Enumerate with the harness `actors` command. Key anchors:
 `gPlayState @ 0x0050AF34 → PlayState → +0x208C actorCtx → +0x0C ActorListEntry[12]{count,head} →
 Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor IS N64-compatible
 (id@0/category@2 ARE correct) — the prior dead-end failed for ONE reason only (below), not layout.
@@ -85,7 +85,7 @@ Actor.next @ +0x130`. Actor: id@0, category@2, pos@0x08, params@0x1C. The Actor 
   on a real Actor +0x1C is `params`. That accessor walks a different struct. Read id as s16 @ +0x00.
 
 ## CONTROL PRIMITIVES (live, via the actor chain — durable across boots)
-- **TELEPORT (`tools/link_ctl.py tp <x> <z> [y]`) — WORKS.** Writing Link's canonical
+- **TELEPORT — WORKS.** Writing Link's canonical
   `Actor.world.pos` @ `head+0x08` (Vec3f, reached via the actor chain) reliably teleports him.
   Collision then resolves the final spot and will NOT cross walls (conservative — a teleport to a
   point behind a wall snaps back to the nearest reachable floor). **This resolves the old RAM-scan
@@ -118,7 +118,7 @@ Other camera data:
 - `play + 0x440` = Link's exact world pos (Vec3f copy).
 - `play + 0x20f8` = camera AT lag copy (slightly behind the primary at+0x1c4).
 
-**Tool:** `tools/azahar_cam.py` — `status`, `set_eye`, `set_at`, `frame_actor`, `freeze_link`, `scan`.
+**Camera fields are written directly** (`w <va> <value>`); the offsets below are what to write.
 `freeze_link` spam-writes Link's canonical world.pos at ~100 Hz (3× the 30 fps game update) to hold
 him stationary so the camera follows him to the right position for a screenshot. `frame_actor <addr>`
 teleports Link adjacent to an actor, freezes him, waits for camera to settle, and screenshots.
@@ -129,13 +129,13 @@ to the nearest floor. For off-ground actors (e.g. type 3 En_Ko at y=-80 undergro
 GOTCHA 2: camera mode is scene-dependent. The offsets above (play+0x1b8 / +0x1c4) were confirmed
 in Kokiri Forest (follow-cam mode). In Market/Hyrule (fixed-cam mode), the same offsets hold
 different values and may not be the live camera eye/at. For follow-cam scenes these offsets work;
-for fixed-cam scenes (overhead fixed views) further RE is needed. Use `azahar_cam.py status` to
+for fixed-cam scenes (overhead fixed views) further RE is needed. Read the camera block (below) to
 sanity-check that eye/at are plausible (eye should be within ~500u of Link for follow-cam).
 
 ## ENVIRONMENT LIGHTING (EnvLightSettings) — CONFIRMED 2026-06-24 (Kokiri Forest exterior, spot04)
 
 RE'd via dayTime RAM-diff against the live oracle (pin `gSaveContext.dayTime` u16 @ 0x00587958+0x0C
-by spam-writing ~2 s; noon=0x8000, dusk=0xC000, deep-night=0x0000). Tooling: `soh3d:tools/azahar_rpc.py`.
+by spam-writing ~2 s; noon=0x8000, dusk=0xC000, deep-night=0x0000). Tooling: the harness `w` (write word) command.
 
 **KEY NEGATIVE RESULT — do not re-walk:** the runtime does **NOT** store a blended `ambientColor`
 u8[3] anywhere in PlayState. A 512 KB sweep of PlayState (play+0x00000..0x80000) at noon vs night
@@ -213,7 +213,7 @@ by Play_Update.** To warp: set `PlayState.nextEntranceIndex @ play+0x5c32` (s16)
 index, then write `play+0x5c2d = 20` (TRANS_TRIGGER_START). Play_Update runs the fade-out and
 (re)loads the scene at that entrance. Entrance indices == N64 OoT (e.g. 0xEE = Kokiri Forest).
 
-- **Tool:** `tools/link_ctl.py warp <entrance>` (e.g. `warp 0xEE`). Verified live: Link's House
+- **Tool:** `tools/harness_ctl.py warp <entrance>` (e.g. `warp 0xEE`). Verified live: Link's House
   (scene 52) → Kokiri Forest (scene 85), and back (0xBB), repeatedly. Lands in the populated scene
   (98 actors incl. 8× En_Ko id=355). This UNBLOCKS #87.
 - **How it was found:** GameState header @ gPlayState holds `main` fn ptr @ +0x04 = `Play_Main`
@@ -227,7 +227,7 @@ index, then write `play+0x5c2d = 20` (TRANS_TRIGGER_START). Play_Update runs the
   so it does NOT reach Kokiri — the direct transitionTrigger write is the general solution.
 
 Tooling used: `r2 -a arm -b 32 -m 0x100000 build/code.bin` (load base 0x100000) for the static
-disassembly; `azahar_rpc` for live read/write. See `tools/link_ctl.py` for field offsets.
+disassembly; the harness `r`/`w` commands for live read/write.
 
 ### (historical) earlier investigation — concrete dead-ends, do not re-walk
 Goal: deterministic nav to another scene (Kokiri Forest, for #87 En_Ko). What was PROVEN:

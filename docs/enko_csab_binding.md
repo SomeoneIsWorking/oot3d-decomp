@@ -284,7 +284,7 @@ Types 10 and 1 share pool[2] and the same idle CSAB (`kw1_out_in_pose1`).
 
 The oracle RAM scan method that worked:
 
-1. Boot OoT3D oracle, warp to Kokiri Forest (`link_ctl.py warp 0xEE`)
+1. Boot OoT3D oracle, warp to Kokiri Forest (`harness_ctl.py warp 0xEE`)
 2. Find zelda_km1.zar and zelda_kw1.zar base addresses in RAM via ObjectCtx slot scan:
    - Read PlayState memory for slots with objectId 0xFC (km1) and 0xFD (kw1)
    - ObjectCtx slots at PlayState+0x3d5c (km1) and +0x3ddc (kw1); stride 0x80; data ptr at slot+4

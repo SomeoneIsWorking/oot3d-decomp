@@ -1,40 +1,54 @@
-# The Azahar oracle — scripting OoT3D headless
+# The OoT3D oracle — scripting the real game headless
 
-OoT3D runs headless in a modded [Azahar](https://github.com/azahar-emu/azahar) build, scripted over
-Azahar's RPC server (UDP `:45987`). This is how we read/write emulated 3DS RAM, capture framebuffers,
-and inject input to drive and observe the real 3DS game as ground truth.
+OoT3D runs inside an **embedded** [Azahar](https://github.com/azahar-emu/azahar) core: the emulator
+is linked as a library into `soh3d_harness`, a headless C++ program that loads the ROM and exposes a
+line REPL over stdin/stdout. No window, no separate emulator process, no IPC. This is how we read
+emulated 3DS RAM, capture framebuffers, and drive the real 3DS game as ground truth.
 
-Tooling currently lives in the **soh3d** repo (will migrate here as it matures):
-- `tools/azahar_rpc.py` — RPC client lib (read/write/screenshot/input/touch + process select).
-- `tools/azahar_repl.py` — interactive console (tap/hold/circle/walk/touch/shot/read/r32/rf).
-- `tools/azahar_scan.py` — Cheat-Engine-style RAM search (still/move narrowing).
+The tooling lives in the superproject (`<zelda3d>/tools`):
 
-## Azahar source mods (committed to the local Azahar checkout)
-Azahar already had `ReadMemory`/`WriteMemory`/`ProcessList`/`SetGetProcess`. Added packet types:
-- **`Screenshot=5`** — `GPU().Renderer().RequestScreenshot` → PPM on the host. (RGB from the GL
-  `glReadPixels(GL_BGRA, …_8_8_8_8_REV)` buffer: byte order B,G,R,A → emit R=[2] G=[1] B=[0].)
-- **`Input=6`** — held 3DS pad bits + circle pad, OR'd into HID `UpdatePadCallback`.
-- **`Touch=7`** — held bottom-screen touch (OoT3D menus are touch-driven).
+- `tools/soh3d_harness.sh` — configures + builds the harness (`Azahar/build-harness`) and runs it.
+- `tools/harness_ctl.py` — the driver: `spawn()`, `send()`, `boot_to_gameplay()`, plus a CLI
+  (`repl`, `send`, `warp`, `boot-to-play`, `peek`).
+- `tools/link_sweep.py` — `OracleSession`, a booted oracle held open across a whole sweep.
+- `tools/oracle_shot.py` — a verified gameplay screenshot (refuses to write a title frame).
 
-## Run recipe (headless on Xvfb)
-```
-source ./.env                     # SOH3D_3DS_ROM = decrypted OoT3D .3ds
-# enable_rpc_server=true in <azahar-config>/qt-config.ini ([Debugging])
-DISPLAY=:95 QT_QPA_PLATFORM=xcb Azahar/build/bin/Release/azahar "$SOH3D_3DS_ROM" &
-tools/azahar_repl.py             # interactive; or -c "cmd; cmd; ..." for batch
-```
-Verified: drove a New Game from title → name entry → intro → **Link's house, Kokiri Forest**, fully
-headless (buttons + touch), then RAM-scanned Link's position. RPC reads ~12 MB/s.
+## REPL surface
 
-### Fast re-entry (skip the intro)
-An **in-game save** was made at Link's house (File 1). After any emulator restart, reload to Kokiri
-Forest WITHOUT the ~3-minute intro grind:
-`tap start; tap start` (title→file select) → `tap a` (File 1) → `tap a` (Start) → in Kokiri Forest.
-(The Savestate RPC packet exists but does NOT work headless — Azahar's savestate file I/O is driven by
-the Qt GMainWindow frontend, absent in headless; the signal is set but nothing writes it. Use the
-in-game save instead.)
+    run <n>              advance n frames            mem <va> <n>     hexdump guest RAM
+    r / w                read/write a word           input <mask>     held pad bits
+    loadstate/savestate  emulator state              snapshot <base>  PPM framebuffer readback
+    playstate            PlayState ptr + mode=play|title
+    gameplay             ok yes|no — a real gameplay scene, NOT the title demo
+    scene                current scene number        actors           walk the live actor list
+    warp <entrance>      scene transition (see below)
+    soh_boot / soh_step / step / compare / force     the side-by-side SoH3D half
+    watch / hits / unwatch                           write watchpoints (writer PC + LR + regs)
 
-## Limits (why a full sweep needs warp, not walking)
-Driving input doesn't scale to every level/NPC. The plan is **warp injection**: write the entrance
-index + trigger a scene load via `WriteMemory` (OoT3D mirrors OoT's entrance system), then dump the
-actor list + screenshot — looped over all scenes. Complement with static romfs scene-actor-list parsing.
+## Reaching gameplay, and warping
+
+Warping uses the game's own mechanism — `nextEntranceIndex` (s16 @ `play+0x5C32`) plus
+`transitionTrigger` (s8 @ `play+0x5C2D`) = `TRANS_TRIGGER_START` (20); see `ram_map.md`. It works
+**only from a loaded save**: at the title there is nothing for the transition driver to spawn into.
+
+`harness_ctl.boot_to_gameplay(h, entrance=…)` handles that. It loads
+`scratch/gameplay_settled.state` (**no input driving at all**) or, the first time, drives the title
+once with short rapid taps and saves that state so the cold path never runs again. Then it warps and
+verifies the game stayed in gameplay.
+
+    python3 tools/harness_ctl.py warp 0xEE        # -> scene 0x0055 (Kokiri Forest)
+
+`gameplay`, not `playstate`, is the readiness check: `playstate` deliberately falls back to the
+title demo's PlayState so introspection works there, so it answers ok on the title screen.
+
+## Harness modifications to Azahar
+
+`Azahar/` is gitignored; the patches to re-apply after a fresh clone are recorded in
+`<zelda3d>/tools/soh3d_harness/AZAHAR_PATCH.md` (currently the `MemorySystem::Write<T>` write-hook
+backing the `watch`/`hits` watchpoint commands).
+
+## Limits
+
+Driving input does not scale to every scene and NPC — warp injection plus an actor-list dump does,
+which is what the sweep tools do. Static romfs scene-actor-list parsing (`tools/scene_actors.py`)
+complements it for anything that need not run.

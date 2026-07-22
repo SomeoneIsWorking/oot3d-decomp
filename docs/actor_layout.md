@@ -3,7 +3,7 @@
 Recovered 2026-06-21 from static disasm of `build/code.bin` and **verified against the live Azahar
 oracle** at Link's House (scene 52). These are the durable anchors the in-RAM scan could not reach:
 the globals below are STATIC (`.data`), so they hold every boot; the heap pointers they lead to are
-per-boot but reached deterministically through the chain. Enumerate with **`tools/actors.py`**.
+per-boot but reached deterministically through the chain. Enumerate with the harness **`actors`** command.
 
 ## The durable chain
 ```

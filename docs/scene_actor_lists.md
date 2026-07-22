@@ -90,7 +90,7 @@ CONFIRMED little-endian by validation against live oracle. The oracle reads live
 
 ## Validation against live oracle (scene 85 = spot04 = Kokiri Forest)
 
-The live oracle (Azahar headless, `tools/actors.py`) observed 98 live actors including
+The live oracle (the embedded-Azahar harness, `actors`) observed 98 live actors including
 8 × En_Ko (id=355) at confirmed positions. Static parse of `spot04_0_info.zsi` yields:
 
 | type | oracle pos         | static spawn pos   | match |

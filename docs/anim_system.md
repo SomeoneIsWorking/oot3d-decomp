@@ -2,13 +2,13 @@
 
 Ground truth for soh3d #87 (drive replacement anims to match what OoT3D actually plays). OoT3D
 does NOT use the N64 `SkelAnime`; skeletal actors animate via GREZZO C++ classes (CSAB/CMB).
-Reach a populated specimen with `tools/link_ctl.py warp 0xEE` (Kokiri Forest, 8× En_Ko id=355).
+Reach a populated specimen with `tools/harness_ctl.py warp 0xEE` (Kokiri Forest, 8× En_Ko id=355).
 
 ## How to observe (must-read)
 - **Distant actors are update-THROTTLED** — a far En_Ko's instance does NOT change frame-to-frame.
-  TP Link adjacent first (`link_ctl.py tp <x> <z> <y>` near the kid) or nothing animates. This is
+  TP Link adjacent first (write his position near the kid) or nothing animates. This is
   why an idle-region diff shows 0 changed words; tp-adjacent shows ~173.
-- Enumerate: `tools/actors.py` → En_Ko id=355, instSize **0xca8**, update fn 0x1b5f14.
+- Enumerate: the harness `actors` command → En_Ko id=355, instSize **0xca8**, update fn 0x1b5f14.
 - Saria's intro textbox (entrance 0xEE) PAUSES actor updates — dismiss it (`tap b`×3, `tap a`).
 
 ## En_Ko anime-controller struct (offsets into the Actor instance) — VERIFIED live 2026-06-21
@@ -55,7 +55,7 @@ a ~2-frame one-shot). But the LIVE OoT3D CHILD_5 girl runs a **looping 21-frame*
 
 GOTCHA: curFrame only advances for kids near Link (others update-throttled) — animLength /
 endFrame / type are valid regardless, so SELECTION is fully readable without tp-ing around.
-Player-position writes (`link_ctl.py tp`) get clobbered by the per-frame player update, so
+Player-position writes get clobbered by the per-frame player update, so
 framing a distant kid for a screenshot needs a frozen player or a free camera (not built yet).
 
 ## En_Ko CSAB binding chain — static RE (2026-06-23)
@@ -169,7 +169,7 @@ actor+0x1e0), Link's base-animation GREZZO controller is IN the PLAYER actor ins
 | **+0x294** f32 | **playSpeed**   | (0.667 observed) |
 | +0x29c/+0x2a0 s32 | anim selectors / bounds | jump on transition (28/29 -> 10/11 -> 88/89) |
 
-Tool: `tools/link_morph_probe.py` (`trace [secs]` to capture a transition).
+Captured by tracing the morph fields per-frame across a transition.
 
 **THE MORPH (what soh3d 3d3 is missing).** OoT3D Link cross-fades every animation transition
 exactly like N64 SkelAnime: on a transition the OUTGOING pose is frozen, the incoming CSAB
