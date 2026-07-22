@@ -240,6 +240,33 @@ mask (u32), play+0x2b9c = room-header bit10 target; **0x54ac55 = baked build reg
 (compared to 'Q'/'P'); player+0x174e = per-frame region-ambience-present byte; player+0x29b8 = Grezzo
 variant/force state word (bits enumerated above).
 
+### 0x002c2700 do-action resolver — partial RE (2026-07-22)
+
+The blocker on this row was "the MEANING of the 11 return values is unmapped". Progress, not a
+resolution:
+
+- **The values are do-action LABEL ids**, produced by a resolver that `0x002c2700` shares code with:
+  `FUN_003769d8` (0x3769d8) branches into `LAB_002c27d0`, i.e. the two are one tail-merged routine.
+  Callers of 0x2c2700 are exactly two: `FUN_00346964` (@0x346a38) and `FUN_003769d8` (@0x376a20).
+- **Condition -> value mapping recovered** from `build/decomp/003769d8.c` (ctx = `iRam00376a34`):
+
+      ctx+0xf38 == 0                         -> 0        (no label)
+      byte[iRam002c27d8 + ctx+8] == 0x1a     -> 7
+      byte[...] == 0x1f  (and s16 +0x2b7e != 3) -> 9
+      ctx+0xf38 == 0x05                      -> 10
+      ctx+0xf38 == 0x06                      -> 6 if ctx+0xfac == -1 else 1
+      ctx+0xf38 == 0x07                      -> 4
+      ctx+0xf38 == 0x0e and ctx+0xfa4 < 2    -> 2
+      ctx+0xf38 in {0x08,0x09}               -> falls into the shared 0x2c27d0 tail
+
+- **Consumer semantics, one data point:** `FUN_00346964` special-cases `!= 4` — value 4 is excluded
+  from the button-press path that fires the SFX builder (`FUN_0037547c`). So 4 is a label whose
+  press must not trigger the action sound.
+
+STILL MISSING for a faithful port: the value -> texture/label binding. Neither caller indexes a
+label table, so the binding lives further out (HUD draw). Find the code that turns these ids into
+do-action textures before porting anything here.
+
 ## OPEN DECISIONS (need a user call)
 - **Idle/variant anim path (from #88):** replicate the 3DS alt-anim path (faithful-3DS — idles match
   OoT3D, gated on the captured build-version byte) **[recommended, per "indistinguishable" north star]**
