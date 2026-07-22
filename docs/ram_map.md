@@ -150,31 +150,37 @@ yourself, OR sample the rendered frame.
 - Found via PlayState pointer **`play + 0x3230`** → list base (e.g. `0x087918c0` for Kokiri). The list
   base also appears at `play + 0x3228`-region (an env struct: `{?, count u32=0x0c, listPtr,
   flags, fogEnd f32=12000, drawDist f32=2400, ...}`).
-- **Runtime entry = 28 bytes** (NOT the ZSI on-disk order — see `scene_lighting.md`; runtime puts
-  the fog floats FIRST):
+- **Runtime entry = 28 bytes**, and it IS the ZSI on-disk record verbatim: the on-disk cmd-0x0F
+  region is `[16-byte header][count × 28-byte records]`, and the runtime list is a straight copy
+  of the records. (CORRECTED 2026-07-22 — the earlier read of this entry was phase-shifted 12
+  bytes by treating the 16-byte header as a 28-byte "metadata entry 0". The old "ambient =
+  (R,72,72), G/B constant" observation was an artifact: those 72s are dir bytes (0x48).)
+  Fully decoded layout, verified byte-for-byte against BOTH the raw ZSI (spot04_info.zsi
+  @0x16e90) and the live CmbVShader light uniforms (`vsuni_log`, Kokiri gameplay noon:
+  c82/c85 LightAmbientColor = (0.7098,0.7098,0.62745) == slot 1 ambient (181,181,160)):
   ```
   +0x00 f32  fogEnd      (Kokiri = 12000)
   +0x04 f32  drawDist    (Kokiri = 2400)
-  +0x08 u8   ?           (often 0xff at +0x09)
-  +0x0a u8[2] ?
-  +0x0c u8[3] ambientColor   (R,72,72) — G,B==72 constant across all Kokiri slots
-  +0x0f s8   light0Dir? (1 byte; dir/color alignment slightly fuzzy)
-  +0x10 u8[3] light0Color    (the sun/key color — THIS is the noon/night discriminator)
-  +0x13 ... (overlaps; light0Color reads cleanly as +0x10..0x12)
+  +0x08 u16  ?           (fogNear/blend-rate shaped: 0xfef8/0xff20/0xff0c/0x04c8)
+  +0x0a u8[3] ambientColor   (the real per-light scene ambient — day = (181,181,160))
+  +0x0d u8[3] ?          (constant (72,72,72) in outdoor slots, 0 in cs slots)
+  +0x10 u8[3] light0Color    (the sun/key color — the noon/night discriminator)
+  +0x13 s8[3] light0Dir      ((-72,-72,-72) outdoors; runtime recomputes sun dir from dayTime)
   +0x16 u8[3] light1Color    (the fill/moon color)
+  +0x19 s8[3] light1Dir
   ```
 
-### Kokiri Forest decoded slots (CONFIRMED values)
-| slot | ambient(+0x0c) | light0Color(+0x10) | light1Color(+0x16) |
+### Kokiri Forest decoded slots (CONFIRMED values, corrected ambient)
+| slot | ambient(+0x0a) | light0Color(+0x10) | light1Color(+0x16) |
 |------|----------------|--------------------|--------------------|
-| 0 | (61,72,72)  | (239,239,99)  | (79,79,51)    |
-| 1 | (160,72,72) | (255,255,219) | (109,99,79)   |
-| 2 | (40,72,72)  | (239,140,61)  | (99,61,68)    |
-| 3 | (160,72,72) | (63,63,99)    | (99,170,219)  |
-| 4 | (68,72,72)  | (109,181,79)  | (40,51,119)   |
-| 5 | (109,72,72) | (160,198,198) | (40,51,170)   |
-| 6 | (40,72,72)  | (109,109,130) | (51,40,140)   |
-| 7 | (104,72,72) | (20,40,99)    | (51,130,160)  |
+| 0 | (119,119,61)  | (239,239,99)  | (79,79,51)    |
+| 1 | (181,181,160) | (255,255,219) | (109,99,79)   |
+| 2 | (160,68,40)   | (239,140,61)  | (99,61,68)    |
+| 3 | (51,79,160)   | (63,63,99)    | (99,170,219)  |
+| 4 | (68,84,68)    | (109,181,79)  | (40,51,119)   |
+| 5 | (84,140,109)  | (160,198,198) | (40,51,170)   |
+| 6 | (89,68,40)    | (109,109,130) | (51,40,140)   |
+| 7 | (35,63,104)   | (20,40,99)    | (51,130,160)  |
 
 ### dayTime → slot selector (CONFIRMED): `play + 0x3370` (a `u8[2]` = [slotA, slotB] to cross-fade)
 Single selector drives both skybox and environment lighting in this build.
