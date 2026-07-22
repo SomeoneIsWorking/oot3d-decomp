@@ -11,7 +11,7 @@ The global **`decomp-port`** skill (`<decomp-port-skill>`, reusable for any game
 "porting machine." The work splits into two tracks that share only an artifact contract, so they
 run in parallel without stepping on each other:
 - **Track A — decomp/RE OoT3D** (this repo, `oot3d-decomp`): Ghidra-decompile player functions →
-  align to N64 twin → diff → commit the decompiled C (`build/decomp/<vaddr>.c`, gitignored) and the
+  align to N64 twin → diff → commit the decompiled C (`build/decomp/<vaddr>.c` — these ARE tracked, 1245+ files) and the
   durable **addr ↔ N64-name behavior map** + per-behavior notes here. No SoH3D build needed.
 - **Track B — integrate into SoH3D** (`soh3d`/Shipwright): consume Track A's behavior maps to port
   each behavior into the Player path; build + live-verify in real gameplay.
@@ -406,7 +406,7 @@ head, see link_skel_live.py.) Do this for each bug below to get its precise targ
   +0x221c, yaw+0x2220, shape.rot.y+0xbe, bgCheckFlags+0x90). Found the **variable-framerate step
   scaling** (`[g+0x110]` factor) — Grezzo change, suspect for locomotion bugs. Mapped the N64
   idle/yawn picker (Player_ChooseNextIdleAnim). 3 special funcs decompiled, twins narrowed.
-  Decompiled .c are in build/decomp/ (gitignored). NEXT: live-read actionFunc per bug to pin addrs.
+  Decompiled .c are in build/decomp/ (TRACKED — commit them; only build/ghidra/ is ignored). NEXT: live-read actionFunc per bug to pin addrs.
 - 2026-06-21 (cont.2): **RESOLVED the Player_UpdateCommon special-cased action funcs to exact
   addresses** by reading their function-pointer values straight out of code.bin's literal pool
   (no live run): 0x4b9920, 0x4ba378, 0x4ba538, 0x4bc22c, 0x4bf18c, 0x4bf3bc, 0x4bf5cc, 0x488b40
