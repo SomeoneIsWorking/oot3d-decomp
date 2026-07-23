@@ -360,20 +360,65 @@ FAITHFUL** with ONE Grezzo-added override (the prime #88 suspect). New confirmat
   hook is `true` in vanilla, so the equipment predicate is the real gate).
 - The chosen anim is `sFidgetAnimations[fidgetType][modelAnimType!=1 ? 1 : 0]`, played via
   `FUN_00360190(...)` with the **−6.0f morph** (= N64 `LinkAnimation_Change(... ANIMMODE_ONCE, -6.0f)`).
-- **✅ #88 ROOT PINNED (2026-06-22, region-field deep-dive — scratch/align/region_field_system.md):**
-  the override `if (*(s8*)(play + 0x4c37) != 0) fidgetType = 3 (FIDGET_HOT);` is real, and `+0x4c37` =
-  **room-header behavior-command bit 9 ("HOT room")** — an AUTHORED-PER-ROOM flag set from the ROM room
-  header by `SCENE_CMD_ROOM_BEHAVIOR` (OoT3D 0x2344c4), Grezzo's replacement for N64
-  `behaviorType2 == TYPE2_3`. SEPARATELY, `Player_GetIdleAnim` (0x34d628) returns the **default idle
-  table @0x53a5f8 `{0x50=yawn,0x58,0x58,0x119}`** OR the **ALT table @+0x4f8 `{0x1f9,0x1f8,0x1f8,0x1fa}`**
-  depending on the **build-version gate** `(player+0x174e!=1 || *0x54ac55 < 'Q') || (player+0x29b8 &
-  0x400)` — where `0x54ac55` is the baked build region/version byte. So the "weird yawn" = the HOT-room
-  bit + which idle table the version gate selects. **Port #88 = (a) extract the room-header HOT bit per
-  room from the ROM, (b) capture `0x54ac55` from the oracle, (c) replicate the alt-table path per the
-  faithful-3DS decision (see docs/divergence_map.md OPEN DECISIONS).** `+0x4c32` = behaviorType2 (confirmed),
-  `+0x4c30` = curRoom.num (NOT a region index — prior guess corrected).
+- **⚠️ "0x50 = yawn" IS FALSIFIED (2026-07-23, live oracle) — and with it the whole #88 premise.**
+  `animId 0x50` is **`nml_wait_free`**, the plain neutral standing idle (see
+  `oot3d-decomp/tools/skeldata/player_animid_names.json`). **There is NO yawn/akubi/stretch clip
+  anywhere in Link's animation set** — a full scan of the 582-entry player anim-name table finds zero
+  matches for yawn/akubi/nobi/stretch. The "default idle table @0x53a5f8 `{0x50,0x58,0x58,0x119}`"
+  decodes to `{nml_wait_free, nml_wait, nml_wait, ft_wait_long}` — which is **byte-identical to N64's
+  `D_80853914[PLAYER_ANIMGROUP_wait]`** `{wait_free, wait, wait, fighter_wait_long, ...}`. So OoT3D's
+  `Player_GetIdleAnim` default table is NOT a Grezzo change at all. The prior note read a raw table
+  index as "yawn" and built the whole bug on it.
+- **✅ #88 MEASURED AT PARITY (2026-07-23, live oracle vs live game, Kokiri 0xEE).** Our port runs the
+  vendored N64 `Player_ChooseNextIdleAnim`, and OoT3D's inlined twin is faithful to it for everything
+  reachable at a plain idle. Measured at matched state — **neither side had a weapon IN HAND at idle** (the gate tests
+  `rightHandType == RH_SHIELD`, which is only set with the sword drawn; at a plain idle it is RH_OPEN on
+  both sides regardless of inventory, so commonType 0/3 are rejected either way. Confirmed by the
+  `wait_itemC`/`wait_itemD1` fidgets never firing on either side):
+  | | default idle | fidget set | fidget distribution | cadence |
+  |---|---|---|---|---|
+  | **oracle** (n=6 picks, ~2100f) | `nml_wait_free` (0x50) | `nml_waitF_typeA_20f` (0x56), `waitF_itemA_20f` (0x1c) | look-around 67% / tunic 33% | fidget:default ≈ 276f:132f (2:1) |
+  | **ours** (n=26 picks, 360 s) | `nml_wait_free` | `nml_waitF_typeA_20f`, `waitF_itemA_20f`, `waitF_itemB_20f` | look-around 69% / tunic 15% / tap-feet 15% | fidget:default ≈ 10.5 s:5.1 s (2:1) |
+
+  Both match the faithful N64 formula for a Link with no weapon in hand — `commonType = Rand_ZeroOne()*5`, with
+  commonType 0 (SWORD_SWING) and 3 (ADJUST_SHIELD) rejected for want of a drawn weapon and falling back to
+  `behaviorType2` (= 0 = FIDGET_LOOK_AROUND at Kokiri): **expected 60% look-around / 20% tunic / 20%
+  tap-feet.** The strict default↔fidget alternation (idleType toggle) matches too. **⚠️ SAMPLING TRAP:
+  the first oracle run (n≈2 picks) showed ONLY look-around and looked like a hard divergence
+  ("OoT3D suppresses the common fidgets"). That was pure small-n artifact — `waitF_itemA` appears at
+  n=6. Idle re-picks only happen on `animDone` (~130-280 frames apart), so ANY idle-distribution claim
+  needs ≥20 picks. Do not re-derive this the short way.**
+- The common-fidget gate itself is **byte-faithful to N64** (verified in `build/decomp/004ba538.c`):
+  `if (commonType < 4) { if (commonType==0||commonType==3) { require rightHandType==0x0a(RH_SHIELD);
+  if(commonType!=0) require Player_GetMeleeWeaponHeld2; ... } fidgetType = commonType + 9; }` —
+  i.e. ADJUST_TUNIC(1)/TAP_FEET(2) accepted unconditionally, exactly as N64.
+- **The two REAL 3DS-only deltas that remain — both INERT at the reachable idle, neither is "the yawn":**
+  1. **HOT-room bit:** `if (*(s8*)(play + 0x4c37) != 0) fidgetType = 3 (FIDGET_HOT);` — real, and
+     `+0x4c37` = **room-header behavior-command bit 9**, authored per-room via `SCENE_CMD_ROOM_BEHAVIOR`
+     (OoT3D 0x2344c4), Grezzo's replacement for N64 `behaviorType2 == TYPE2_3`. Inert at Kokiri
+     (non-HOT). Note FIDGET_HOT and FIDGET_WARM share the SAME anims (`wait_typeB`/`waitF_typeB`) in
+     both N64 and 3DS, so this only matters in an actually-HOT room (Fire Temple / DMC). Porting it
+     needs the per-room bit extracted from the ROM room header — NOT a per-scene guess.
+  2. **`play + 0x2130` gate (NEW, identified 2026-07-23):** the fidget branch is
+     `if ((focusActor==0) && (play[0x2130] != 0)) { <alt/skip path> } else { <faithful N64 common roll> }`.
+     **`play + 0x2130` is the 3DS-only auto-aim head-track TARGET ACTOR** — pinned by
+     `build/decomp/002b7fd0.c:556`, `func_0x002bf814(player, play, *(int*)(play+0x2130), 0)`, where
+     0x2bf814 is the "auto-aim head-track nearest actor" acquisition assist already listed in
+     `divergence_map.md` ring-1 as an un-ported 3DS-only feature. When a head-track target exists,
+     OoT3D BYPASSES the common-fidget roll. **Measured inert at Kokiri** (common fidgets do fire on the
+     oracle ⇒ `play[0x2130]==0` there). ⇒ a faithful port of this gate is **BLOCKED on porting the
+     auto-aim subsystem (0x2bf814)**; do not fake `play[0x2130]` with a "nearest actor" guess.
+- **The −6.0f morph is NOT a divergence:** N64 `Player_ChooseNextIdleAnim` already ends in
+  `LinkAnimation_Change(..., ANIMMODE_ONCE, -6.0f)` and our port runs that exact code.
+- **The alt-table version gate is inert here:** the observed oracle default idle is 0x50
+  (`nml_wait_free`) = the DEFAULT table, so the `{0x1f9,0x1f8,0x1f8,0x1fa}` alt path is not taken at a
+  plain Kokiri idle. The `docs/divergence_map.md` OPEN DECISION on the alt table therefore does **not**
+  block #88 and does not need a user call to close this bug. (Recorded for the record: the oracle reads
+  `*0x54ac55 = 0x7f` and `player+0x174e = 0x02`, i.e. `player+0x174e != 1` ⇒ the gate's first disjunct
+  is already true.)
 - **Open:** OoT3D's `Player_CheckForIdleAnim` loop bound is `0x1e` (30 = **15** table entries) vs N64's
   28 (**14** entries) — OoT3D may have ONE extra `sFidgetAnimations` entry. Verify against `DAT_004ba948`.
+  (Not reached by anything measured above; the extra entry, if real, is never selected at a plain idle.)
 
 ### Boot-to-gameplay recipe (oracle, no savestate mod)
 Title → `tap('start')`×3 → `tap('a')` (select save file 1 "Link") → `tap('a')`×2. Lands in scene 52
@@ -392,7 +437,7 @@ head.) Do this for each bug below to get its precise target address.
 |---|---|
 | walk-stop torso snap (#86) | **FIXED at parity** (measured-gap cross-fade, worst 14.2° ≤ ceiling 18.3°). NOT a plain morph-apply: Link settles via nml_walk_endL/R clips; naive engine-morph pops 138°, faithful FUN_002be4c4 port pops 119° (endR unreachable from SoH3D's single walk clip). Faithful port blocked on walk_L/walk_R foot-split. See §6e CORRECTION 2026-07-23 |
 | run-off-edge jump (#86) | **RESOLVED & FAITHFUL** (scratch/align/86_freefall.md): freefall action `Player_Action_8084411C` = **0x004bba4c**; "left-ground" handler `func_8083AA10` = **0x001cf9ac** (inlines auto-jump `func_8083A4A8` + ledge-on-runoff `func_8083A6AC`); jump-setter `func_80838940` = **0x0034b3dc**. Auto-jump trigger/anim/height/gravity are **bit-identical to N64** (3.0/4.0/20.0/0x2000/0x1000/6.0, IREG 66-69, gravity -1.2/0). ⇒ #86 run-off jump is a SoH3D **integration** bug (framerate of the gating reads `linearVelocity`/`sYDistToFloor`/`bgCheckFlags&4`), NOT a Grezzo change — nothing to port here. (0x4bf18c remains the knockback land = N64 8084377C, false suspect.) |
-| weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
+| weird yawn (idle fidget #88) | **PREMISE FALSIFIED / MEASURED AT PARITY (2026-07-23).** There is no yawn clip: anim 0x50 = `nml_wait_free` (neutral idle), and OoT3D's default-idle table == N64's `ANIMGROUP_wait` table. Live oracle vs live game at Kokiri: same default idle, same fidget set, same distribution (look-around ~2/3, tunic/tap-feet ~1/3 — the faithful swordless N64 roll), same 2:1 fidget:default cadence, same −6.0f morph. Nothing to port for the reachable idle. Two real 3DS-only deltas remain but are INERT here and are NOT the reported symptom: the HOT-room bit (`play+0x4c37`, needs the ROM room-header bit) and the `play+0x2130` auto-head-track gate (BLOCKED on porting auto-aim 0x2bf814). See the #88 section above — note the ≥20-pick sampling requirement. |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |
 | pickup snaps to torso → above head (#6/#85/#9) | **RESOLVED & FAITHFUL** — placement is `Player_PostLimbDrawGameplay` = **0x004c1c90**; held-actor offset vec `{100,1640,0}`, R_HAND anchor, get-item torso↔hand midpoint all byte-exact to N64. SoH3D **integration** bug: must (1) invoke this post-limb callback with the LIVE R_HAND bone matrix, (2) keep heldActor/unk_862/exchangeItemId/GETTING_ITEM state consistent, (3) populate leftHandPos(+0x1228) + bodyPartsPos[15](+0x23e8) per-frame BEFORE draw |
 | door-exit slide | door action func (sDoorAction / Player door state) |
