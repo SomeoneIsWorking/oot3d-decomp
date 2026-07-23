@@ -316,13 +316,23 @@ GROUND TRUTH — they pin the bug→address mapping the static work narrowed:
 | **run (#86)** | **0x4ba378** | 0x47 | = the run/turn locomotion func (matches static decomp of FUN_004ba378) |
 | **walk/turn-start** | **0x4a34d0** | 0xe4 | = **turn-in-place** (N64 Player_Action turn family): when stick tilt gives ~0 speed it steps shape.rot.y(+0xbe) toward stick yaw via Math_ScaledStepToS, uses Player_GetIdleAnim + the TurnInPlace handler list; else hands off (FUN_002c3c7c) into walk |
 
-### ✅ #86 walk-stop torso snap — ROOT CAUSE CONFIRMED LIVE
+### ✅ #86 walk-stop torso snap — ROOT CAUSE CONFIRMED LIVE, and FIXED (measured-gap cross-fade at parity)
 On run→stop, OoT3D switches actionFunc `0x4ba378`(run) → `0x4ba538`(idle) and the base-anim
 **morphWeight (+0x288) jumps to 1.000 then decays 1.0 → 0.5 → 0.167 → 0.0 over ~5 frames**
 (curFrame +0x290 advancing 0→4.7), i.e. it **cross-fades** the run→idle pose. This is exactly the
-MORPH the SoH3D 3d3 path hard-cuts. **Fix for #86 = apply this morphWeight 1→0 blend (morphRate
-≈0.33/frame, ~3–5 frames) on Player action/anim transitions**, per docs/anim_system.md. Verified by
-live frame sampling, not inference.
+MORPH the SoH3D 3d3 path was hard-cutting.
+- **STATUS (2026-07-23): FIXED and at parity.** SoH3D's `zelda3d_anim.cpp` walk-stop path cross-fades
+  the frozen leg pose into walk_end@0 (worst 14.2° per frame across 8 stop phases ≤ oracle ceiling
+  18.3°, `tools/walk_stop_phase_sweep.py`). It is NOT a hard-cut. Live in Kokiri: Link settles smoothly.
+- **IMPORTANT — the "just apply the engine morphWeight" fix does NOT work here** (measured this session):
+  SoH's z_player.c already produces a valid morphWeight ramp, but Link stops via a real **nml_walk_endL/R
+  settle clip**, not a direct run→idle morph, and SoH's foot-based endR/endL pick + fixed short morph
+  pops (naive engine-morph path measured **138°**). The genuinely faithful decomp mechanism
+  (FUN_002be4c4, phase-driven endR/endL + phase-proportional morph) also REGRESSES (**119°**) because
+  SoH3D renders ONE nml_walk_free clip and walk_endR@0 is unreachable from it (~90° gap at every phase).
+  ⇒ a faithful FUN_002be4c4 port is blocked on porting OoT3D's walk_L/walk_R foot-split blend; the
+  measured-gap cross-fade currently shipping is the correct single-clip realization. Full analysis:
+  `player_anim_states.md §6e CORRECTION 2026-07-23` + `debug_journal/2026-07-23-walk-stop-decomp-formula-regresses.md`.
 
 ### #88 idle/yawn — STATIC + LIVE both confirm 0x4ba538 = Player_Action_Idle
 0x4ba538 inlines N64 `Player_CheckForIdleAnim` verbatim: `if (Player_GetIdleAnim(this) != curAnim)`
@@ -380,7 +390,7 @@ head.) Do this for each bug below to get its precise target address.
 ## Bug → behavior → N64 function (decompile these OoT3D twins first)
 | reported bug | N64 function family (start here) |
 |---|---|
-| walk-stop torso snap (#86) | **CONFIRMED**: run 0x4ba378 → idle 0x4ba538 applies morphWeight 1→0 blend (~5 frames); soh3d hard-cuts. Fix = apply the morph |
+| walk-stop torso snap (#86) | **FIXED at parity** (measured-gap cross-fade, worst 14.2° ≤ ceiling 18.3°). NOT a plain morph-apply: Link settles via nml_walk_endL/R clips; naive engine-morph pops 138°, faithful FUN_002be4c4 port pops 119° (endR unreachable from SoH3D's single walk clip). Faithful port blocked on walk_L/walk_R foot-split. See §6e CORRECTION 2026-07-23 |
 | run-off-edge jump (#86) | **RESOLVED & FAITHFUL** (scratch/align/86_freefall.md): freefall action `Player_Action_8084411C` = **0x004bba4c**; "left-ground" handler `func_8083AA10` = **0x001cf9ac** (inlines auto-jump `func_8083A4A8` + ledge-on-runoff `func_8083A6AC`); jump-setter `func_80838940` = **0x0034b3dc**. Auto-jump trigger/anim/height/gravity are **bit-identical to N64** (3.0/4.0/20.0/0x2000/0x1000/6.0, IREG 66-69, gravity -1.2/0). ⇒ #86 run-off jump is a SoH3D **integration** bug (framerate of the gating reads `linearVelocity`/`sYDistToFloor`/`bgCheckFlags&4`), NOT a Grezzo change — nothing to port here. (0x4bf18c remains the knockback land = N64 8084377C, false suspect.) |
 | weird yawn (idle fidget #88) | **CONFIRMED**: idle action func 0x4ba538 (Player_Action_Idle); yawn = anim 0x50; picker = Player_ChooseNextIdleAnim twin |
 | sword on back before owning it | equipment draw / `Player_OverrideLimbDraw`, equip flags, sheath visibility |

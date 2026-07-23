@@ -641,7 +641,26 @@ skelAnime, play, animId, mode)`** — param_1 is playSpeed, NOT startFrame. The 
 **Confirmed CSAB durations** (`docs/csab_catalog.md`): `nml_walk_free` = **29** (== the phase range, so
 SoH3D's free-run playhead is OoT3D's `player+0x2254` 1:1), `nml_walk_endR/L_free` = **11**.
 
-### SoH3D FIX (IMPLEMENTED 2026-06-25) — port `FUN_002be4c4` into the walk-stop path
+### ⚠️ CORRECTION 2026-07-23 — the direct `FUN_002be4c4` port REGRESSES on SoH3D's single-clip rig
+
+A faithful port of `FUN_002be4c4` (pick endR when leg-phase<14 with sweet spot 11, else endL sweet
+spot 26; morphFrames = rem·fv8·4) was BUILT and MEASURED in SoH3D 2026-07-23 (`zelda3d_anim.cpp`,
+φ = the real leg phase `unk_868` so the walk-pose K = 0). It REGRESSES: `walk_stop_phase_sweep.py`
+worst jump **14° → 119°**. Root cause, measured: `FUN_002be4c4` is faithful to OoT3D's FOOT-SPLIT walk
+(walk_L/walk_R), where BOTH walk_endR@0 and walk_endL@0 continue the current stride. SoH3D renders ONE
+clip (nml_walk_free); its walk_endR@0 pose is **~90° from nml_walk_free@ANY phase** (kWalkStopGapR
+85..94° — the endR settling spine is not in the single walk cycle), so the decomp's `phase<14 → endR`
+pick forces an unreachable pose. Separately, SoH3D's endL sweet spot (min kWalkStopGapL) is at phase
+**~8**, not the decomp's 26 — an END-CLIP K offset distinct from the (now-zero) WALK-POSE K, so the
+decomp endL morph-length is mis-sized too. ⇒ **A faithful `FUN_002be4c4` port is BLOCKED on porting
+OoT3D's walk_L/walk_R foot-split blend** (the §6f-adjacent OPEN item) so walk_endR is reachable. Until
+then, the measured-gap cross-fade (kWalkStopGapR/L + oracle-budget morph length, `zelda3d_anim.cpp`)
+is the correct single-clip realization and sits at parity (worst 14.2° ≤ ceiling 18.3°). The
+"IMPLEMENTED 2026-06-25" note below is superseded — it always-plays endL to dodge exactly this, i.e.
+it is the same single-clip adaptation, not the faithful decomp pick.
+See `debug_journal/2026-07-23-walk-stop-decomp-formula-regresses.md`.
+
+### SoH3D FIX (IMPLEMENTED 2026-06-25 — SUPERSEDED, see correction above) — port `FUN_002be4c4` into the walk-stop path
 
 In `soh3d_anim.cpp SoH3D_UpdateAnimAuto`: detect the `nml_walk_free → nml_walk_end{R,L}` transition,
 take the frozen free-run walk phase φ (= the outgoing walk_free playhead, `fmod(φ,29)`), and:
