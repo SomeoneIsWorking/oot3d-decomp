@@ -233,11 +233,13 @@ void Player_SetEquipmentVisibility(Player* this) {          // 0x004c4560
     cfg[0x40] = this[0x1b5];                                 // sRightHandType
     model(this)[0xad] = 1;
 
-    // BASE RULE: walk EVERY mesh and decide visible/hidden from a rule table.
+    // BASE RULE: walk EVERY mesh and set its flag from a rule table.
     for (u32 i = 0; i < meshCount(this->model); i++) {
-        // eight u32s copied from 0x004dc388, indexed by a selector at gSaveContext[4] (linkAge),
-        // then a chain of four "is this field zero" tests
-        SetMeshVisible(this, i, <rule says show> ? 1 : 0);
+        // rule[] is 8 u32s at 0x004dc388, adult/child INTERLEAVED (stride 2 words).
+        // i is tested against four of them for this age; any match -> flag 1, else flag 0.
+        int a = gSaveContext[4];                       // linkAge: 0 adult, 1 child
+        int hit = (rule[a] == i) || (rule[a+2] == i) || (rule[a+4] == i) || (rule[a+6] == i);
+        SetMeshVisible(this, i, hit);
     }
 
     if (this[0x1749] == 1 && linkAge != 0 && this[0x1ac] == 6 && this[0x121c] < 2.25f)
@@ -267,12 +269,58 @@ is hidden or shown from data every frame**, not from a curated list.
 
 ## Remaining before the port
 
-1. Decode the per-mesh rule table at `0x004dc388` — eight u32s per entry, four "is zero" tests, and
-   a selector read from `*(int*)(gSaveContext + 4)`. This is the table that decides whether the
-   sword on Link's back is shown, so it is the heart of #201 e.
+1. ~~Decode the rule table at `0x004dc388`~~ **DONE, see below — but read the CORRECTION first.**
 2. Decode the id tables at `0x0053c5a8` and `0x0053c6ec`, and the `this[0x1bc]` per-instance table.
 3. RE the two helpers `0x004c71dc` and `0x004c70c4`.
 4. Identify the Player fields used as selectors: `0x1b4`/`0x1b5` (hand types), `0x1ac`, `0x1a6`,
    `0x1749`, `0x121c`, `0x1710`, `0x6c`, `0x1bc`, `0x29b8`.
 5. Port into a dedicated zelda3d module replacing `Zelda3D_LinkComputeMidMask`, and verify on the
    full user path: a Link with no sword must not show one on his back.
+
+
+## CORRECTION + the rule table decoded
+
+> The section above first described the base loop as "eight u32s per entry, four *is-zero* tests".
+> That came from reading Ghidra's output, where the loop counter starts at 0 and the comparison
+> renders as `uVar8 == uVar9`. The ARM says otherwise:
+>
+> ```
+> 004c45c4  ldr   r0, [r8, #4]          ; r0 = gSaveContext[4] = linkAge
+> 004c45c8  ldr   r1, [r7, r0, lsl #2]  ; rule[linkAge]
+> 004c45cc  cmp   r1, r4                ; r4 = THE MESH INDEX, not zero
+> ...       ldrne r1, [r0, #8]  / #0x10 / #0x18   ; rule[linkAge+2] / +4 / +6
+> ```
+>
+> The four tests compare the table entries against **the mesh index**, so the table holds MESH
+> INDICES, not flags. Also note `r6` (the table pointer) is loaded once before the loop and its
+> `ldm r6!` / `sub r6, r6, #0x18` cancel out — the table is a SINGLE 32-byte record re-copied every
+> iteration, not one record per mesh.
+
+Contents of `0x004dc388`, read as adult/child interleaved pairs:
+
+| slot | adult | child |
+|---|---|---|
+| 0 | 45 | 24 |
+| 1 | 45 | 24 |
+| 2 | 46 | 25 |
+| 3 | 47 | 26 |
+
+So the base loop sets the flag to 1 for exactly meshes {45, 46, 47} (adult) or {24, 25, 26} (child),
+and 0 for every other mesh. Then the rest of the function turns specific further meshes to 1.
+
+## OPEN — the flag's POLARITY, and do not assume it
+
+`SetMeshVisible(obj, i, v)` was named from context; all the code actually does is
+`flags[i] = (v != 0)`. Which way that reads is **not established**, and the two readings give
+opposite ports:
+
+* **flag 1 = visible.** Then the base loop leaves only three meshes drawn and the later calls add a
+  few more. That is only sensible if Link's CMB is mostly swappable variant pieces.
+* **flag 1 = hidden/skip.** Then the base loop hides exactly the three age-specific variant meshes
+  and shows everything else, with the later calls hiding more. This fits a "cull the variants you
+  are not currently wearing" design.
+
+Settle it before porting, by finding the consumer: the array is at `*(*(obj+0x27c)+0x14) + 0x6c`
+with its count at `+0x68`, so scan for readers of those offsets in the mesh-draw path — or read the
+array live out of the oracle for a Link whose visible parts are known. Guessing here inverts the
+entire port.
