@@ -80,13 +80,73 @@ Observed in the decompiled body:
 - The `else if (iVar4 != 0)` arm sets id **0xf** only.
 - Both arms are further gated by `player[0x29b8] & 2` and, when set, `player[0x1749] == 2`.
 
-## Next (NOT done here)
+## `func_0x002b9bf8` @ 0x002b9bf8 — it IS SetMeshVisible (step 1, DONE)
 
-1. RE `func_0x002b9bf8` at `0x002b9bf8` — confirm it is "set mesh visible/hidden by id" and what its
-   third argument means.
-2. Resolve the `iRam004c16xx` pool anchors to real addresses and read the id table at
-   `iRam004c16a0`, plus the mask/shift constants feeding `iVar4`.
-3. Map the OoT3D mesh ids to our CMB `mesh_id`s.
+```c
+void SetMeshVisible(void* obj, int meshIndex, int visible) {
+    if (meshIndex == -1) return;                      // sentinel: "no mesh"
+    int info = *(int*)(*(int*)(obj + 0x27c) + 0x14);  // obj -> model -> mesh info
+    if (meshIndex < *(int*)(info + 0x68))             // bounds-check against mesh count
+        *(u8*)(*(int*)(info + 0x6c) + meshIndex) = visible ? 1 : 0;   // one byte per mesh
+}
+```
+
+So visibility is a plain **byte array, one entry per mesh, indexed by the mesh's position in the CMB**
+— not an opaque id space. That matters for the port: no id-translation table should be needed, our
+CMB `mesh_id` is the same index. `-1` is the "nothing here" sentinel and appears in the data tables,
+so the port must honour it rather than treating it as index 0xFFFF.
+
+## Pool anchors resolved (step 2, mostly DONE)
+
+| Ghidra name | value | what it is |
+|---|---|---|
+| `iRam004c1684` | `0x0053c924` | config struct (`+0x38` written, `+0x3c`/`+0x40` read as selectors) |
+| `iRam004c1688` | `0x004c5378` | a function address, compared against arg 6 — the `overrideLimbDraw == default` test |
+| `iRam004c168c` | `0x004c5214` | a second function address, same kind of comparison |
+| `iRam004c1690` | `0x00587958` | **gSaveContext** (`+4` = linkAge, `+0xb8` = the equipment bitfield) |
+| `iRam004c1694` | `0x0053cbc4` | **equip MASK table** |
+| `iRam004c1698` | `0x0053cb1c` | **equip SHIFT table** |
+| `iRam004c169c` | `0x0053ca1c` | a 0x10-stride table indexed by the equip value |
+| `iRam004c16a0` | `0x0053c74c` | **the mesh-id PAIR table** |
+
+**Equip masks** `0x0053cbc4`: `{0x07, 0x38, 0x1C0, 0xE00, 0x3000, 0x1C000, 0xE0000, 0x700000}`
+**Equip shifts** `0x0053cb1c`: `{0, 3, 6, 9, 12, 14, 17, 20}`
+
+These are N64's `gEquipMasks` / `gEquipShifts` (`{0x0007,0x0038,0x01C0,0x0E00}` / `{0,3,6,9}`)
+**extended from 4 entries to 8** — the first four are identical, so the encoding is the same
+three-bits-per-slot bitfield, with four extra slots Grezzo added.
+
+The selector in `Player_DrawImpl` reads **index 2** of both tables:
+`equipValue = (gSaveContext[0xb8] & 0x1C0) >> 6`.
+
+**Mesh-id pair table** `0x0053c74c`, entries of 8 bytes (two u32 mesh indices), addressed as
+`base + n*8` then read at `-8` and `-4`, i.e. **1-based**:
+
+| n | pair |
+|---|------|
+| 1 | (35, 36) |
+| 2 | (15, 22) |
+| 3 | (2, 256) |
+
+The `256` and the `0xffcfffff` at `+0x1c` suggest the table ends at n=2 or n=3 and the later words
+belong to something else — **bound it before porting** (find the other reader, or the array's
+declared length).
+
+## OPEN — resolve before porting
+
+**Which equip slot is index 2?** On N64 the enum is `SWORD=0, SHIELD=1, TUNIC=2, BOOTS=3`, which would
+make this the TUNIC — but the block it gates sets back-worn meshes and reads `linkAge`, which is
+sword/sheath behaviour, and OoT3D's table has 8 slots so the enum is demonstrably NOT N64's. Do not
+assume; identify slot 2 from another call site of the same mask/shift tables (scan `code.bin` for pool
+words equal to `0x0053cbc4` / `0x0053cb1c` and read the contexts), or from a live `gSaveContext[0xb8]`
+with known equipment. A wrong guess here silently swaps sword rules onto the tunic.
+
+## Remaining
+
+3. Bound the pair table, settle the equip-slot question, and map the branch structure:
+   adult (`linkAge == 0`) with `equipValue > 1` sets meshes 4 and 0x11 always, then 5 **or** 6 by
+   `cfg[0x3c]`, then 0x12 **or** 0x13 by `cfg[0x40] == 8`; child sets mesh 0xf when `equipValue != 0`.
+   Both arms are additionally gated by `player[0x29b8] & 2` and, when set, `player[0x1749] == 2`.
 4. Port into a zelda3d module replacing the hand-curated `Zelda3D_LinkComputeMidMask`, and verify on
    the full user path: a Link with no sword must not show one on his back.
 
