@@ -109,15 +109,18 @@ so the port must honour it rather than treating it as index 0xFFFF.
 | `iRam004c169c` | `0x0053ca1c` | a 0x10-stride table indexed by the equip value |
 | `iRam004c16a0` | `0x0053c74c` | **the mesh-id PAIR table** |
 
-**Equip masks** `0x0053cbc4`: `{0x07, 0x38, 0x1C0, 0xE00, 0x3000, 0x1C000, 0xE0000, 0x700000}`
-**Equip shifts** `0x0053cb1c`: `{0, 3, 6, 9, 12, 14, 17, 20}`
+**Masks** `0x0053cbc4`: `{0x07, 0x38, 0x1C0, 0xE00, 0x3000, 0x1C000, 0xE0000, 0x700000}`
+**Shifts** `0x0053cb1c`: `{0, 3, 6, 9, 12, 14, 17, 20}`
 
-These are N64's `gEquipMasks` / `gEquipShifts` (`{0x0007,0x0038,0x01C0,0x0E00}` / `{0,3,6,9}`)
-**extended from 4 entries to 8** — the first four are identical, so the encoding is the same
-three-bits-per-slot bitfield, with four extra slots Grezzo added.
+> **CORRECTION.** An earlier revision of this file called these the EQUIP tables "extended from 4
+> entries to 8". They are not. They are N64's **`gUpgradeMasks` / `gUpgradeShifts`**, which already
+> have eight entries and exactly these values — including the irregular `12 -> 14` step, because the
+> wallet field is two bits wide, not three. The equip tables are a different, four-entry pair. The
+> giveaway that settled it is that irregular step: a uniform three-bits-per-slot reading cannot
+> produce it.
 
-The selector in `Player_DrawImpl` reads **index 2** of both tables:
-`equipValue = (gSaveContext[0xb8] & 0x1C0) >> 6`.
+So the selector is `CUR_UPG_VALUE(UPG_STRENGTH)` — index 2 is `UPG_STRENGTH` in N64's `UpgradeType`
+enum — and `gSaveContext + 0xb8` is `inventory.upgrades`, not `equips.equipment`.
 
 **Mesh-id pair table** `0x0053c74c`, entries of 8 bytes (two u32 mesh indices), addressed as
 `base + n*8` then read at `-8` and `-4`, i.e. **1-based**:
@@ -132,23 +135,55 @@ The `256` and the `0xffcfffff` at `+0x1c` suggest the table ends at n=2 or n=3 a
 belong to something else — **bound it before porting** (find the other reader, or the array's
 declared length).
 
-## OPEN — resolve before porting
+## SOLVED by the N64 Rosetta stone — and this block is NOT what #201 e needs
 
-**Which equip slot is index 2?** On N64 the enum is `SWORD=0, SHIELD=1, TUNIC=2, BOOTS=3`, which would
-make this the TUNIC — but the block it gates sets back-worn meshes and reads `linkAge`, which is
-sword/sheath behaviour, and OoT3D's table has 8 slots so the enum is demonstrably NOT N64's. Do not
-assume; identify slot 2 from another call site of the same mask/shift tables (scan `code.bin` for pool
-words equal to `0x0053cbc4` / `0x0053cb1c` and read the contexts), or from a live `gSaveContext[0xb8]`
-with known equipment. A wrong guess here silently swaps sword rules onto the tunic.
+Both open questions fell to reading N64's `Player_DrawImpl` (`Shipwright/soh/src/code/z_player_lib.c:1051`)
+side by side with the 3DS body. The correspondence is exact:
+
+| N64 `Player_DrawImpl` | 3DS `0x004c11f4` |
+|---|---|
+| `overrideLimbDraw != Player_OverrideLimbDrawGameplayCrawling` | `param_6 != 0x004c5214` |
+| `gSaveContext.gameMode != GAMEMODE_END_CREDITS` | `gSaveContext[0x14e4] != 3` |
+| `overrideLimbDraw != ...FirstPerson` | `param_6` vs `0x004c5378`, via the `player[0x29b8] & 2` / `player[0x1749] == 2` gate |
+| `LINK_IS_ADULT` | `gSaveContext[4] == 0` |
+| `strengthUpgrade = CUR_UPG_VALUE(UPG_STRENGTH)` | `iVar4 = (gSaveContext[0xb8] & mask[2]) >> shift[2]` |
+| `if (strengthUpgrade >= 2)` — silver/gold gauntlets | `if (1 < iVar4)` |
+| `gLinkAdultLeftGauntletPlate1DL` | mesh **4** |
+| `gLinkAdultRightGauntletPlate1DL` | mesh **0x11** |
+| `sLeftHandType == LH_OPEN ? Plate2 : Plate3` | mesh **5** or **6**, by `cfg[0x3c]` |
+| `sRightHandType == RH_OPEN ? Plate2 : Plate3` | mesh **0x12** or **0x13**, by `cfg[0x40] == 8` |
+| `if (boots != 0) sBootDListGroups[boots - 1]` | `param_4 != 0`, `base = 0x0053c74c + param_4*8`, read `-8`/`-4` |
+| child: `Player_GetStrength() > PLAYER_STR_NONE` -> `gLinkChildGoronBraceletDL` | `else if (iVar4 != 0)` -> mesh **0xf** |
+
+**(a) answered:** index 2 is `UPG_STRENGTH`, not a tunic and not a sword. `cfg` (`0x0053c924`) `+0x3c` /
+`+0x40` are `sLeftHandType` / `sRightHandType`.
+
+**(b) answered:** the table at `0x0053c74c` is **`sBootDListGroups`**, indexed `boots - 1`, and N64 has
+exactly **two** entries (iron and hover; `boots == 0` is Kokiri and takes the `!= 0` early-out). So
+`param_4` is the **boots** argument, the valid rows are `(35, 36)` and `(15, 22)`, and the third row I
+read as `(2, 256)` is **past the end** — the `0x00000100` and `0xffcfffff` that looked wrong were
+simply not part of this array.
+
+### The important consequence
+
+**This block has nothing to do with Link's sword.** It is gauntlet plates, boot pieces and the child's
+Goron bracelet. Porting it would be a real and faithful port of *those* — but it would not fix
+kanban **#201 e**, and shipping it as the fix would be a false claim.
+
+The sword-and-sheath-on-the-back visibility lives in the **limb-draw override**, not here: on N64 that
+is `Player_OverrideLimbDrawGameplayDefault` swapping the sheath/sword display lists per limb. The 3DS
+twin is the next locate — `0x004c5378` (FirstPerson) and `0x004c5214` (Crawling) are already known, so
+the DEFAULT override is a sibling of those two and should be cheap to find from the same call site in
+`Player_Draw`.
 
 ## Remaining
 
-3. Bound the pair table, settle the equip-slot question, and map the branch structure:
-   adult (`linkAge == 0`) with `equipValue > 1` sets meshes 4 and 0x11 always, then 5 **or** 6 by
-   `cfg[0x3c]`, then 0x12 **or** 0x13 by `cfg[0x40] == 8`; child sets mesh 0xf when `equipValue != 0`.
-   Both arms are additionally gated by `player[0x29b8] & 2` and, when set, `player[0x1749] == 2`.
-4. Port into a zelda3d module replacing the hand-curated `Zelda3D_LinkComputeMidMask`, and verify on
-   the full user path: a Link with no sword must not show one on his back.
+1. Locate the 3DS `Player_OverrideLimbDrawGameplayDefault` twin (sibling of `0x004c5378` /
+   `0x004c5214`) and RE its sheath/sword mesh selection — that is what #201 e needs.
+2. Port that into a dedicated zelda3d module replacing the hand-curated `Zelda3D_LinkComputeMidMask`,
+   and verify on the full user path: a Link with no sword must not show one on his back.
+3. Separately (not #201 e, but now fully RE'd and cheap): port the gauntlet / boots / bracelet mesh
+   selection documented above.
 
 Ghidra sources: `build/decomp/004bf618.c` (Player_Draw), `004c11f4.c` (Player_DrawImpl),
-`004c1c90.c` (Player_PostLimbDrawGameplay).
+`004c1c90.c` (Player_PostLimbDrawGameplay), `002b9bf8.c` (SetMeshVisible).
