@@ -512,3 +512,58 @@ if (mesh != -1) ShowMesh(this, mesh);                     // -1 = draw nothing
 
 The `-1` rows are the entire point for #201 e: they are how OoT3D expresses "no sword on the back",
 and the hand-curated `Zelda3D_LinkComputeMidMask` has no equivalent.
+
+---
+
+# THE #201 e FIX, stated precisely
+
+N64 `z_player_lib.c:192-235` labels the two extra rows of both sheath arrays in a comment:
+
+```c
+Gfx* sSheathWithSwordDLs[(PLAYER_SHIELD_MAX + 2) * 4] = {
+    ... PLAYER_SHIELD_NONE / DEKU / HYLIAN / MIRROR rows ...
+    // PLAYER_SHIELD_NONE (child, no sword)
+    NULL, NULL, NULL, NULL,
+    // PLAYER_SHIELD_DEKU (child, no sword)
+    NULL, gLinkChildDekuShieldWithMatrixDL, NULL, gLinkChildDekuShieldWithMatrixDL,
+};
+```
+
+Those two rows are **byte-for-byte the 3DS table at `0x0053c4b8`**:
+
+| row | 3DS `0x0053c4b8` | N64 |
+|---|---|---|
+| 0 | `-1, -1, -1, -1` | `NULL, NULL, NULL, NULL` — child, no sword, no shield -> **nothing on the back** |
+| 1 | `-1, 13, -1, 13` | `NULL, ChildDekuShield, NULL, ChildDekuShield` — child, no sword, Deku shield -> **shield only** |
+
+That is a positive identification of the table, not an inference: the NULL/value pattern matches at
+every position, and `-1` is exactly `SetMeshVisible`'s no-op sentinel. So `0x0053c4b8` is
+`&sSheathWithSwordDLs[PLAYER_SHIELD_MAX * 4]` — the fallback base — which also confirms the `+0x40`
+arithmetic from the previous section independently.
+
+## The rule Zelda3D is missing
+
+```
+if (child && sheathType in {SHEATH_16, SHEATH_17} && buttonItems[0] != ITEM_SWORD_KOKIRI)
+        -> draw NOTHING on the back (Deku shield alone if that shield is equipped)
+```
+
+`Shipwright/soh/src/zelda3d/player/zelda3d_link.cpp` (`LinkMidMask::compute` / the shared
+`linkAdultMidMask`) maps **every** `sheathType` to some sheath mesh — `SHEATH_17` falls through to
+`EmptySheathNoShield`, and there is no "draw nothing" case anywhere in the enum. A `LinkGear`
+carrying only {leftHand, rightHand, sheath, shield} cannot express it, because the deciding input —
+`gSaveContext.equips.buttonItems[0]` — is not in the POD at all.
+
+**That is why Link wears a sword he has not picked up.** It is not a wrong mesh id; it is a missing
+state, and no amount of re-curating the mesh-id map can add it.
+
+## Implementation notes for the port
+
+1. `LinkGear` needs the B-button item (or at least a `hasKokiriSword` boolean) threaded through, since
+   both the OoT adapter and the future MM one will need it.
+2. The rule is age-specific: it fires only for the child. Adult Link keeps his current behaviour.
+3. Prefer porting the TABLE shape (rows of four, indexed `lod*2`, with a `-1` sentinel and the
+   fallback-row swap) over adding a special case to the enum chain — the table is what OoT3D actually
+   runs, and it generalises to the other rows for free.
+4. Verify on the FULL user path, not a forced state: a fresh child Link who has not picked up the
+   Kokiri sword must show nothing on his back, and must show it again after he collects it.
