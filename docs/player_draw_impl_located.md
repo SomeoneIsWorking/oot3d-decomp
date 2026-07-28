@@ -187,3 +187,92 @@ the DEFAULT override is a sibling of those two and should be cheap to find from 
 
 Ghidra sources: `build/decomp/004bf618.c` (Player_Draw), `004c11f4.c` (Player_DrawImpl),
 `004c1c90.c` (Player_PostLimbDrawGameplay), `002b9bf8.c` (SetMeshVisible).
+
+---
+
+# The equipment-visibility driver — `0x004c4560` (this IS what #201 e needs)
+
+Located 2026-07-28, after the `Player_DrawImpl` block turned out to be gauntlets/boots/bracelet.
+
+## How it was found (three tools, and the one that worked was the third)
+
+1. **fingerprint_match** correctly declined: `Player_OverrideLimbDrawGameplayDefault`'s literals are
+   all common, so it has no constant fingerprint. The tool said so rather than guessing — that is a
+   useful answer, not a failure.
+2. **A register-write scan** over `Player_Draw` found which register carries `overrideLimbDraw`:
+   `r8` is loaded unconditionally at `0x004bf640` with `0x004c2b04`, then conditionally overwritten
+   with `0x004c5378` (FirstPerson, `ldrne`) or `0x004c5214` (Crawling, `ldrlo`). Confirmed by
+   `0x004bfd00`, which reloads the same pool word and does `cmp r8, r0` — N64's
+   `if (overrideLimbDraw == Player_OverrideLimbDrawGameplayDefault)`.
+   So **`Player_OverrideLimbDrawGameplayDefault` = `0x004c2b04`** — and it is a FOUR-INSTRUCTION
+   STUB (`push {r4,lr}; bl 0x3255f0; mov r0,#0; pop`). Grezzo did **not** port N64's per-limb
+   display-list swapping. That is why looking for the sword there would have found nothing.
+3. **A `bl` scan for every caller of `SetMeshVisible`** (`0x002b9bf8`) — 20 call sites in five
+   functions:
+
+   | function | calls | what it is |
+   |---|---|---|
+   | `0x004c11f4` | 9 | `Player_DrawImpl` — gauntlets / boots / bracelet (already RE'd) |
+   | `0x004c1c90` | 1 | `Player_PostLimbDrawGameplay` |
+   | **`0x004c4560`** | **6** | **the equipment-visibility driver — this one** |
+   | `0x004c5378` | 2 | the FirstPerson override |
+   | `0x004c71dc` | 2 | a helper called by the driver |
+
+`0x004c4560` is called FIRST in `Player_DrawImpl`, before any of the gauntlet work.
+
+## Structure
+
+Anchors: `0x004c478c` -> `0x0053c924` (the `cfg` struct, `+0x38`/`+0x3c`/`+0x40`),
+`0x004c4790` -> `0x00587958` (gSaveContext), `0x004c4794` -> `0x004dc388` (the per-mesh rule table),
+`0x004c479c` -> `0x0053c5a8`, `0x004c47a0` -> `0x0053c6ec` (two more id tables),
+`0x004c47a4` = `0x29b8` (a Player field offset, not an address).
+
+```c
+void Player_SetEquipmentVisibility(Player* this) {          // 0x004c4560
+    cfg[0x3c] = this[0x1b4];                                 // sLeftHandType
+    cfg[0x40] = this[0x1b5];                                 // sRightHandType
+    model(this)[0xad] = 1;
+
+    // BASE RULE: walk EVERY mesh and decide visible/hidden from a rule table.
+    for (u32 i = 0; i < meshCount(this->model); i++) {
+        // eight u32s copied from 0x004dc388, indexed by a selector at gSaveContext[4] (linkAge),
+        // then a chain of four "is this field zero" tests
+        SetMeshVisible(this, i, <rule says show> ? 1 : 0);
+    }
+
+    if (this[0x1749] == 1 && linkAge != 0 && this[0x1ac] == 6 && this[0x121c] < 2.25f)
+        SetMeshVisible(this, 0x1a, 0);
+
+    helper_004c71dc(this);                                   // 2 more SetMeshVisible calls
+
+    // per-state mesh from a table, indexed by cfg[0x38] (which Player_DrawImpl sets to arg2 << 1)
+    base = this[0x1bc];
+    if (cfg[0x40] == 10)      base += this[0x1a6] * 0x10;
+    else if (this[0x1b5] == 8 && this[0x6c] > 2.0f && !(this[0x1710] & 0x8000000)) {
+        base = 0x0053c5a8 + linkAge * 4;  cfg[0x40] = 9;
+    }
+    SetMeshVisible(this, base[cfg[0x38]], 1);
+
+    if (this[0x1b5] == 0xb || this[0x1b5] == 0xc)
+        SetMeshVisible(this, *(u32*)(0x0053c6ec + linkAge * 0x30), 1);
+    helper_004c70c4(this);
+    if (this[0x1b5] == 0xb || this[0x1b5] == 0xc)
+        SetMeshVisible(this, *(u32*)(0x0053c6ec + linkAge * 0x30), 1);
+    ...
+}
+```
+
+This is the real mechanism the hand-curated `Zelda3D_LinkComputeMidMask` stands in for: **every mesh
+is hidden or shown from data every frame**, not from a curated list.
+
+## Remaining before the port
+
+1. Decode the per-mesh rule table at `0x004dc388` — eight u32s per entry, four "is zero" tests, and
+   a selector read from `*(int*)(gSaveContext + 4)`. This is the table that decides whether the
+   sword on Link's back is shown, so it is the heart of #201 e.
+2. Decode the id tables at `0x0053c5a8` and `0x0053c6ec`, and the `this[0x1bc]` per-instance table.
+3. RE the two helpers `0x004c71dc` and `0x004c70c4`.
+4. Identify the Player fields used as selectors: `0x1b4`/`0x1b5` (hand types), `0x1ac`, `0x1a6`,
+   `0x1749`, `0x121c`, `0x1710`, `0x6c`, `0x1bc`, `0x29b8`.
+5. Port into a dedicated zelda3d module replacing `Zelda3D_LinkComputeMidMask`, and verify on the
+   full user path: a Link with no sword must not show one on his back.
