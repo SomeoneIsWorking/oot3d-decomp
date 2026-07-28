@@ -393,10 +393,44 @@ These are N64's equip tables exactly. The helper uses **index 0**, mask `0x000F`
 pairs live a few dozen bytes apart, and picking the wrong one silently swaps sword rules for strength
 rules.
 
+## It is the SHEATH selector — `player[0x1b6]` is `sSheathType`
+
+The branch values are conclusive against N64's `z64player.h:310-313`:
+
+| value | N64 enum | meaning |
+|---|---|---|
+| `0x10` | `PLAYER_MODELTYPE_SHEATH_16` | sheathed kokiri/master sword |
+| `0x11` | `PLAYER_MODELTYPE_SHEATH_17` | empty sheath |
+| `0x12` | `PLAYER_MODELTYPE_SHEATH_18` | sword sheathed **and shield on back** |
+| `0x13` | `PLAYER_MODELTYPE_SHEATH_19` | empty sheath and shield on back |
+
+So the helper's `if (cVar1 == 0x12 || cVar1 == 0x13)` is the shield-on-back pair, and the function as a
+whole selects **what is worn on Link's back** — which is exactly the subject of #201 e.
+
+That also names the contiguous quartet, matching N64's model-type group set by `Player_SetModelGroup`:
+
+| Player offset | field |
+|---|---|
+| `+0x1b4` | `sLeftHandType` |
+| `+0x1b5` | `sRightHandType` |
+| `+0x1b6` | `sSheathType` |
+| `+0x1b7` | `sWaistType` |
+
 ## The mesh tables it selects from
 
-Both are 12 u32s, read as six (adult, child) pairs. `-1` is `SetMeshVisible`'s no-op sentinel — "draw
-nothing for this slot", which is exactly what an unequipped sword needs:
+> **CORRECTION to the previous revision.** I read these as "six (adult, child) pairs". They are not.
+> The final lookup is
+> ```
+> LAB_004c71a4:  iVar3 = *(int*)(iVar4 + cfg[0x38] * 4);   // cfg = 0x0053c924
+> ```
+> and `Player_DrawImpl` sets `cfg[0x38] = param_2 << 1` — which is N64's `sDListsLodOffset = lod * 2`.
+> So the index is **`lod * 2`**, not the age, and `iVar4` is a row BASE chosen by state with a stride
+> of **`0x10` (four u32s)**, selected by `player[0x1a6]`: `iVar4 = player[0x1c4] + player[0x1a6] * 0x10`,
+> then `+0x40` or `+0x80`, or one of the fixed bases `0x0053c4d8` / `0x0053c4b8` / `0x0053c5e8`.
+> Age enters through which BASE is chosen, not through the index.
+
+`-1` is `SetMeshVisible`'s no-op sentinel — "draw nothing for this slot", exactly what an unequipped
+sword needs. Rows of four u32s:
 
 `0x0053c4b8`:
 
@@ -429,9 +463,11 @@ The helper also branches on `player[0x1b6]` (values 0x12 / 0x13), `player[0x1c4]
 
 ## Remaining before the port
 
-1. Pin what indexes the six rows (the row index is not yet nailed down — likely the sword value
-   combined with a draw-slot, given six rows for four sword values).
-2. Establish which of the two tables is the back-worn sheath and which is the held/blade mesh.
-3. Name `player[0x1b6]`, `[0x1c4]`, `[0x1a6]`, `gSaveContext[0x80]`, and the `0x4000` bit of
-   `player[0x29b8]`.
+1. ~~Pin the row index~~ **DONE** — `cfg[0x38] = lod * 2` (N64 `sDListsLodOffset`); rows are `0x10`
+   apart and selected by `player[0x1a6]`.
+2. ~~Which table is the back-worn one~~ **DONE** — this helper IS the back/sheath selector
+   (`player[0x1b6]` = `sSheathType`).
+3. Still unnamed: `player[0x1c4]` (a per-instance table base), `player[0x1a6]` (the row selector),
+   `gSaveContext[0x80]` (compared against `';'`=0x3B, `'Y'`=0x59, `'='`=0x3D — looks like a scene or
+   cutscene id), and the `0x4000` / `0x80000` bits of `player[0x29b8]`.
 4. Then port, and verify on the full user path: a Link with no sword must not show one on his back.
