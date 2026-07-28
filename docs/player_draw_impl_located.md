@@ -467,7 +467,48 @@ The helper also branches on `player[0x1b6]` (values 0x12 / 0x13), `player[0x1c4]
    apart and selected by `player[0x1a6]`.
 2. ~~Which table is the back-worn one~~ **DONE** — this helper IS the back/sheath selector
    (`player[0x1b6]` = `sSheathType`).
-3. Still unnamed: `player[0x1c4]` (a per-instance table base), `player[0x1a6]` (the row selector),
-   `gSaveContext[0x80]` (compared against `';'`=0x3B, `'Y'`=0x59, `'='`=0x3D — looks like a scene or
-   cutscene id), and the `0x4000` / `0x80000` bits of `player[0x29b8]`.
+3. ~~Name the remaining fields~~ **DONE — see below.**
 4. Then port, and verify on the full user path: a Link with no sword must not show one on his back.
+
+## The remaining fields, named off the N64 twin
+
+N64's counterpart is the SHEATH limb case in `Player_OverrideLimbDrawGameplayDefault`
+(`Shipwright/soh/src/code/z_player_lib.c:1425-1446`):
+
+```c
+if (!LINK_IS_ADULT &&
+    ((this->sheathType == PLAYER_MODELTYPE_SHEATH_16) || (this->sheathType == PLAYER_MODELTYPE_SHEATH_17)) &&
+    (gSaveContext.equips.buttonItems[0] != ITEM_SWORD_KOKIRI)) {
+    dLists = &sSheathWithSwordDLs[PLAYER_SHIELD_MAX * 4];
+}
+*dList = dLists[sDListsLodOffset];
+```
+
+| 3DS | N64 | evidence |
+|---|---|---|
+| `player[0x1c4]` | `this->sheathDLists` | the per-instance group base the lookup starts from |
+| `player[0x1a6]` | `this->currentShield` | row selector at stride `0x10` = 4 entries, matching `sSheathWithSwordDLs[shield * 4]` |
+| `cfg[0x38]` | `sDListsLodOffset` | set as `lod * 2` by `Player_DrawImpl` |
+| `gSaveContext[0x80]` | `gSaveContext.equips.buttonItems[0]` | compared against `0x3B` = `ITEM_SWORD_KOKIRI`, `0x3D` = `ITEM_SWORD_BGS`, `0x59` = `ITEM_FISHING_POLE` |
+| the `+0x40` bump | `&sSheathWithSwordDLs[PLAYER_SHIELD_MAX * 4]` | `PLAYER_SHIELD_MAX` is 4, so that subscript is entry 16 = byte offset **0x40** |
+
+The `cVar2 != ';'` test is therefore `buttonItems[0] != ITEM_SWORD_KOKIRI` — N64 line 1437 verbatim —
+and `+0x40` is the same child-without-the-Kokiri-sword fallback row. `cVar2 == '='` in the adult
+`SHEATH_16` arm is `buttonItems[0] == ITEM_SWORD_BGS`, the Biggoron's-sword case.
+
+Still unnamed, and NOT needed for the sheath port: the `0x4000` and `0x80000` bits of
+`player[0x29b8]` (a flags word; `0x4000` gates the `+0x40` fallback alongside the sword value, and
+`0x80000` redirects the base to `0x0053c4d8` / `0x0053c5e8`).
+
+### Port shape
+
+```c
+base = this->sheathDLists + this->currentShield * 4;      // u32 mesh ids, 4 per shield
+if (<child && sheathType in {16,17} && buttonItems[0] != ITEM_SWORD_KOKIRI>)
+    base = &sSheathWithSwordDLs_3ds[PLAYER_SHIELD_MAX * 4];
+mesh = base[lod * 2];
+if (mesh != -1) ShowMesh(this, mesh);                     // -1 = draw nothing
+```
+
+The `-1` rows are the entire point for #201 e: they are how OoT3D expresses "no sword on the back",
+and the hand-curated `Zelda3D_LinkComputeMidMask` has no equivalent.
