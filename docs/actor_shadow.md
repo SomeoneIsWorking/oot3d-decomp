@@ -1,15 +1,32 @@
-# OoT3D actor shadows — `ActorShadow_DrawFeet` is faithful, `ActorShadow` is a Grezzo REWRITE
+# OoT3D actor shadows — the MATH is faithful to N64; only the DRAW MECHANISM is 3DS-specific
 
 RE'd 2026-07-28 from `build/code.bin` (Ghidra headless + literal-pool signature search), prompted by
 soh3d kanban #206 / frontier row `player.shadow-strength`: after #206 restored Link's feet shadow, the
 measured contrast was still far short of the oracle (0.91 vs 0.65 of surrounding grass), so the
-question was whether OoT3D draws something else. It does — but not where you would expect.
+question was whether OoT3D draws something else.
+
+**It does not.** Every piece of shadow MATH in OoT3D is N64's, unchanged. Only the final draw call is
+substituted (a cached 3DS model object instead of a display list), plus a 1.5-unit z-fight lift.
 
 | function | VA | verdict |
 |----------|----|---------|
 | `ActorShadow_DrawFeet`  | `0x001d04f4` | **faithful port of N64** — same structure, same constants |
 | `ActorShadow_DrawCircle`| `0x0033e800` | (called by DrawFeet's `distToFloor > 20` branch) |
-| `ActorShadow`           | `0x0033e450` | **REWRITTEN for the 3DS** — this is the whole difference |
+| `ActorShadow_DrawFoot`  | `0x0033e450` | **faithful too** — see the correction below |
+
+> **CORRECTION (same day, before anything was built on it).** The first version of this document
+> called `0x0033e450` "`ActorShadow`, rewritten by Grezzo", and listed its light-yaw rotation, its
+> `4.5 - dir.y*0.035` stretch and its `1 - w*alpha/255` darkening as 3DS-only behaviours to port.
+> That was wrong. `0x0033e450` is N64's **`ActorShadow_DrawFoot`**, and SoH already implements all
+> three — see `Shipwright/soh/src/code/z_actor.c:160`, which has the same `arg3 * 0.00005f` clamp,
+> the same `Math_FAtan2F(light->l.dir[0], light->l.dir[2])`, and the same
+> `4.5f - (light->l.dir[1] * 0.035f)` clamped at 1. The two colour encodings are the same quantity:
+> N64 blends black at `alpha = min(1, w*5e-5) * shadowAlpha`, giving `dst * (1 - alpha/255)`; the 3DS
+> multiplies by `grey = 1 - min(1, w*5e-5) * shadowAlpha/255`. Identical result.
+> So the measured 0.91-vs-0.65 contrast gap is **not** explained by this function, and porting from
+> the original write-up would have re-implemented code that already exists. The real cause is still
+> open — the live INPUTS (light weight, light direction, `shadowAlpha`, the floor query) are the
+> place to look, not the formula.
 
 ## How they were located
 
@@ -51,11 +68,10 @@ tail that picks 1 or 2 by comparing the two feet's floor heights. The light loop
 
 **So the difference is NOT in the feet-shadow logic.** Grezzo left it alone.
 
-## `ActorShadow` @ 0x0033e450 — the rewrite
+## `ActorShadow_DrawFoot` @ 0x0033e450 — same math, substituted draw
 
-N64's `ActorShadow` sets a primitive colour and `gSPDisplayList(gCircleShadowDL)` — a flat
-alpha-blended texture quad on an ortho-ish floor matrix. OoT3D throws that out and draws a **3D model
-object**, lazily created and cached per shadow slot:
+N64 ends this function with `gSPDisplayList(gFootShadowDL)`. OoT3D instead draws a **3D model
+object**, lazily created and cached in a per-actor slot array at `actor + 0x17c`:
 
 ```
 slot = actor + shadowIndex*4;          // shadowIndex = foot*3 + k, passed by DrawFeet
@@ -90,20 +106,34 @@ pushToRenderQueue(play, model);
 `atan256` is `FUN_0033f114` — an atan2 whose quadrant constants are `±64` / `±128`, i.e. it returns a
 **float in 256-units-per-turn**, which is why the multiplier is `PI/128` and not `PI/32768`.
 
-### Why this reads darker AND longer than ours
+### What is actually 3DS-specific here
 
-Three separate reasons, all absent from the N64 path SoH inherits:
+Only two things, and neither is likely to move the contrast much:
 
-1. **Multiplicative grey, not an alpha-blended black texture.** `grey = 1 - lightFrac*alpha/255` is
-   applied as a colour on a model whose blend darkens what is under it. At full light weight and
-   `shadowAlpha = 255` that is a hard `0.0` — pure black — where the N64 texture's own alpha ramp
-   never gets there.
-2. **Directional stretch up to 4.5x.** The shadow elongates along the light's azimuth as the light
-   drops. Ours is always a circle. This is the large soft region visible to Link's lower-left in
-   `soh3d scratch/screenshots/oracle_kday.png` — not terrain shading, as it first appears.
-3. **It rotates to face the light** (`atan256(dir.x, dir.z)`), so the stretch points the right way.
+1. **The draw target.** A cached model object (asset `0x51`) instead of `gFootShadowDL`. Whatever
+   texture that model carries is the one real unknown — a larger or darker shadow sprite would show
+   up exactly as the measured gap does.
+2. **`Matrix_Translate(0, 1.5, 0)`** before the rotate/scale, which N64 does not do. That is a
+   z-fighting guard, not a visual difference.
 
-There is no soft-shadow / blur pass and no shadow map; the softness is the model's own texture.
+The rotation, the stretch and the darkening are all N64 behaviour that SoH already has. There is no
+soft-shadow pass, no blur and no shadow map anywhere in this path.
+
+### So where does the measured gap come from?
+
+Open. The formula being identical on both sides means the divergence is in the INPUTS or in the
+sprite. Ranked candidates for the next session:
+
+- **`lightWeight`** — `DrawFeet` passes `(col.r + col.g + col.b) * dir.y` per light, and
+  `min(1, w * 5e-5)` saturates at 20000. If our scene lighting produces a smaller weight (fewer
+  lights, dimmer colours, or a different `dir.y`), the shadow fades in exactly this way. Measure it
+  live on both sides before touching anything — several lighting rows in `docs/parity-map.md` are
+  CLOSED and off-limits to tuning.
+- **`light->l.dir[1]`** — also drives the `4.5 - dir.y*0.035` stretch. Our shadow reads round and
+  small while the oracle's is long, which is the signature of a different `dir.y`, not of a missing
+  formula.
+- **`shadow asset 0x51`** vs `gFootShadowDL` — a different sprite (size, softness, opacity ramp).
+- **`shape.shadowAlpha` / `shadowScale`** as Player installs them on each side.
 
 ## Open
 
