@@ -355,3 +355,83 @@ One oracle RAM read: base `*(*(player+0x27c)+0x14)+0x6c`, count at `+0x68`. For 
 gauntlets, expect mostly 0s with 45/46/47 among the 1s and index 4 (gauntlet plate) at 0; equipping
 gauntlets should flip index 4 to 1.
 
+
+---
+
+# The SWORD selector — helper `0x004c70c4` (this is #201 e's mechanism)
+
+RE'd 2026-07-29. The base loop resets, `Player_DrawImpl` handles gauntlets/boots/bracelet, and THIS
+helper is the one that decides which sword/sheath mesh is drawn.
+
+## It decodes the equipped sword
+
+```
+004c70dc  ldrh  ip, [lr, #0x8a]     ; gSaveContext + 0x8a = equips.equipment (u16)
+004c70e4  and   r3, r3, ip          ; & gEquipMasks[i]
+004c70e8  ldrb  ip, [r4]            ; gEquipShifts[i]  -- a BYTE load
+004c70ec  lsr   r4, r3, ip          ; >> shift
+```
+
+with, at `0x0053cb0c` and `0x0053cb08`:
+
+| table | VA | contents |
+|---|---|---|
+| `gEquipMasks` (u16) | `0x0053cb0c` | `{0x000F, 0x00F0, 0x0F00, 0xF000}` |
+| `gEquipNegMasks` (u16) | `0x0053cb14` | `{0xFFF0, 0xFF0F, 0xF0FF, 0x0FFF}` |
+| `gEquipShifts` (**u8**) | `0x0053cb08` | `{0, 4, 8, 12}` |
+
+These are N64's equip tables exactly. The helper uses **index 0**, mask `0x000F`, shift `0` — i.e.
+`CUR_EQUIP_VALUE(EQUIP_TYPE_SWORD)`.
+
+> Note the element size: Ghidra typed the shift table as `short` and rendered the read as
+> `>> *psRam004c71c0`, which resolves to 1024 and is nonsense as a shift. The ARM is `ldrb` — a byte
+> array. Reading the instruction rather than the decompiler's C is what makes this come out right, the
+> same lesson as the `cmp r1, r4` correction earlier in this file.
+
+**Do not confuse these with the tables at `0x0053cbc4` / `0x0053cb1c`** documented above: those are
+`gUpgradeMasks` / `gUpgradeShifts` (eight 3-bit slots, used for `UPG_STRENGTH`). Two similar-looking
+pairs live a few dozen bytes apart, and picking the wrong one silently swaps sword rules for strength
+rules.
+
+## The mesh tables it selects from
+
+Both are 12 u32s, read as six (adult, child) pairs. `-1` is `SetMeshVisible`'s no-op sentinel — "draw
+nothing for this slot", which is exactly what an unequipped sword needs:
+
+`0x0053c4b8`:
+
+| row | adult | child |
+|---|---|---|
+| 0 | -1 | -1 |
+| 1 | -1 | -1 |
+| 2 | -1 | 13 |
+| 3 | -1 | 13 |
+| 4 | 42 | 21 |
+| 5 | 42 | 21 |
+
+`0x0053c4d8`:
+
+| row | adult | child |
+|---|---|---|
+| 0 | 42 | 21 |
+| 1 | 42 | 21 |
+| 2 | 42 | 12 |
+| 3 | 42 | 12 |
+| 4 | 1 | 10 |
+| 5 | 1 | 10 |
+
+The rows with `-1` in the adult column of `0x0053c4b8` are the reason Link can legitimately have NO
+sword mesh drawn — and the hand-curated `Zelda3D_LinkComputeMidMask` has no equivalent, which is why
+#201 e shows a sword before it is picked up.
+
+The helper also branches on `player[0x1b6]` (values 0x12 / 0x13), `player[0x1c4]`, `player[0x1a6]`,
+`gSaveContext[4]` (linkAge), `gSaveContext[0x80]` and `player[0x29b8] & 0x4000`.
+
+## Remaining before the port
+
+1. Pin what indexes the six rows (the row index is not yet nailed down — likely the sword value
+   combined with a draw-slot, given six rows for four sword values).
+2. Establish which of the two tables is the back-worn sheath and which is the held/blade mesh.
+3. Name `player[0x1b6]`, `[0x1c4]`, `[0x1a6]`, `gSaveContext[0x80]`, and the `0x4000` bit of
+   `player[0x29b8]`.
+4. Then port, and verify on the full user path: a Link with no sword must not show one on his back.
