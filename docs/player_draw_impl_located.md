@@ -308,19 +308,50 @@ Contents of `0x004dc388`, read as adult/child interleaved pairs:
 So the base loop sets the flag to 1 for exactly meshes {45, 46, 47} (adult) or {24, 25, 26} (child),
 and 0 for every other mesh. Then the rest of the function turns specific further meshes to 1.
 
-## OPEN — the flag's POLARITY, and do not assume it
+## RESOLVED — the flag is 1 = DRAWN, and the loop is a RESET stage
 
-`SetMeshVisible(obj, i, v)` was named from context; all the code actually does is
-`flags[i] = (v != 0)`. Which way that reads is **not established**, and the two readings give
-opposite ports:
+The apparent contradiction (the gauntlet block implies 1 = drawn; the base loop leaving three meshes
+implies 1 = hidden) was an **ordering illusion**. `0x004c4560` does not stop at the loop — the loop is
+the RESET stage of a full per-frame visibility rebuild, and everything after it turns meshes back on.
 
-* **flag 1 = visible.** Then the base loop leaves only three meshes drawn and the later calls add a
-  few more. That is only sensible if Link's CMB is mostly swappable variant pieces.
-* **flag 1 = hidden/skip.** Then the base loop hides exactly the three age-specific variant meshes
-  and shows everything else, with the later calls hiding more. This fits a "cull the variants you
-  are not currently wearing" design.
+Decisive, and verified directly rather than taken on report:
 
-Settle it before porting, by finding the consumer: the array is at `*(*(obj+0x27c)+0x14) + 0x6c`
-with its count at `+0x68`, so scan for readers of those offsets in the mesh-draw path — or read the
-array live out of the oracle for a Link whose visible parts are known. Guessing here inverts the
-entire port.
+| VA | body | role |
+|----|------|------|
+| `0x0037266c` | `if (i < info[0x68]) flags[i] = 1;` | **ShowMesh** |
+| `0x0036932c` | `if (i < info[0x68]) flags[i] = 0;` | **HideMesh** |
+
+Both write the same array (`*(*(m+0x14)+0x6c)`, count at `+0x68`) that `0x002b9bf8` writes — so
+`0x002b9bf8` is simply `flags[i] = v`, i.e. Show-or-Hide chosen by its third argument.
+
+The tail block of `0x004c4560` settles the polarity on its own: when a mode bit is set
+(`player[0x29b8] & 2`, almost certainly first-person) it walks a static list of **0x1b or 0x30 mesh
+indices and calls HideMesh on each**. Forcing ~27-48 meshes to 0 in first person is "hide Link's body
+when the camera is inside his head" — coherent only if 0 = hidden and 1 = drawn. Under the opposite
+reading it would mean "show most of Link only in first person", which is nonsense.
+
+Supporting, same direction: `0x004c70c4` is literally select-one-and-mark-it —
+`ldr r1,[r1,r2,lsl #2]; mov r2,#1; b 0x2b9bf8` — a show operation; `0x004c71dc` only ever passes 1;
+and the conditional `f(this, 0x1a, 0)` at line 70 is a targeted hide in one state.
+
+**A suspicion of mine was also falsified:** I thought the two call sites might write different arrays
+(different `obj+0x27c`). They do not — `004c11f4.c:37` calls `func_0x004c4560(param_8, param_1)` and
+the gauntlet calls pass the same `param_8`. Same pointer, same array.
+
+### So the architecture is
+
+Every draw: **reset** all mesh flags to 0 except the three age-specific core meshes
+(adult {45,46,47}, child {24,25,26}), then **explicitly enable** what the current age, gear and state
+require — the rest of `0x004c4560`, its helpers `0x004c71dc` / `0x004c70c4`, and `Player_DrawImpl`'s
+equipment block. Visibility is rebuilt from data each frame; nothing persists.
+
+That is exactly what our hand-curated `Zelda3D_LinkComputeMidMask` stands in for, and it is why a
+curated mask can never be right for every state: the real system is a reset plus a set of enable
+rules, not a list.
+
+### Optional empirical closure (not required, the static case is closed)
+
+One oracle RAM read: base `*(*(player+0x27c)+0x14)+0x6c`, count at `+0x68`. For adult Link with no
+gauntlets, expect mostly 0s with 45/46/47 among the 1s and index 4 (gauntlet plate) at 0; equipping
+gauntlets should flip index 4 to 1.
+
