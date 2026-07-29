@@ -567,3 +567,48 @@ state, and no amount of re-curating the mesh-id map can add it.
    runs, and it generalises to the other rows for free.
 4. Verify on the FULL user path, not a forced state: a fresh child Link who has not picked up the
    Kokiri sword must show nothing on his back, and must show it again after he collects it.
+
+---
+
+# The gauntlet TINT — found, and it was in `Player_DrawImpl` all along
+
+RE'd 2026-07-29, correcting my own earlier reading of this function.
+
+I wrote that `Player_DrawImpl` "does not set any gauntlet colour". It does. The call sits in the
+gauntlet block immediately BEFORE the visibility calls, and I had skipped over it as unrelated:
+
+```c
+iVar4 = 0x0053ca1c + strengthUpgrade * 0x10;
+func_0x0033dd8c(iVar4[-0x20], iVar4[-0x1c], iVar4[-0x18], iVar4[-0x14],   // r, g, b, a
+                player + 0x254, 0xe, 4, 0);                                // -> colour slot 0xe
+```
+
+The table at `0x0053ca1c`, four floats per row, indexed `strengthUpgrade * 0x10` and read at `-0x20`
+(so upgrade 2 lands on row 0):
+
+| upgrade | row | value | meaning |
+|---|---|---|---|
+| 2 — silver | `0x0053ca1c` | `(1.0, 1.0, 1.0, 1.0)` | **white — no tint at all** |
+| 3 — gold | `0x0053ca2c` | `(0.996, 0.812, 0.059, 1.0)` = RGB **(254, 207, 15)** | gold |
+
+Rows beyond those two decode as garbage (`7.5, -0.5, 7.5, 2.5`), so the array is exactly two entries
+— the same length as N64's `sGauntletColors[strengthUpgrade - 2]`.
+
+## Why our render looks the way it does
+
+**Silver is correct today by accident.** Its tint is white, i.e. the identity, so applying no tint
+produces exactly the right result — which is why the silver plates looked right in the verification
+screenshots and gave no hint that a colour path was missing. Only gold is wrong, and only because
+its tint is the one non-identity entry.
+
+That is worth remembering as a general trap: a missing multiply is invisible wherever the factor
+happens to be 1.
+
+## To port
+
+Apply a per-upgrade tint to the gauntlet meshes (4, 17, 5|6, 18|19): identity for silver,
+`(254, 207, 15)/255` for gold. Our renderer already has a per-material constant override
+(`matConst` -> `Zelda3DMatConstOv` in `Zelda3DRenderer::DrawModel`), which is the natural seam;
+the gauntlet material's own TEV declares `combUsesConst=1 constIdx=5`, so that is the slot to fill.
+Note OoT3D's target index in the call above is `0xe`, which is a different numbering from the CMB
+material's `constIdx` — do not assume they are the same field without checking `func_0x0033dd8c`.
