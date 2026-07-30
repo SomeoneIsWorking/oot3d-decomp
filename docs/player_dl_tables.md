@@ -10,10 +10,19 @@ Everything below is read byte-exact out of `oot3d-decomp/build/code.bin` (file o
 ## Layout — CORRECTED
 
 * Each value is an **s32**. `adult` at `+0x0`, `child` at `+0x4`.
-* **Logical stride is 0x10**, not 0x8: every `(adult, child)` pair is stored **twice**, at `+0x0/+0x4`
-  and again at `+0x8/+0xC`. Every row in the region duplicates this way, so it is systematic and not
-  coincidence. What the second copy is for is **not established** — a near/far LOD pair with the same
-  mesh in both slots is the obvious guess, but it is a guess.
+* **Logical stride is 0x10** and the row is four s32:
+  `{ adultNear, childNear, adultFar, childFar }` — the near/far **LOD** pair.
+* This is now DERIVED, not guessed. The N64 tables in `z_player_lib.c` are each exactly four
+  pointers in that same order (e.g. `gPlayerLeftHandOpenDLs = { gLinkAdultLeftHandNearDL,
+  gLinkChildLeftHandNearDL, gLinkAdultLeftHandFarDL, gLinkChildLeftHandFarDL }`), so one N64 table
+  maps to exactly one 0x10 row here.
+* **Proof the far slot is real rather than a meaningless duplicate:** across the region 40 of 42 rows
+  have `near == far`, but exactly two DIFFER — `0x0053c678` near adult 26 / far adult 27, and
+  `0x0053c688` near adult 28 / far adult 30. A duplicated value could not differ. So Grezzo kept the
+  near/far structure and simply reused one mesh for both LODs almost everywhere.
+* Beware the grid alignment: rows start at `0x0053c3f8`, which is NOT 0x10-aligned to the start of the
+  surrounding data. Reading on a 0x10 grid based anywhere else shifts every row by 8 and reports
+  ~all rows as "near != far", which is how this first came out looking like 55 mismatches.
 * `-1` means "draw nothing".
 * Tables are separated by `(-1, -1)` rows.
 
@@ -52,6 +61,19 @@ what appears to be the bow-on-back case:
 second-half reading rests on our own `link_mesh_id_map.md` labels — adult "9 = bow on back",
 "10 = Hylian shield + bow" — which line up strikingly well with a repeated shield order, but the map
 itself is listed as UNVERIFIED in the audit. Do not port rows 5-8 on this basis alone.
+
+## Region extent
+
+Table rows run `0x0053c3f8` .. `0x0053c697` — 42 rows. From `0x0053c698` on, the values are pointers
+and floats (huge magnitudes), so that is where the table region ends.
+
+The last two rows (`0x0053c678`, `0x0053c688`) are the two with a real far-LOD difference AND have
+`child == -1`, i.e. adult-only. That matches the tail of the N64 declaration order, which is the five
+first-person tables (`sFirstPersonLeftForearmDLs`, `sFirstPersonLeftHandDLs`,
+`sFirstPersonRightShoulderDLs`, `sFirstPersonForearmDLs`,
+`sFirstPersonRightHandHoldingWeaponDLs`) — all adult-only, since the first-person bow is adult-only.
+Suggestive of the OoT3D order mirroring the N64 declaration order, but only two adult-only rows appear
+where N64 has five tables, so it does NOT cleanly line up and I am NOT claiming it.
 
 ## Neighbouring blocks — decoded but UNASSIGNED
 
