@@ -78,53 +78,92 @@ first-person tables (`sFirstPersonLeftForearmDLs`, `sFirstPersonLeftHandDLs`,
 Suggestive of the OoT3D order mirroring the N64 declaration order, but only two adult-only rows appear
 where N64 has five tables, so it does NOT cleanly line up and I am NOT claiming it.
 
-## Neighbouring blocks — decoded but UNASSIGNED
+## SOLVED: `sPlayerDLists[PLAYER_MODELTYPE_MAX]` @ **0x0053c698**
 
-Read at stride 0x10. Which `PLAYER_MODELTYPE_*` / `PLAYER_MODELGROUP_*` index (or which named N64
-table) each row corresponds to is **not established**, because the code cross-check route is dead
-(see below), so these are raw structure only.
+A master POINTER table of **21 words** at `0x0053c698`, each pointing at one 0x10 DL row.
+21 == `PLAYER_MODELTYPE_MAX` (0x15), so it is indexed directly by `PLAYER_MODELTYPE_*`.
 
-The groupings below are printed with `(-1,-1)` rows as visual breaks purely because that is how the
-region was first read. **Do not treat them as tables** — per the layout section above, a `(-1,-1)` row
-is itself a table, not a delimiter, and `sSheathDLs` falls inside the second "block" listed here. The
-row-per-table rule is the one to use.
+Found without Ghidra: scan the whole binary for 4-byte-aligned words whose value equals a known
+table VA. That turns up both this master table and a literal pool at `0x004c71cc`/`0x004c71d4`
+holding consecutive pointers to the two sheath tables (i.e. the reading function sits just above it).
 
-Block @ 0x0053c3f8, 12 rows, then `(-1,-1)` and `(-1, 13)`:
+| idx | PLAYER_MODELTYPE_ | table VA | adult | child |
+|---|---|---|---|---|
+| 0x00 | LH_OPEN | 0x0053a5c8 | 13 | 0 |
+| 0x01 | LH_CLOSED | 0x0053a5d8 | 14 | 1 |
+| 0x02 | LH_SWORD | 0x0053c588 | 16 | 2 |
+| 0x03 | LH_SWORD_2 *(unused)* | 0x0053c578 | 16 | 2 |
+| 0x04 | LH_BGS | 0x0053a5a8 | 37 | 16 |
+| 0x05 | LH_HAMMER | 0x0053c658 | 32 | 0 |
+| 0x06 | LH_BOOMERANG | 0x0053a5e8 | 13 | 6 |
+| 0x07 | LH_BOTTLE | 0x0053c668 | 24 | 7 |
+| 0x08 | RH_OPEN | 0x0053c598 | 20 | 3 |
+| 0x09 | RH_CLOSED | 0x0053c5a8 | 21 | 4 |
+| 0x0A | RH_SHIELD | 0x0053c3f8 | 21 | 4 | *(base of a 12-row run, see below)* |
+| 0x0B | RH_BOW_SLINGSHOT | 0x0053c5b8 | 29 | 19 |
+| 0x0C | RH_BOW_SLINGSHOT_2 *(unused)* | 0x0053c618 | 29 | 19 |
+| 0x0D | RH_OCARINA | 0x0053c628 | 40 | 17 |
+| 0x0E | RH_OOT | 0x0053c638 | 40 | 18 |
+| 0x0F | RH_HOOKSHOT | 0x0053c648 | 33 | 3 |
+| 0x10 | SHEATH_16 | 0x0053c5c8 | 31 | 14 |
+| 0x11 | SHEATH_17 | 0x0053c5e8 | 42 | 21 |
+| 0x12 | SHEATH_18 | 0x0053c438 | 31 | 14 |
+| 0x13 | SHEATH_19 | 0x0053c4d8 | 42 | 21 | *(base of a run, see below)* |
+| 0x14 | WAIST | 0x0053c608 | -1 | -1 |
 
-```
-(21,4) (21,5) (23,4) (39,4) (31,14) (31,11) (0,9) (2,14) (12,14) (12,11) (11,9) (8,14)
-```
+### Why this assignment is trustworthy
 
-Block @ 0x0053c568, 10 rows, then `(-1,-1)`:
+Five independent checks, none of which was used to derive it:
 
-```
-(42,13) (16,2) (16,2) (20,3) (21,4) (29,19) (31,14) (12,14) (42,21) (9,14)
-```
+1. **Slot count.** 21 slots, and `PLAYER_MODELTYPE_MAX` is 0x15 = 21. Exact.
+2. **The two "unused, same as X" enum entries hold identical values.** `z64player.h` documents
+   `LH_SWORD_2` as "unused, same as `LH_SWORD`" and `RH_BOW_SLINGSHOT_2` likewise. Here
+   0x02/0x03 are both `(16, 2)` and 0x0B/0x0C are both `(29, 19)` — while pointing at *different*
+   addresses, so the match is a property of the data, not aliasing.
+3. **Both sheath slots land on tables already verified in-game.** 0x11 -> `(42, 21)` and
+   0x13 -> `(42, 21)`, the two tables read and ported independently before this table was found;
+   adult 42 was confirmed visually as the sheath strap.
+4. **`LH_BGS` = adult 37** matches what the zelda3d port already does (`SwordTwoHand` -> mid 37),
+   an assignment the audit had flagged as UNVERIFIED. It is correct.
+5. **The shield sub-run reproduces existing hand-derived code exactly** (below).
 
-Block @ 0x0053c618 onward:
+### Shield-variant runs
 
-```
-(29,19) (40,17) (40,18) (33,3) (32,0) (24,7) (26,-1) ...
-```
+`RH_SHIELD` (0x0A) and `SHEATH_19` (0x13) point at the FIRST row of a multi-row run; the code adds a
+shield-type offset. Shield order is **NONE / DEKU / HYLIAN / MIRROR**.
 
-For orientation when assigning these, the N64 enum (`Shipwright/soh/include/z64player.h`) is
-`PLAYER_MODELTYPE_MAX` = 0x15 = 21 entries: left hand 0x00-0x07 (8), right hand 0x08-0x0F (8),
-sheath 0x10-0x13 (4), waist 0x14 (1); and `PLAYER_MODELGROUP_MAX` = 0x10.
+`RH_SHIELD` base 0x0053c3f8, 12 rows = three groups of four:
 
-## Why there is no code cross-check yet
+| group | NONE | DEKU | HYLIAN | MIRROR |
+|---|---|---|---|---|
+| +0..+3 | (21,4) | (21,5) | (23,4) | (39,4) |
+| +4..+7 | (31,14) | (31,11) | (0,9) | (2,14) |
+| +8..+11 | (12,14) | (12,11) | (11,9) | (8,14) |
 
-Ghidra's reference DB returns **no hits** for these VAs: the tables are reached via ARM `movw`/`movt`
-immediate pairs, which Ghidra does not materialize as xrefs. So `FindDataWriters.py` / `ListCallers.py`
-cannot find the indexing code, and the row semantics above cannot currently be confirmed from code —
-only inferred from value patterns plus the N64 table shapes.
+Group `+4..+7` adult column is `31, 31, 0, 2` — which is *literally* the existing zelda3d line
+`hylian ? LINK_MID(0) : (mirror ? LINK_MID(2) : LINK_MID(31))` for `ShieldOnBackSwordSheathed`,
+derived by hand long before this table was decoded. Group `+0..+3` gives HYLIAN 23 / MIRROR 39,
+matching two fixes already landed. That agreement is the strongest evidence for the shield ordering.
 
-Two routes that have NOT been tried and are the obvious next steps:
+**What the three groups distinguish is NOT established.** Sword-drawn / sheathed / on-back is the
+obvious guess given group `+4..+7`'s meaning, but it is a guess and the port should not depend on it.
 
-1. `FindMovwMovtWriters.py` (the per-function constant tracker) over the player-draw address range —
-   it exists precisely for the pattern Ghidra's reference DB misses.
-2. A harness watchpoint on one of these VAs to catch the reading PC, then `FnAt.py` on it. This is
-   the documented pivot for "static Ghidra returns 0 refs".
+`SHEATH_19` base 0x0053c4d8, 8 rows = two groups of four (see the sheath section above); the second
+group is UNVERIFIED.
 
-Until one of those lands, treat every block above as structure without semantics. The trap to avoid
-is that these tables are *so* regular that a plausible index assignment is easy to invent and
-impossible to distinguish from a correct one by inspection alone.
+## Port targets — current zelda3d divergences this table settles
+
+Each of these is an audit finding whose correct value is now known rather than guessed:
+
+| finding | modeltype | we draw | table says |
+|---|---|---|---|
+| adult hammer swing draws nothing | LH_HAMMER 0x05 | nothing | adult **32** |
+| bottle uses a clenched fist | LH_BOTTLE 0x07 | fist | adult **24**, child **7** |
+| adult hookshot/longshot = flat open palm | RH_HOOKSHOT 0x0F | open palm | adult **33**, child **3** |
+| ocarina shows open palm, `RH_OOT` not in the switch | RH_OCARINA 0x0D / RH_OOT 0x0E | default | **(40,17)** / **(40,18)** |
+| child boomerang draws something OoT3D never draws | LH_BOOMERANG 0x06 | wrong mid | adult **13**, child **6** |
+| hands flat-open while running | LH_OPEN 0x00 / LH_CLOSED 0x01 | open | **(13,0)** / **(14,1)** |
+| shield pose with no shield shows open palm | RH_SHIELD 0x0A +NONE | open palm | adult **21** (fist) |
+
+Port these as a DATA TABLE indexed by model type, not as a switch of special cases -- the whole reason
+these diverged one-by-one is that each was hand-written.
