@@ -24,7 +24,10 @@ Everything below is read byte-exact out of `oot3d-decomp/build/code.bin` (file o
   surrounding data. Reading on a 0x10 grid based anywhere else shifts every row by 8 and reports
   ~all rows as "near != far", which is how this first came out looking like 55 mismatches.
 * `-1` means "draw nothing".
-* Tables are separated by `(-1, -1)` rows.
+* `(-1, -1)` rows are **NOT** table separators, though they look like it. `sSheathDLs` @0x0053c5e8
+  sits *inside* the run between two of them, so grouping the region by `(-1,-1)` produces "blocks"
+  that straddle real table boundaries. Since each N64 table is exactly one 0x10 row, the boundaries
+  are every row, and a `(-1,-1)` row is simply a table whose every entry draws nothing.
 
 An earlier note described this as "8-byte stride with (adult, child) as s16 at +0/+4". The **values**
 that came from it are unaffected (they were sampled 0x10 apart), but the type and stride were wrong.
@@ -77,9 +80,14 @@ where N64 has five tables, so it does NOT cleanly line up and I am NOT claiming 
 
 ## Neighbouring blocks — decoded but UNASSIGNED
 
-Read at stride 0x10 and grouped by the `(-1,-1)` separators. Which `PLAYER_MODELTYPE_*` /
-`PLAYER_MODELGROUP_*` index drives each block is **not established**, because the code cross-check
-route is dead (see below), so these are listed as raw structure only.
+Read at stride 0x10. Which `PLAYER_MODELTYPE_*` / `PLAYER_MODELGROUP_*` index (or which named N64
+table) each row corresponds to is **not established**, because the code cross-check route is dead
+(see below), so these are raw structure only.
+
+The groupings below are printed with `(-1,-1)` rows as visual breaks purely because that is how the
+region was first read. **Do not treat them as tables** — per the layout section above, a `(-1,-1)` row
+is itself a table, not a delimiter, and `sSheathDLs` falls inside the second "block" listed here. The
+row-per-table rule is the one to use.
 
 Block @ 0x0053c3f8, 12 rows, then `(-1,-1)` and `(-1, 13)`:
 
