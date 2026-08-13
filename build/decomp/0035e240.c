@@ -5,11 +5,10 @@ void FUN_0035e240(undefined4 param_1,undefined4 param_2,undefined4 param_3,undef
 
 {
   int iVar1;
-  
-  if (((*DAT_0035e2bc & 1) == 0) && (iVar1 = FUN_003679b4(DAT_0035e2bc), iVar1 != 0)) {
-    FUN_0036788c(DAT_0035e2c0);
+
+  if (((*puRam0035e2bc & 1) == 0) && (iVar1 = func_0x003679b4(puRam0035e2bc), iVar1 != 0)) {
+    func_0x0036788c(uRam0035e2c0);
   }
-  FUN_004c7ab0(DAT_0035e2cc,param_1,param_2,param_3,param_4,param_5,param_6);
+  func_0x004c7ab0(uRam0035e2cc,param_1,param_2,param_3,param_4,param_5,param_6);
   return;
 }
-
