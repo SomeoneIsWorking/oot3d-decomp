@@ -224,10 +224,39 @@ the N64 helper, including the post-scale X rotation; the defect is not evidence
 for a guessed scale correction. The embedded oracle and SoH3D now both have a
 visible emergence capture: the natural-camera SoH3D frame uses `vba_up@10`,
 the authored `-580` draw lift, and a compact ground-form silhouette rather than
-the formerly exposed vertical body. The remaining Boss_Fd2 RE is the complete
-set of non-emergence action controllers; those states currently use independent
-authored-CSAB playheads but are explicitly marked STOPGAP until their OoT3D
-action functions are decompiled. `Boss_Fd`
-(actor `0x0096`) is a separate multipart render; the invalid generic
-largest-CMB replacement is disabled so it retains the N64 draw until its own
-dedicated port exists.
+the formerly exposed vertical body. The full ground-form controller chain is
+now decompiled and ported. `Boss_Fd` remains a distinct flying multipart actor.
+
+## Flying Boss_Fd profile and multipart draw (2026-08-14)
+
+The flying parent is actor `0x0096`, profile `0x00514944`, category 9,
+object `0x009C`. Its entry points are init `FUN_001A62C4`, destroy
+`FUN_001A6C58`, update `FUN_001EC834`, and draw `FUN_001EC7E4`.
+The draw is a dispatcher: unless action `FUN_003E41F0` is active it calls
+`FUN_003B4308`, the complete flying multipart body renderer, then submits the
+effect array through `FUN_0014690C`.
+
+`FUN_001A62C4` establishes the render inventory directly from archive indices:
+
+| model index | CMB | use |
+|---:|---|---|
+| 1 | `valbasiabody.cmb` | main flying body skeleton |
+| 3 | `valbasiahead.cmb` | alternate/head skeleton |
+| 4 | `valbasialarm.cmb` | left arm skeleton |
+| 5 | `valbasiararm.cmb` | right arm skeleton |
+| 6 | `valbasia_firehair.cmb` | thirty mane instances |
+| 8 | `valbasia_death_body.cmb` | eighteen rigid instances used by the segment/death path |
+| 9 | `valbasia_death_head.cmb` | alternate/death-head skeleton |
+| 10 | `vb_particle_group.cmb` | 110 effect instances |
+
+The ordinary flying draw `FUN_003B4308` is procedural, not a single actor
+matrix. It submits the right and left arm skeletons at controllers `+0x2AC`
+and `+0x330`; iterates exactly 18 segment transforms from the 150-entry
+position/rotation history at `+0x104C`; submits the main skeleton at `+0x1A4`;
+then selects the live head or death-head controller and finally submits three
+mane chains. `actor+0x886` is initialized to 18 and controls how many leading
+segments use stored matrices; later segments use the `valbasia_death_body`
+instance path. Therefore replacing Boss_Fd with only `valbasiabody.cmb` cannot be
+faithful even if its skeleton animates: arms, segment instances, head/death
+variant, and all three mane chains are separate submissions with transforms
+owned by the actor's procedural history.
