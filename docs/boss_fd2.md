@@ -107,6 +107,56 @@ CSAB cursor advances `0.667` frame per 30 Hz update (20 authored frames/sec).
 SoH logic is 20 Hz, so the port consumes timer ticks through an exact 3:2
 integer accumulator and advances the CSAB by one authored frame per SoH tick.
 
+## Idle/attack controller chain (static, port in progress)
+
+`FUN_0012827C` is the post-emergence idle/turn controller. It advances the
+OoT3D animation controller, smooths the actor yaw toward the player, and uses
+the previous/current yaw error to select authored clips directly:
+
+- crossing from `abs(error) <= 1000` to `> 1000` selects slot 10,
+  `vba_search`;
+- crossing back to `<= 1000` selects slot 14, `vba_wait`;
+- when its timer expires, distance `< 200.0` selects slot 11,
+  `vba_tyokkai`, and action `FUN_0011B624`;
+- otherwise it selects slot 4, `vba_atack`, and action `FUN_00106334`.
+
+The literal pool at `0x001283CC..0x001283DC` supplies `-5.0`, `1000.0`,
+`200.0`, and the two action pointers above. Both outgoing selectors pass the
+same `-5.0` transition argument as the idle/turn switches, so this is a
+five-authored-frame OoT3D crossfade. The port owns that outgoing pose and
+weight independently; it does not read SoH's N64 morph state.
+
+`FUN_0011B624` completes `vba_tyokkai` and selects slot 7 (`vba_down`) with
+another `-5.0` transition before entering `FUN_003D713C`. `FUN_00106334`
+does the same after `vba_atack`, while also implementing the authored fire
+window and head tracking. `FUN_003D713C` completes `vba_down`, holds the
+burrow timer, then either hands control back to the flying parent or selects
+slot 12 (`vba_up`) for another ground cycle.
+
+## Hit, damage, and death controller chain
+
+The collision controller `FUN_0020A668` owns the initial clip selection; the
+action functions own subsequent transitions:
+
+- A knockout hit selects slot 8 (`vba_hit`) and action `FUN_00120B20`.
+  That action plays the clip once, waits through its first substate, then
+  selects slot 7 (`vba_down`) when recovery ends. Its N64 Rosetta counterpart
+  exposes the intermediate semantic action state: state 0 completes the
+  knockout clip, then state 1 loops slot 9 (`vba_pikupiku`) during the
+  vulnerable window before burrowing.
+- Nonlethal damage selects slot 5 (`vba_beforedamage`) and action
+  `FUN_00137D74`. On completion, that action selects slot 6 (`vba_damage`),
+  then returns to the wait action after its post-animation timer.
+- Lethal damage selects slot 6 (`vba_damage`) and action `FUN_001386D4`
+  directly. The long death action does not select another body CSAB.
+
+Literal-pool resolution establishes the action pointers: collision writes
+`0x00120B20` for knockout, `0x00137D74` for nonlethal damage, and
+`0x001386D4` for death. `FUN_00120B20` later writes `0x003D713C` (burrow),
+while `FUN_00137D74` later writes `0x003E4790` (wait). The port follows these
+authored-slot transitions from action/substate semantics and never samples an
+N64 animation pointer, cursor, joint table, or morph weight.
+
 The vertical-body defect was not a skeleton or CSAB failure. At live
 `vba_up` frame 8, actor position was `(240,150,-240)`, while the matrix passed
 to the skeleton draw was:
