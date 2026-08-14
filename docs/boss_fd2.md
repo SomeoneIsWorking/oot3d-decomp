@@ -287,3 +287,32 @@ the same shape rotation, and writes independent scale waves using frequencies
 5596, 5496, and 5696 with amplitude 0.3. These are the 3DS-owned procedural
 rings consumed above; the N64 actor's 100/30-entry rings are not equivalent
 animation data and are not inputs to the port.
+
+### Flying skin-to-bone draw transition
+
+The segment split inside `FUN_003B4308` is now resolved down to the cooked
+assets and the visibility helper. `valbasiabody.cmb` has exactly eighteen
+meshes whose mesh IDs are the consecutive range `0..17`. For every segment
+index greater than or equal to `actor+0x886` (`skinSegments`), the draw calls
+`FUN_0036932C(bodyModel, segmentIndex)`. That 32-byte helper bounds-checks the
+mesh index and writes zero to the model's mesh-visibility byte. The skinned
+body therefore retains exactly the leading `skinSegments` mesh IDs; this is
+not an animation or joint-table operation.
+
+For each hidden segment whose two-byte fall-apart state is below 2, the same
+draw submits one of the eighteen instances of model index 8,
+`valbasia_death_body.cmb`. Its matrix starts at the segment's 150-entry
+history transform, translates along local negative Z by the measured distance
+to the preceding segment history sample, rotates Y by `-pi`, and scales by
+`0.1`. Segments 14..17 additionally taper X/Y by
+`1 - (segmentIndex - 14) * 0.2`. When the action state reaches 204, the head
+controller switches from model index 3 (`valbasiahead.cmb`) to model index 9
+(`valbasia_death_head.cmb`). Both paths remain 3DS CMB draws.
+
+The flying material bindings are also exact from the init indices and parsed
+CMAB payloads: body material 0, head material 2, and both arm material 0 each
+scroll channel 1 U from 0 to 4 over 120 frames; fire hair animates material 0
+constant-color slots 1 and 2 over 30 frames; `valbasiahead_eye.cmab` selects
+material 0 palette frames 0/1/2; and the exposed-face context
+`valbasiahead2.cmab` pulses material 1 constant-color slot 4 alpha over 12
+frames. The death body and death head use their static CMB materials.
