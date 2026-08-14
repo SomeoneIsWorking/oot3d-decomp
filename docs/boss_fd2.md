@@ -260,3 +260,30 @@ instance path. Therefore replacing Boss_Fd with only `valbasiabody.cmb` cannot b
 faithful even if its skeleton animates: arms, segment instances, head/death
 variant, and all three mane chains are separate submissions with transforms
 owned by the actor's procedural history.
+
+The body callback is now resolved, rather than inferred from the N64 twin.
+`FUN_00209588` receives `(nodeIndex, matrix, actor)` and, only for node indices
+`19..36`, copies one of the eighteen actor matrices at `actor+0x43C` over the
+renderer matrix verbatim. The draw builds those matrices from the history ring
+using the signed-short offset table at `0x004D73AC`:
+`{0,141,135,126,120,111,105,96,90,81,75,66,60,51,45,36,30,21,15,6}`.
+This establishes that `valbasiabody` first evaluates its authored
+`vb_FWDtest` CSAB and then replaces the eighteen body-bone world transforms
+with procedural flight-history matrices. It does **not** consume an N64
+animation identity, phase, joint table, or morph state.
+
+`FUN_00316DC0` is the three-chain mane submission. It clamps visible length to
+ten, samples a 45-entry position/rotation history at
+`(leadMane - 3*i + 45) % 45`, applies the authored center/left/right offsets,
+and submits one `valbasia_firehair` instance per visible segment. The CMAB is
+bound by the instance renderer initialized in `FUN_001A62C4`; mane motion is
+procedural actor history, independent of skeletal animation.
+
+The producer is the tail of flying action `FUN_003C724C`. Once movement has
+updated the actor, it advances the body cursor modulo 150 and records the
+actor's world position plus XYZ shape rotation at `+0x104C/+0x944`. It then
+advances the mane cursor modulo 45, records all three current mane anchors and
+the same shape rotation, and writes independent scale waves using frequencies
+5596, 5496, and 5696 with amplitude 0.3. These are the 3DS-owned procedural
+rings consumed above; the N64 actor's 100/30-entry rings are not equivalent
+animation data and are not inputs to the port.
