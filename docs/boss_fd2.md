@@ -349,3 +349,29 @@ material 4 (constant slot 0 plus coordinator 1 V and coordinator 0 UV tracks)
 over 40 frames; `vb_smoke.cmab` animates material 3's coordinator-0 atlas and
 constant slot 0 over 32 frames. The renderer never submits an N64 display list
 for these records.
+
+### En_Vb_Ball attack stones and detached bones
+
+The actor spawned by the flying death/rock paths is overlay-table entry
+`0x00AD`, profile `0x0052FDB4`: category 9, object `0x009C`
+(`zelda_fd.zar`), instance size `0x228`, init `FUN_00212F94`, update
+`FUN_0024E700`, and draw `FUN_0024E4E8`. The initializer passes model indices
+8 and 7 to the two-instance loader. Against the archive's exact model order,
+these are `valbasia_death_body.cmb` at actor `+0x21C` and
+`valbasia_attack_stone.cmb` at `+0x220`.
+
+The draw selection is parameter-driven and contains no skeleton or animation:
+
+- `params >= 200`: submit `valbasia_death_body` at the actor matrix;
+- `params < 200`: submit `valbasia_attack_stone` at the actor matrix;
+- `params == 100`: additionally submit gameplay-keep model index `0x53`,
+  `/actor/zelda_keep.zar|shadow/model/shadow_model.cmb`.
+
+The shadow instance is a separate 3DS model, not the N64 circle-shadow display
+list. Its matrix translates to `(actor.x, 100, actor.z)` with no actor rotation
+and scales uniformly by `actorScale * 68 * fade`; `fade` starts at 0.1 and
+advances by 0.025 per draw to 1.0. Before submission the draw writes
+`(0,0,0, 1 - shadowValue/255)` to material 0 constant slot 4. The literal
+constants are resolved directly as `68`, `0.1`, `0.025`, `1`, `1/255`, and
+fixed world Y `100`. Thus rocks, detached ribs, and the large-rock shadow all
+have fully identified 3DS graphics resources and transforms.
