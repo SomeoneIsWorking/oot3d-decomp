@@ -316,3 +316,36 @@ constant-color slots 1 and 2 over 30 frames; `valbasiahead_eye.cmab` selects
 material 0 palette frames 0/1/2; and the exposed-face context
 `valbasiahead2.cmab` pulses material 1 constant-color slot 4 alpha over 12
 frames. The death body and death head use their static CMB materials.
+
+### Flying particle-group renderer
+
+`FUN_0014690C(parentMatrix, effects, play)` renders the complete flying-effect
+pool. It makes five passes, in type order `4, 2, 1, 3, 5`, and each pass scans
+exactly 110 records of size `0x4C`. A live record has its model-instance pointer
+at `+0x00`, uniform float scale at `+0x04`, integer X/Y rotation fields at
+`+0x08/+0x0C`, float position at `+0x10..+0x18`, type byte at `+0x34`,
+signed-short alpha at `+0x36`, and RGB bytes at `+0x3C..+0x3E`. Alpha is clamped
+to `0..255`; RGBA is divided by 255 and written to material constant slot 4
+before every submission. Literal-pool reads resolve the conversion constants as
+`0x3B808081 = 1/255`, `0x4222F983 = 128/pi`, and `0x3CC90FDB = pi/128`.
+
+The model is `vb_particle_group.cmb`, whose five mesh IDs and producer-selected
+types are exact:
+
+| 3DS type | enabled mesh | material / texture | transform | producer evidence |
+|---:|---:|---|---|---|
+| 4 | 0 | mat 4 / `vb_fire1` | billboard | fire-breath producer binds archive handle `+0x868` |
+| 5 | 1 | mat 2 / `vb_hinokoTX1` | billboard | `FUN_0036FDE0` binds `+0x864` and enables mesh 1 |
+| 2 | 2 | mat 1 / `vb_hit_kakera` | Y then X rotation | `FUN_001F285C` enables mesh 2 |
+| 1 | 3 | mat 0 / `vb_kakera` | Y then X rotation | `FUN_00335814` enables mesh 3 |
+| 3 | 4 | mat 3 / `vb_smoke` | billboard | producers in `FUN_001EC834`/`FUN_003C724C` bind `+0x86C` and enable mesh 4 |
+
+Types 4, 3, and 5 multiply the position matrix by `play+0x2FC`, the billboard
+matrix. Types 1 and 2 construct Y and X rotations from their two integer angle
+fields before uniform scale. The three material animations loaded by
+`FUN_001A62C4` are also resolved directly from the archive: `vb_hinoko.cmab`
+scrolls material 2 coordinator 1 V by 1 over 30 frames; `vb_fire.cmab` animates
+material 4 (constant slot 0 plus coordinator 1 V and coordinator 0 UV tracks)
+over 40 frames; `vb_smoke.cmab` animates material 3's coordinator-0 atlas and
+constant slot 0 over 32 frames. The renderer never submits an N64 display list
+for these records.
