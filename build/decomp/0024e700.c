@@ -170,7 +170,7 @@ int FUN_0024e700(int param_1,int param_2)
         fStack_80 = (float)func_0x003738a8(uVar11);
         fStack_80 = fStack_80 + *(float *)(param_1 + 0x30);
         fVar14 = (float)func_0x00371e50(uVar4);
-        func_0x0036442c(fVar14 + fVar13,uVar8,&fStack_88,&fStack_70,&fStack_7c);
+        FUN_0036442c(fVar14 + fVar13,uVar8,&fStack_88,&fStack_70,&fStack_7c);
         sVar7 = sVar7 + 1;
       } while (sVar7 < 4);
     }

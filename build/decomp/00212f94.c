@@ -12,7 +12,7 @@ void FUN_00212f94(int param_1,undefined4 param_2)
   *(undefined4 *)(param_1 + 0x224) = 0;
   func_0x00372f38(param_1,param_2,param_1 + 0x21c,8,param_1 + 0x220,7,0);
   if (*(short *)(param_1 + 0x1c) == 100) {
-    uVar1 = func_0x0036a924(param_1,param_2,1,0x53);
+    uVar1 = FUN_0036a924(param_1,param_2,1,0x53);
     *(undefined4 *)(param_1 + 0x224) = uVar1;
   }
   *(undefined4 *)(param_1 + 0x218) = uRam0021315c;

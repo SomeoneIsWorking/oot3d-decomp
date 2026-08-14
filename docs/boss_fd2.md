@@ -375,3 +375,36 @@ advances by 0.025 per draw to 1.0. Before submission the draw writes
 constants are resolved directly as `68`, `0.1`, `0.025`, `1`, `1/255`, and
 fixed world Y `100`. Thus rocks, detached ribs, and the large-rock shadow all
 have fully identified 3DS graphics resources and transforms.
+
+### En_Vb_Ball collision graphics (update @ `0x0024E700`)
+
+The first decompile hid most of the params-100/101 collision branch as “unreachable” because Ghidra
+had incorrectly treated the ordinary `Actor_Kill`-shaped call at `0x00374428` as terminating the
+function. Direct ARM disassembly across the inline literal pool recovers the complete branch. The
+3DS update keeps the N64 child-rock split but authors different particle counts, ranges, and shadow /
+rib motion:
+
+- every stone approaches shadow field `+0x1BC` to `255` at `40/frame` (scale `1`). The draw uses
+  `1 - field/255`, so the params-100 keep shadow fades completely; N64 targets `175` and leaves a
+  permanent remnant;
+- ordinary params below 100/above 101 spawn exactly **2** type-1 debris records: velocity
+  `(centered 10, zero 3 + 3, centered 10)`, acceleration `(0,-1,0)`, position centered 5 around the
+  actor, scale `zero 12 + 15`;
+- params 100/101 keep the exact two-child split already present in N64 (100 offsets
+  `centered 13 / zero 5 + 6`; 101 offsets `centered 10 / zero 3 + 4`) and then spawn exactly **6**
+  type-1 debris records with velocity X/Z centered 12, Y `zero 5 + 8`, position centered 10, and
+  scale `zero 30 + 15`; plus exactly **4** type-3 smoke records with velocity
+  `(centered 8, zero 1, centered 8)`, acceleration `(0,.5,0)`, position centered 30, and scale
+  `zero 200 + 600`;
+- detached ribs (`params >= 200`) set both post-bounce angular-velocity floats from centered range
+  **50** (N64 uses `0x4000`), retain the radial horizontal speed 10 and Y bounce `*=-.5`, then spawn
+  exactly **4** type-3 smoke records. Those use the same velocity triple, acceleration `(0,.3,0)`,
+  X/Z position centered 20 with fixed Y `floorHeight+10`, and scale `zero 200 + 400`.
+
+`FUN_00335814` is the type-1 `vb_kakera` producer (scale conversion `1/1000`);
+newly-decompiled `FUN_0036442C` is the type-3 `vb_smoke` producer (scale conversion `1/400`, smoke
+CMAB handle at parent `+0x86C`). The params-100-only `FUN_0036FCA8(actor, play, 5, 10)` is camera
+quake setup under `play+0x364`, not graphics. Therefore the collision appearance is fully covered by
+the same `vb_particle_group.cmb` renderer documented above; the missing work was producer state, not
+another model or animation. No skeleton, CSAB, N64 joint table, or procedural animation history is
+involved.
