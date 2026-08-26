@@ -28,6 +28,18 @@ The tooling lives in the superproject (`<zelda3d>/tools`):
     soh_boot / soh_step / step / compare / force     the side-by-side SoH3D half
     watch / hits / unwatch                           write watchpoints (writer PC + LR + regs)
 
+The paired gameplay-camera control is:
+
+```
+force camera <eyeX> <eyeY> <eyeZ> <atX> <atY> <atZ> <fov>
+force camera_off
+```
+
+Both engines must be in gameplay. The command holds the active oracle Camera fields through watched
+guest writes, seeds the View fields and dirty bit recovered in `gameplay_camera_view_apply.md`, and
+uses SoH's real View update/FOV path. `camera_off` removes the watchpoint and restores the oracle's
+previous camera status; it is not a permanent memory patch.
+
 ## Reaching gameplay, and warping
 
 Warping uses the game's own mechanism — `nextEntranceIndex` (s16 @ `play+0x5C32`) plus
@@ -65,11 +77,13 @@ not infer the current patch set from an older oracle note.
 
 `tools/test_boss_fd_comparison_policy.py` compiles and runs the production BossFd comparison policy
 against required MATCH, DIVERGED, exact-tolerance, wrapped-rotation, invalid-snapshot, and profile-
-tolerance cases. The live forced-profile certification on 2026-08-26 then paired 270 authored ticks,
-reached exact zero-delta for the producer and sampled 150-entry history, changed one oracle history X
-value by 1000 to force `DIVERGED` (`meanPos=50`, `maxPos=1000`), and returned to exact `MATCH` after
-restoration. This trusts the forced action-0 producer comparator; it does not extend that verdict to
-general action/death sequencing or rendered-image parity.
+tolerance cases. The live forced-profile certification paired 270 authored ticks, reached exact
+zero-delta for the producer and sampled 150-entry history, changed one oracle history X value by 1000
+to force `DIVERGED` (`meanPos=50`, `maxPos=1000`), and returned to exact `MATCH` after restoration.
+On 2026-08-27 the paired camera then held both rendered views while a final exact `MATCH` and framebuffer
+capture showed the full flying body in both engines. This trusts the forced action-0 producer and
+body-presence result; it does not extend that verdict to general action/death sequencing or pixel-
+level material/geometry parity.
 
 ## Limits
 
