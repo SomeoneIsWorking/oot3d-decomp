@@ -207,30 +207,72 @@ parity with SoH.** Any observed CAM_FUNC_NORM1 divergence must live
 in the mode body itself or in upstream inputs (Player_GetHeight
 result, playerPosRot, floorNorm) — not in the shared plumbing.
 
-## Δ-A activation — when does the extra Y bias fire?
+## Δ-A producer semantics — resolved
 
-Empirically at Kakariko-idle (2026-07-03 sweep, adult SoH vs child
-OoT3D savestate parity break notwithstanding):
+The producer is the branch opposite OoT3D's slope accumulator in
+`FUN_00250AD0` (`Player_UpdateCommon`). The slope branch has an action
+exception: get-item presentation deliberately enters the extra-Y branch even
+on floor types 4, 7, and 12.
 
-    state[+0x29B8] = 0x04000000  →  bit 0x100 CLEAR  →  extraAtY = 0
+```c
+bool slopeOwnsAccumulator =
+    (floorType == 4 || floorType == 7 || floorType == 12) &&
+    player->actionFunc != Player_Action_8084E6D4;
 
-So the block is INERT under normal standing/walking. The state word
-at Player+0x29B8 is a Grezzo-added Player-substate bitfield; only
-some subset of player states set bit 0x100. Candidate states to
-probe next (hypothesis, unverified):
+if (!slopeOwnsAccumulator) {
+    if (!(state & 0x100)) {
+        unk_6C4 = 0.0f;
+    } else {
+        unk_6C4 -= 400.0f;
+        if (unk_6C4 <= 0.0f) {
+            unk_6C4 = 0.0f;
+            state &= ~0x100;
+        }
+    }
 
-- Climbing a ledge / wall (Link's effective look-at is pulled down
-  toward the surface being climbed)
-- Pulling / grabbing (block/bomb-flower carry)
-- Riding Epona (already handled by SoH's `+32.0f on horse` — likely
-  independent)
-- Interacting with a tall object (raise camera slightly)
+    float rise = player->actor.world.pos.y - player->actor.prevPos.y;
+    if (player->actionFunc == Player_Action_80842180 && rise >= 9.0f &&
+        DynaPoly_GetActor(&play->colCtx, player->actor.floorBgId) == NULL) {
+        state |= 0x100;
+        unk_6C4 += rise * 100.0f;
+    }
+}
+```
 
-The port unit for this function is:
-`Shipwright/soh/src/zelda3d/behaviors/camera/at_default.cpp` (a new
-shared module), fed via a thin seam at every SoH `Camera_CalcAtDefault`
-call site. Behavior gate on `player+0x29B8 & 0x100`; when clear, the
-result must be byte-identical to SoH's `Camera_CalcAtDefault`.
+The previously-unresolved fields and helper now have typed SoH twins:
+
+| OoT3D evidence | Typed meaning in the port |
+|---|---|
+| `*(DAT_0025293c + 0x28)` in `{4,7,12}` and `player+0x1708 != DAT_00252944` | `sFloorType` selects the stock slope owner except during get-item presentation |
+| `DAT_00252944 == 0x004BC22C` | `player->actionFunc == Player_Action_8084E6D4` (get-item); this selects the extra-Y branch on a slope floor |
+| `player+0x1708 == 0x4BA378` | `player->actionFunc == Player_Action_80842180` (free walk/run) |
+| `player+0x2c - player+0x10c` | `actor.world.pos.y - actor.prevPos.y` |
+| `FUN_00359690(play+0xA98, player+0x81) == 0` | no dynamic floor actor: `DynaPoly_GetActor(&play->colCtx, actor.floorBgId) == NULL` |
+| `player+0x1760` | the existing typed `Player::unk_6C4` accumulator |
+| `player+0x29B8 & 0x100` | an active latch owned by the Zelda3D behavior module |
+
+The shipping owner is
+`Shipwright/soh/src/zelda3d/behaviors/camera/at_default.cpp`. It keeps the
+active latch and a deterministic 30:20 update-rate accumulator per `Player`
+through `ObjectExtension`; the vendored `z_player.c` and `z_camera.c` changes
+are narrow calls into that owner. The pure `at_default_policy` seam preserves
+the exact branch predicate: the slope branch owns `unk_6C4` on floor types
+4/7/12 for ordinary actions, while `Player_Action_8084E6D4` selects the
+extra-Y reset/decay branch. Disabling Zelda3D preserves the stock behavior.
+
+SoH's host `Player_Update` is 20 Hz while this OoT3D producer is authored at
+30 Hz. The time-based `-400` decay therefore consumes an exact alternating
+one/two authored ticks per host update. The spatial rise is added once per
+host update from the typed host `world.pos.y - prevPos.y`; replaying that full
+20 Hz displacement during both authored substeps would double-count distance.
+The `>= 9` predicate intentionally remains on that observed host delta. Finer
+30 Hz threshold timing still requires live A/B evidence; it is not approximated
+with a scaled or magic threshold.
+
+The consumer is the sole structural addition to `Camera_CalcAtDefault`:
+while the active latch is set, add `unk_6C4 * -0.01f` to `atTarget.y`. When
+the latch is clear (including the Kakariko-idle control), the result remains
+the stock SoH computation.
 
 ## Companion: Player_GetHeight (FUN_00367ef0)
 

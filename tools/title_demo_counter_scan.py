@@ -5,9 +5,9 @@ writes them and RE the title-demo tick.
 
 Layout per soh3d/CLAUDE.md: put scratch in scratch/, not /tmp.
 """
-import os, sys, struct, subprocess
+import os, sys, struct
 sys.path.insert(0, '<SOH3D_REPO>/tools')
-from harness_ctl import spawn
+from harness_process import spawn
 
 SCRATCH = "<SOH3D_REPO>/scratch/gamestate_re"
 os.makedirs(SCRATCH, exist_ok=True)
