@@ -6,9 +6,9 @@ void FUN_0036b96c(int param_1)
   uint in_fpscr;
   float fVar1;
   
-  fVar1 = (float)VectorSignedToFloat((int)*(short *)(*DAT_0036b9d8 + 0x110),
+  fVar1 = (float)VectorSignedToFloat((int)*(short *)(*piRam0036b9d8 + 0x110),
                                      (byte)(in_fpscr >> 0x15) & 3);
-  fVar1 = fVar1 * DAT_0036b9dc;
+  fVar1 = fVar1 * fRam0036b9dc;
   *(float *)(param_1 + 0x28) =
        *(float *)(param_1 + 0x28) + *(float *)(param_1 + 0xa4) + *(float *)(param_1 + 0x60) * fVar1;
   *(float *)(param_1 + 0x2c) =

@@ -279,14 +279,116 @@ and submits one `valbasia_firehair` instance per visible segment. The CMAB is
 bound by the instance renderer initialized in `FUN_001A62C4`; mane motion is
 procedural actor history, independent of skeletal animation.
 
+The four ten-read tables used by that loop are exact from `0x004D73D4`,
+`0x004D73F8`, `0x004D741C`, and `0x004D7444` respectively:
+
+- center height: `{0, 6.6666665, 11.333333, 13.333333, 13, 12, 11.333333, 10, 10, 0}`;
+- side offset: `{0, 6.6666665, 11.333333, 13.333333, 14, 14, 14, 14, 14, 0.30909714}`;
+- side yaw: `{0.30909714, 0.22440863, 0.099197425, 0.03330017, 0, 0, 0, 0, 0, 0}`;
+- pitch: `{-0.30909714, -0.22440863, -0.099197425, 0.016618125, 0.049854375,
+  0.03330017, 0.06640859, 0, 0, 0}`.
+
+There is no constant `1.5` in the function. Every position/rotation table value
+is multiplied by the live actor field at `+0x2264`; the side modes additionally
+apply the literal `0.7` where shown in the decompile. Baking another `1.5` into
+the tables double-scales the authored mane shape and is not equivalent.
+
 The producer is the tail of flying action `FUN_003C724C`. Once movement has
 updated the actor, it advances the body cursor modulo 150 and records the
-actor's world position plus XYZ shape rotation at `+0x104C/+0x944`. It then
+actor's world position plus XYZ world rotation at `+0x104C/+0x944`. It then
 advances the mane cursor modulo 45, records all three current mane anchors and
-the same shape rotation, and writes independent scale waves using frequencies
+the same world rotation, and writes independent scale waves using frequencies
 5596, 5496, and 5696 with amplitude 0.3. These are the 3DS-owned procedural
 rings consumed above; the N64 actor's 100/30-entry rings are not equivalent
 animation data and are not inputs to the port.
+
+The movement immediately before those writes is now resolved through both
+helpers rather than inferred from the N64 twin. `FUN_00365860` converts world
+X/Y rotation (`actor+0x34/+0x36`) and speed (`+0x6C`) into XYZ velocity
+(`+0x60/+0x64/+0x68`). `FUN_0036B96C` then integrates world position from that
+velocity, the actor's additive velocity, and the engine update-rate term. The
+producer calls those helpers only while stop flag `actor+0x8AC` is clear; its
+three live auxiliary controllers are advanced before that gate. Combined with
+the established 30 Hz actor update and 2/3 authored-controller delta, this is
+why a 20 Hz host cannot faithfully populate the 150/45-entry rings by copying
+one host transform per update: the ring itself has 30 Hz temporal density.
+
+The update-rate term is `s16(global+0x110) * 0.5 = 2 * 0.5 = 1.0` per 30 Hz
+actor tick. An earlier live calculation incorrectly reported `0.5` by dividing
+distance over 60 Hz emulator frames; only every second emulator frame runs this
+actor. A forced three-tick discriminator settles it directly: from the same
+seed, the oracle moved from Y `-200` to `-190.0826`, while a host producer that
+multiplied by `0.5` reached only `-195.0406`. Collision displacement was zero on
+both sides. The integration owner must not apply another half-rate scale.
+
+The steering target at `FUN_003C724C` `0x003C728C..0x003C73C4` is also resolved
+at instruction level. It computes target-minus-world XYZ, then adds one wobble
+term per axis. Each term converts the signed move timer to float, multiplies it
+by `wobbleRate + {2096,1096,1796}`, truncates to signed 32-bit, wraps through
+`sxth`, and calls `FUN_002CFCA0`. Yaw is
+`s16(FUN_003696EC(dx,dz) * 0x4622F983)`; pitch is
+`s16(FUN_003696EC(dy,sqrt(dx*dx+dz*dz)) * 0x4622F983)`. The constant is the
+exact float result of `32768/pi`; both conversions truncate toward zero before
+the signed-16 wrap. The decompiler's apparent one-argument pitch call is wrong:
+raw ARM sets `s1` to the horizontal square root at `0x003C7384` before the call.
+
+`FUN_002CFCA0` is not the N64 integer sine lookup. It takes the unsigned angle,
+uses the upper byte as an index into the 256-entry table at `0x004DF42C`, and
+linearly interpolates with `(angle & 0xFF) * 1/256`. Each 16-byte entry holds
+`{sin, cos, sinDelta, cosDelta}`; the sine result is `sin + sinDelta*fraction`.
+For example, angle 1 is already nonzero, whereas the N64 `sins(angle >> 4)`
+path remains zero. `FUN_00338F60`, consumed with the sine helper by
+`FUN_00365860`'s velocity derivation, performs the equivalent interpolation over
+the cosine columns. The authored flight port must therefore use this table for
+both wobble targets and XYZ velocity rather than SoH `Math_SinS`/`Math_CosS`;
+changing the wobble constants or adding an angle offset would hide the missing
+math mechanism rather than port it.
+
+A first 2026-08-26 substitution appeared to regress to `meanRot=2.421264`
+radians and `meanPos=90.0512`, but that A/B was confounded by an independently
+wrong half-rate integration step. The three-tick discriminator above falsified
+the integration premise; it did not falsify the trig port. With dt corrected,
+the N64 trig path stays close initially but crosses the strict comparator
+tolerance by tick 90 (`dPos=0.0393`, `dRot=0.001250`) and reaches
+`dPos=0.1079` by tick 135, which is the expected scale of this remaining math
+semantic rather than the earlier half-rate trajectory split.
+
+`FUN_003696EC` is also title-owned math rather than the host C library's
+`atan2f`. The ARM body at `0x003696EC..0x003698FC` performs explicit quadrant
+reduction, an optional `atan(0.5)` reduction, and a five-coefficient float
+polynomial. Its split constants at `0x00369918..0x0036995C` preserve the VFP
+single-precision operation order. Porting that routine together with the
+interpolated sine/cosine table removes the residual one-bin yaw error; changing
+turn tolerances would only conceal the missing math implementation.
+
+The paired embedded-oracle run on 2026-08-26 verifies the complete forced
+flight producer, not just its individual helpers. After 270 authored ticks the
+shipping and oracle producer position, XYZ rotation, XYZ velocity, speed,
+turn rate, move timer, and the sampled 150-entry ring are exact zero-delta.
+The comparator's positive control changed one oracle history X value by 1000,
+which produced `DIVERGED` with `meanPos=50` and `maxPos=1000`; restoration
+returned exact `MATCH`. This verification is deliberately scoped to the fixed
+action-0 profile. General action/death sequencing and paired rendered-image
+parity remain separate work.
+
+Controller ownership is exact from `FUN_001A62C4`, `FUN_003C724C`, and
+`FUN_003B4308`. Body controller `+0x1A4` (`vb_FWDtest`) remains on its initialized
+frame zero; live head `+0x228`, right arm `+0x2AC`, and left arm `+0x330` advance
+by 2/3 authored frame per 30 Hz actor update, before and independently of the
+stop gate; death head `+0x3B4` remains on frame zero. The procedural callback on
+body nodes 19..36, not a moving body-CSAB cursor, produces the articulated
+flight shape.
+
+The current anchor values are produced by `FUN_003B4308`, not guessed from the
+N64 actor. After selecting the current lead sample (offset-table entry zero),
+the draw composes world Y, negative world X, shape Z, and a literal local
+`+25.0` Z translation. It then
+applies body controller joint zero and actor scale `* 0.1`. The three vectors
+transformed through that matrix are byte-exact data at `0x003B4FC0`:
+`(0,2500,3000)`, `(-1000,2500,3000)`, and `(1000,2500,3000)`. The prior N64
+speed/action-dependent `-10..-20` head offset is not present in the 3DS draw
+and must not drive either the 3DS head model or its independently-authored mane
+history.
 
 ### Flying skin-to-bone draw transition
 
