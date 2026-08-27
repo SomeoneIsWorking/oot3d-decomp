@@ -91,6 +91,14 @@ The waiting action `FUN_003E4790` consumes parent signal `0x64`, calls setup
 12 (`vba_up`) and freezes it at frame zero. A 281-sample embedded-oracle trace
 then established the controller timeline directly:
 
+The same decompile fixes the live layout used by the paired harness: the
+hole-form actor reads its `Boss_Fd` parent pointer at `+0x124`, then reads and
+clears the handoff byte at parent `+0x940`. Harness command
+`force bossfd2_ground` writes only the recovered `0x64` signal to that verified
+parent field on the oracle and invokes the shipping typed control on SoH; the
+real action function performs the transition in both engines on their next
+update.
+
 - phase 0 holds `vba_up@0` for 30 OoT3D 30 Hz update ticks;
 - phase 1 holds `vba_up@0` for 45 OoT3D 30 Hz ticks at parent health 24;
 - phase 2 advances the authored CSAB from frame 0 through frame 26;
