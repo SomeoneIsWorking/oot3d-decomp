@@ -187,6 +187,88 @@ The skeleton callback `FUN_001D0C3C` is also decompiled. It post-concatenates
 and `RotateZ(-jaw*0.1)` on bones 14/15. The port applies these exact OoT3D
 bone numbers and axes through the CSAB skinner's post-rotation channel.
 
+## Rendered roots and hole-form mane solver (2026-08-28)
+
+The post-limb callback `FUN_001EC5B8` establishes the rendered roots directly.
+It acts only on CMB limb 14 and transforms five literal local points through
+that limb's evaluated matrix with `FUN_003735AC`:
+
+| actor destination | local limb-14 point | meaning |
+|---:|---:|---|
+| `+0x03C` | `(4500, 0, 0)` | focus point |
+| `+0x328` | `(4000, 0, 0)` | rendered head |
+| `+0x4CC` | `(4000, -2900, 2000)` | center-mane head |
+| `+0x668` | `(4000, -1600, 0)` | right-mane head |
+| `+0x804` | `(4000, -1600, -2000)` | left-mane head |
+
+The callback body is at `0x001EC5B8..0x001EC79C`; its literal pool is
+`0x001EC7A0..0x001EC7E0`. Live reads of the four non-focus point buffers at
+`0x00569DD0..0x00569DFF` reproduced those values exactly. These are posed CMB
+anchors. N64 limb 35 or an actor-origin approximation must not drive the 3DS
+head and mane roots.
+
+`FUN_0020A3B0` passes those three mane heads to `FUN_00335904` with three
+independent ten-element dynamic groups:
+
+| chain | rotation | position | pull | scale | head |
+|---|---:|---:|---:|---:|---:|
+| center | `+0x33C` | `+0x3B4` | `+0x42C` | `+0x4A4` | `+0x4CC` |
+| right | `+0x4D8` | `+0x550` | `+0x5C8` | `+0x640` | `+0x668` |
+| left | `+0x674` | `+0x6EC` | `+0x764` | `+0x7DC` | `+0x804` |
+
+The three ten-float tables are byte-exact ROM data: Y acceleration at
+`0x004D74AC` is `{0,100,50,0,0,0,0,0,0,0}`, the per-segment upper Y limit at
+`0x004D74D4` is `{0,5,-10,500,500,500,500,500,500,500}`, and segment-length
+scale at `0x004D74FC` is `{0.4,0.6,0.8,1,1,1,1,1,1,1}`. The solver constants
+at `0x00335D0C..0x00335D44` resolve to `1`, `0`, `2`, `110`, `25`, `88`,
+`30`, `-30`, `0.01`, `-910`, `110`, `30`, `-30`, `0.0009`, and `pi/2`.
+Consequently the recovered operation is not a fitted approximation: it pins
+position zero to the posed head, computes `Ry * Rx` segment directions of
+`25 * lengthScale`, damps the displacement by `88 * 0.01`, clamps pull to
+`[-30,30]`, and applies the `headY >= -910 && nextY < 110` floor branch.
+
+One subtle rate conversion lives inside the helper called for pull decay.
+`FUN_00335904` requests target/fraction/max-step `(0,1,1)`, but
+`FUN_00373500` at `0x00373500..0x00373588` multiplies both fraction and maximum
+step by `s16(global+0x110) * 1/3`. The live global value is 2, so one 30 Hz
+OoT3D solver call approaches zero with effective fraction and maximum step
+`2/3`, not `1`. Literal `0x3EAAAAAB` at `0x00373590` is the one-third scale;
+literal `0x3727C5AC` at `0x00373594` is the `1e-5` snap threshold. A 30 Hz
+host substep port must retain those semantics; repeating the N64 20 Hz helper
+with literal `(1,1)` is not an exact reproduction.
+
+The embedded frontend itself is 60 Hz, while OoT3D executes this draw and
+solver once per two `retro_run()` calls. Thus `run 10` versus `soh_step 10`
+compares five oracle solver calls with ten host calls and is not evidence of a
+solver difference. The deterministic comparator now uses `run 20` versus
+`soh_step 10` for ten calls on each side. Its control initialization writes
+every position in a chain to that chain's current posed head and zeros rotation
+and pull; the immediate head-relative comparison is exactly `mean=0`,
+`max=0`, proving that the readback, offsets, and normalization can report the
+other answer.
+
+After ten equal calls from that deliberately collapsed-chain stress state, the
+current port reports `mean=6.411`, `max=28.281`. An earlier absolute-zero
+history run after correcting the `2/3` decay reported `mean=0.830`,
+`max=3.732`, but its initial oracle and host head frames were not equal, so it
+is supporting diagnostic evidence rather than a parity result. These numbers
+do not close the solver: natural emergence must still be compared with matched
+30 Hz intermediate posed heads across the live controller sequence.
+
+Paired camera control also separated live camera state from captured output.
+Writes to each engine's Camera/View eye, at, and FOV fields take effect in the
+live state immediately, while the libretro framebuffer trails that state. Ten
+completed paired frames were sufficient for both captured framebuffers to
+contain the forced rendered-head view. A pre-settlement image is therefore not
+evidence that the camera transform failed.
+
+Remaining ground-form work is a like-for-like live emergence/attack/damage
+sequence, including intermediate head motion, plus paired rendered-image proof
+for body and fire-hair material appearance from the settled camera. The
+deterministic solver and camera controls isolate those questions, but neither
+the controlled chain metrics nor one settled capture establishes full
+live-sequence or material parity. This item remains open.
+
 ## Port and live status (2026-08-13)
 
 The SoH side now has the required dedicated `behaviors/actor/boss_fd2.*`
