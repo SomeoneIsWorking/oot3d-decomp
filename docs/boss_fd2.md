@@ -57,6 +57,58 @@ This also cross-checks the model-slot result: model index 6 and material index 3
 independently select the fire-hair CMB/CMAB pair, while model index 2 and
 material index 5 independently select the hole-form CMB/CMAB pair.
 
+### Material-controller clocks (static, confirmed)
+
+The material animations are model-instance-local controllers, not samples of a
+scene-global frame counter. `FUN_00352E80` (`0x00352E80`) constructs a controller
+with `frame=0`, `step=1`, `loop=0`, and `paused=0`; binding helper
+`FUN_00372D94` (`0x00372D94`) resets the frame to zero. Tick/apply helper
+`FUN_00373BEC` (`0x00373BEC`) advances before applying the tracks. Its comparison
+at `0x00373C48..0x00373C6C` wraps a looping controller when
+`frame >= duration`; a non-looping controller clamps instead.
+
+Normal active-gameplay material delta comes from the sole writer of
+`play+0x7F44`, `FUN_002E2E60` (`0x002E2E60`; store at `0x002E2EE0`). It writes
+`2.0` while `play+0x318C == 0` and the global hold accessor `FUN_003695F8`
+returns false, otherwise zero. Hole update `FUN_0020A668` copies that delta to
+`actor+0x2AC`; draw `FUN_0020A3B0` installs it into the body controller, and
+`FUN_00335904` installs it into each fire-hair instance immediately before
+submission. With the actor draw's confirmed 30 Hz cadence, the looped body and
+hair CMABs therefore advance two authored frames per draw (60 authored frames
+per second), remain phase-locked from construction, and pause under the global
+hold.
+
+The `valbasiagnd2` pulse is a separate event clock. Parent `BossFd+0x93F` is
+the 3DS counterpart of typed N64 `BossFd::faceExposed`. Setter `FUN_00260008`
+(`0x00260008`) raises it and resets the relevant controller; hole collision
+handling at `0x0020A82C..0x0020A89C` resets `actor+0x2A4` to frame zero and
+enables looping. Draw ticks that controller by its unchanged step of `1.0` only
+while `faceExposed` is set (`0x0020A430..0x0020A454`). Clear helper
+`FUN_0027CBA8` (`0x0027CBA8`) lowers the flag and pauses the controller. The
+derived controller behavior is therefore:
+
+```c
+if (drawActive30Hz) {
+    bodyFrame = loop(bodyFrame + 2.0f, bodyDuration);
+    for (eachFireHairInstance) {
+        hairFrame = loop(hairFrame + 2.0f, hairDuration);
+    }
+    if (parent->faceExposed) {
+        pulseFrame = loop(pulseFrame + 1.0f, pulseDuration);
+    }
+}
+```
+
+On the rising `faceExposed` event, `pulseFrame` is reset before its next active
+tick. This rules out `play->state.frames % duration` as a faithful port: it
+inherits arbitrary scene age, runs body/hair at the host's 20 Hz, and loops the
+exposed-face pulse before the event that owns it.
+
+`valbasia_firehair.cmb`'s sole material has `vertex_lighting=0`. Its RGB TEV
+chain is `CONST * TEX0`, followed by `PREVIOUS + CONST`; the actor submission
+must not add a caller-level character-lighting/half-Lambert term. This is an
+independent draw-state requirement from the controller phase above.
+
 ## Skeletal-animation slots (static, confirmed)
 
 The skeleton initializer passes CSAB index `0xE` (14), which is
