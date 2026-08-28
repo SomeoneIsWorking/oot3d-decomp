@@ -32,10 +32,15 @@ GL values; they were swapped), and SUBTRACT is 0x84E7 (the old `case 0x8506` nev
 matched anything).
 
 Texture bindings are 3 x 0x18 entries at mat+0x10 (tex0/1/2 index, wrap at +8/+0xA);
-coordinators are 3 x 0x18 entries at mat+0x58 (mapping byte[2], source-UV byte[1],
-scale/trans floats). **Every coordinator in the ROM sources texcoord0** (byte[1]==0,
-all 11172 materials) — multi-texture materials reuse the one baked UV set through
-per-coordinator scale/translate (and CameraSphereEnvMap for mapping 3).
+coordinators are 3 x 0x18 entries at mat+0x58 (`sourceCoordinate` byte[0],
+`referenceCamera` byte[1], mapping byte[2], then scale/trans floats). The earlier
+corpus statement that every coordinator sourced texcoord0 was invalid: the survey
+counted byte[1], not byte[0]. `valbasiagnd.cmb` materials 0/1/5 prove the distinction:
+coordinator 1 has `sourceCoordinate=1` and samples an independent `texCoord1` stream.
+Among texture units actually consumed by a combiner, the corrected whole-ROM survey finds
+source 1 on 1 coordinator-0 entry, 60 coordinator-1 entries, and 16 coordinator-2 entries
+(versus 10,991, 1,562, and 234 source-0 entries respectively), so source selection is a
+generic format contract rather than a BossFd2 exception.
 
 ## 2. Stage semantics (matches Azahar's TevStageConfig, the oracle's own core)
 

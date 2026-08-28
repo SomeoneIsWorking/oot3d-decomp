@@ -109,6 +109,30 @@ chain is `CONST * TEX0`, followed by `PREVIOUS + CONST`; the actor submission
 must not add a caller-level character-lighting/half-Lambert term. This is an
 independent draw-state requirement from the controller phase above.
 
+### Body secondary-coordinate path (static, confirmed)
+
+The remaining body-wide darkness after the controller/unlit fixes is not backed by a
+BossFd2-specific light or color multiplier. `FUN_0020A3B0` performs only one material-color
+operation before the generic skeleton submit: when the face is not exposed it writes
+`{1,1,1,0}` from `0x004D7524` to constant slot 4; otherwise it clears that override and ticks
+`valbasiagnd2.cmab`. Only material 4 reads slot 4, as the alpha gate in
+`TEX1 * CONST4.a + PREVIOUS`. Init, limb callbacks, and `FUN_0035E240 -> FUN_004C7AB0` contain
+no light-bank writes or other body-wide material factor.
+
+The CMB itself names a missing generic renderer input. Materials 0, 1, and 5 (four of the seven
+draw groups) add a fire-detail term from `TEX1`; their texture coordinator 1 has
+`sourceCoordinate=1`, so `TEX1` samples the independent `texCoord1` vertex attribute, not
+`texCoord0`. Every referenced vertex differs between those streams: 210/210 vertices for
+material 1, 295/295 for material 0, and 63/63 plus 30/30 for the two material-5 groups. Their
+effective RGB chain contains the authored sum
+`clamp(2*PRIMARY*TEX0 + 2*TEX0*TEX1)`. Reusing texCoord0 for TEX1 relocates that additive
+orange detail over most of the body; it is a coordinate-routing defect, not a fitted gain.
+
+This also corrects a format-layout error in earlier notes: texture-coordinator byte 0 is
+`sourceCoordinate`, byte 1 is `referenceCamera`, and byte 2 is the mapping method. The prior
+"all coordinators source texCoord0" survey counted byte 1 and therefore did not measure the
+source-coordinate field at all.
+
 ## Skeletal-animation slots (static, confirmed)
 
 The skeleton initializer passes CSAB index `0xE` (14), which is
