@@ -531,6 +531,41 @@ ambient duplication" could originate, and §10.2 shows the vertex shader's OWN a
 such duplication additive (not a no-op), i.e. the shader is structurally primed to reproduce exactly
 this kind of bug/design if the CPU writes the same ambient value into more than one light slot.
 
+### 10.1a The normal and vertex-color inputs to PRIMARY (words 14–61, 266–274)
+
+The lighting block does not consume the raw CMB normal directly. The preceding calls establish
+the complete generic input path:
+
+```text
+17  mul r15, c90.x, v0                  position = PositionScale * aPosition
+18  mul r14, c90.y, v1                  normal   = NormalScale   * aNormal
+
+266 mova a0.xy, r1.xy                   select matrix-palette rows for this influence
+267..269 dp4 r3.xyz, c20[a0]..., r15    transform position by the selected palette matrix
+270..272 dp3 r4.xyz, c20[a0]..., r14    transform normal by that matrix's upper 3x3
+273 mad r8,  weight, r3, r8             accumulate weighted position
+274 mad r11, weight, r4, r11            accumulate weighted normal
+
+52  dp3 r0.w, r11, r11
+53  rsq r0.w, r0.w
+54  mul r11, r11, r0.w                  normalize after palette skinning
+55..57 dp4 r15.xyz, c4..c6, r8          apply the draw transform to position
+59..61 dp3 r14.xyz, c4..c6, r11         apply the draw transform to the unit normal
+```
+
+The non-skinned branch performs the same palette transform from `c20..c22` directly at words
+44–49, then joins the normalization at word 52. Thus the `r14` used by the `dp3` instructions in
+§10.2 is the **skinned and draw-transformed normal**. A renderer that dots the model-space normal
+against world-space actor lights is not equivalent.
+
+Vertex color is optional and independently scaled. When `HasColor` (`b5`) is set, words 109–110
+multiply the completed light sum by `c90.z * v2`; when it is clear, the light sum goes directly to
+the color output. The unlit branch is also explicit: word 112 starts PRIMARY from
+`MatDiffuseColor` (`c8`), and word 114 multiplies by `c90.z * v2` only when `HasColor` is set.
+Therefore `IsVertexLighting=0` means authored diffuse PRIMARY, not “caller tint only”; the caller's
+actor/scene classification is a separate choice of light-bank uniforms for materials whose
+`IsVertexLighting` bit is set.
+
 ### 10.2 Disassembly of the color block (words 76–120) — ambient is `Σ` over enabled lights, diffuse is `Σ NdotL_i · diffuseColor_i`
 
 Reached from `main` (word 0) via the call chain `main→[14]→[44]→[63]→[76]`, gated at word 76 by
