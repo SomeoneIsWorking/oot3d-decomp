@@ -608,6 +608,22 @@ Reached from `main` (word 0) via the call chain `main→[14]→[44]→[63]→[76
 `python3 tools/shbin_disasm.py scratch/CmbVShader.shbin --range 0 310`, byte-cited above by word
 index and `0x`-prefixed code offset.)
 
+#### 10.2a Unlit `HasColor` branch and retail-corpus reach (2026-08-30)
+
+Words 112--120 are not a white-vertex fallback. They seed `r10` from the complete c8
+`MatDiffuseColor` RGBA value, then overwrite it with scaled `aColor` only when bool 5
+`HasColor` is true. Consequently, render batching must preserve `HasColor` independently from
+the vertex payload; filling a missing color stream with white does not preserve the branch.
+
+The offline ROM instrument `zelda3d/tools/cmb_primary_corpus_survey.py` scanned 1,997 CMBs from
+the user-supplied retail ROM and found 154 distinct unlit/no-color mesh-material uses with a
+non-white c8 value, with zero parse failures. Examples include the dungeon candle
+`efc_candle_modelT.cmb` c8 `(255,140,0,255)`, Frezzard `(76,56,48,255)`, effect meshes, item
+models, doors, and one scene CMB. Diffuse alpha is authored too (heart/effect materials include
+127 and 178), so an RGB-only transport is not equivalent. The instrument has positive and
+negative synthetic falsifiers for the exact material byte (`IsVertexLighting` is +1, not the
+adjacent `IsFragmentLighting` byte at +0) and for present constant color attributes.
+
 **This is the missing term, named precisely**: the shader does **NOT** apply `matAmbient * sceneAmbient`
 once — it accumulates `matAmbient * LightAmbientColor_i` **once per enabled light** (instruction
 91/97/104, `mad r9.xyz, MatAmbientColor.xyz, LightAmbientColor_i.xyz, r9.xyz`, three structurally
