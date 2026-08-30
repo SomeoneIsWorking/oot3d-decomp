@@ -624,6 +624,40 @@ models, doors, and one scene CMB. Diffuse alpha is authored too (heart/effect ma
 negative synthetic falsifiers for the exact material byte (`IsVertexLighting` is +1, not the
 adjacent `IsFragmentLighting` byte at +0) and for present constant color attributes.
 
+#### 10.2b Lit `HasColor` branch and diffuse-alpha accumulation (2026-08-30)
+
+The same color block carries a second RGBA distinction that an RGB-only lighting port loses.
+For each enabled light, words 89/95/102 multiply the complete `LightDiffuseColor_i` RGBA value
+by the complete c8 `MatDiffuseColor`. Words 92/98/105 weight only the RGB product by `NdotL`;
+words 93/99/106 add the alpha product directly, without `NdotL` and without an ambient-alpha
+term. Words 108--110 then multiply the completed RGBA accumulator by scaled `aColor` only when
+`HasColor` is true. In exact form:
+
+```text
+PRIMARY.rgb = sum_i(matAmbient.rgb * lightAmbient_i.rgb
+                  + max(0, dot(N, -lightDir_i)) * matDiffuse.rgb * lightDiffuse_i.rgb)
+PRIMARY.a   = sum_i(matDiffuse.a * lightDiffuse_i.a)
+if HasColor:
+    PRIMARY *= VertexAttributeScale2 * aColor
+```
+
+Existing cached oracle uniform logs are sufficient to resolve the alpha inputs without another
+run. `zelda3d/scratch/title_ab/actor_light_uniforms.log` and
+`zelda3d/scratch/zora/zora_vsuni.log` both show the two enabled host-model slots with
+`LightDiffuseColor0.a = LightDiffuseColor1.a = 1`, while disabled slot 2 has alpha 0. The
+offline `zelda3d/tools/cmb_primary_corpus_survey.py` instrument now combines the CMB material,
+mesh `HasColor`, and authored TEV chain. Across 1,997 CMBs it finds 24 vertex-lit/no-color
+mesh-material uses with non-opaque c8 alpha, zero parse failures, and all 24 consume
+`PRIMARY.a` in TEV stage 0. The alpha distribution is 76 (1), 102 (1), 127 (18), 178 (2),
+and 204 (2); with the observed two enabled slots, the first 20 remain below full opacity.
+Examples are bottled Poe (76), eye lotion (102), bottle/liquid/fish models (127), glasses
+(178), and goddess effects (204).
+
+The Zelda3D port previously set both packed diffuse alpha products to zero and emitted
+`aColor.a` directly, so absent color data became alpha 1 regardless of c8. The corrected native
+and unified shaders sum the packed per-slot alpha products, apply `aColor` only under the actual
+`HasColor` uniform, and saturate the completed output at the PICA vertex-output boundary.
+
 **This is the missing term, named precisely**: the shader does **NOT** apply `matAmbient * sceneAmbient`
 once — it accumulates `matAmbient * LightAmbientColor_i` **once per enabled light** (instruction
 91/97/104, `mad r9.xyz, MatAmbientColor.xyz, LightAmbientColor_i.xyz, r9.xyz`, three structurally
