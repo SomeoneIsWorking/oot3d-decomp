@@ -683,6 +683,34 @@ Anchors: `soh3d scratch/decomp_agent/{vsuni_capture2.py, slot_dump2.py, predict_
 dump_combiner.py}`; harness `vsuni_log` command (committed, soh3d `tools/soh3d_harness/`);
 Azahar-side hunk documented in `AZAHAR_PATCH.md` Patch 5 (Azahar tree is gitignored).
 
+### 6.7 RESOLVED (2026-08-30): wordmark sphere mapping uses identity `uModelView`, not the title camera basis
+
+The earlier port inferred that CameraSphereEnvMap meant the wordmark normal should be transformed
+by the live title camera. The GPU state disproves that inference. `/CmbVShader.shbin` names c4-c7
+`uModelView`; words 59-61 transform the post-skinning normal by c4-c6, and helper words 295-296
+compute `uv = 0.5 * normal.xy + 0.5` before the coordinator texture matrix.
+
+A cache-backed `vsuni_log` capture at title cs1093 / Azahar frame 2010 records every wordmark draw
+75-87 with:
+
+```
+modelView0=(1,0,0,0) modelView1=(0,1,0,0) modelView2=(0,0,1,0)
+texMtx0_0=(1,0,0,0) texMtx0_1=(0,1,0,0) texMtx0_2=(0,0,1,0)
+texMappingMethod=(3,3,0,1)
+```
+
+Therefore the title decorations' sphere-normal matrix is exact identity. For mat10 draw86's +Z
+normal, coordinator 0 produces exact `(0.5,0.5)`. The live camera basis is not part of this shader
+input and must not be substituted for c4-c6.
+
+The software-rasterizer `PIXEL texcol` at that UV is not a filtered-color oracle:
+`Azahar/src/video_core/renderer_software/sw_rasterizer.cpp` explicitly leaves min/mag filtering as
+a TODO and truncates `uv * size` to one texel. It returns RGB565 texel `(64,63)=(206,40,49)` even
+though the material requests linear filtering. The decoded four-texel center average is
+`(208,42,57.25)`, matching the host GPU's `(209,42,58)` within integer sampler rounding. Use the
+software PIXEL probe to identify coordinate state, not to require nearest-color output from a
+linear-filtered shipping renderer.
+
 ## 7. RESOLVED (2026-07-10): the press-START skip path, traced through `FUN_001da9f8`
 
 `FUN_001da9f8` (the actor's update fn, already anchored in §5.1) fully decompiled
