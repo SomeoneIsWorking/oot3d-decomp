@@ -30,6 +30,26 @@ index 36 (it is not a three-bone head rig). Therefore a single forced CMB route
 would be a regression: it would replace the complete draw and omit geometry
 which the original actor still draws.
 
+A deterministic gameplay-state readback resolves the live generic model chain:
+
+| value | address |
+|---|---:|
+| `Boss_Fd2` actor | `0x0990C440` |
+| actor `+0x1A4` model instance | `0x082C2AD4` |
+| model vtable | `0x004EC018` |
+| vtable `+0x08` entry | `0x003FED90` |
+
+The static caller spine is `FUN_0020A3B0 -> FUN_0035E240 -> FUN_004C7AB0`.
+`FUN_004C7AB0` copies the submitted matrix through `FUN_003721E0`, installs the
+limb callbacks, and dispatches the model's vtable `+0x08` entry. `FUN_003FED90`
+is generic controller/model preparation rather than a BossFd2 material shim: it
+optionally prepares transforms through `FUN_003FEB40`, advances CMAB channels
+through `FUN_003FF1B0`, and builds limb matrices through `FUN_00304768`.
+Likewise `FUN_0040C6C8 -> FUN_0030487C` iterates ordinary CMB materials and
+copies their diffuse, ambient, specular, and emission triples into runtime
+material state. No function in this recovered chain applies a BossFd2-wide
+brightness factor.
+
 ## Model slots (static, confirmed)
 
 `FUN_00358EF8` indexes the archive's CMB model list (zero-based). Its main
@@ -132,6 +152,31 @@ This also corrects a format-layout error in earlier notes: texture-coordinator b
 `sourceCoordinate`, byte 1 is `referenceCamera`, and byte 2 is the mapping method. The prior
 "all coordinators source texCoord0" survey counted byte 1 and therefore did not measure the
 source-coordinate field at all.
+
+### Body sampler filters (asset bytes, confirmed)
+
+The remaining smoothing/darkening discriminator is also generic CMB state, not an actor gain.
+Each 24-byte material texture-binding record stores the texture index at `+0x00`, minification
+filter at `+0x04`, magnification filter at `+0x06`, and S/T wraps at `+0x08/+0x0A`.
+Every active `valbasiagnd.cmb` binding uses min/mag `0x2601/0x2601`
+(`GL_LINEAR`/`GL_LINEAR`). Material 1 independently carries those values for both TEX0 and
+TEX1. Because `0x2601` is a non-mip minification mode, selecting trilinear mipmaps for these
+bindings changes authored PICA state and averages away the high-frequency fire pattern.
+
+A full OoT3D ROM inventory confirms that the field is meaningful rather than padding. Across
+1,997 CMBs, 11,172 materials, and 12,888 active bindings, minification values are:
+
+| enum | mode | bindings |
+|---:|---|---:|
+| `0x2701` | `LINEAR_MIPMAP_NEAREST` | 7,150 |
+| `0x2601` | `LINEAR` | 4,750 |
+| `0x2703` | `LINEAR_MIPMAP_LINEAR` | 973 |
+| `0x2600` | `NEAREST` | 13 |
+| `0x2702` | `NEAREST_MIPMAP_LINEAR` | 2 |
+
+Magnification is `0x2601` for 12,875 bindings and `0x2600` for 13. The port must therefore
+preserve each unit's authored min/mag filter and derive mip selection from the minification enum;
+one unconditional trilinear sampler is not equivalent to the binary.
 
 ## Skeletal-animation slots (static, confirmed)
 
