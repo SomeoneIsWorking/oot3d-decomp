@@ -187,6 +187,20 @@ fixture. A cache-owned watch on that function recorded no entry, and its immedia
 cached failure. This does not contradict its known role for another light-command path; it rules out
 using that path to recover the active Hut configuration transport.
 
+The cache-owned command-list provenance probe then captured the active draw's raw PICA command list.
+Its offline decoder grounds the live no-LUT state in packet writes, not just an end-of-draw register
+snapshot: light records 0 and 1 are grouped writes beginning at words 1444 and 1458, while
+`config0=0x80000400`, `config1=0xff7fffff`, and `light_enable=0x10` are direct writes at words 1622,
+1624, and 1628 before draw 4's cursor at word 1764. The raw list and draw log are cache artifacts;
+the immediate repeat is a cache hit.
+
+The first same-run writer-PC probe must not be interpreted as a writer identity. It correctly detected
+that command-list storage rotates between frames, so an address discovered on one frame was not reused
+while watched. Both its original and alternate-buffer failures are cached. The required next instrument
+is therefore an allocation-lifetime or write-history capture that binds a command-list physical range to
+the guest PC before PICA consumes it; do not watch a stale linear-buffer address or guess from the packet
+constant.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
