@@ -487,3 +487,20 @@ for this enabled draw. The packet's final PICA `config0=0x80000400` is separatel
 newly recovered template builder forces PICA bit `0x400`; therefore the two equal-valued bits are not
 yet a proven conversion. The remaining gap is the builder-input mapping and the resulting enabled
 fragment calculation; neither is inferred here.
+
+## Host transport boundary (2026-08-31)
+
+The current SDL3-GPU UBO cannot express the grounded Hut fixed-function input without a new,
+separately verified transport path. `DrawModel` in
+`Shipwright/libultraship/src/fast/zelda3d_sdl3gpu_pass.cpp` reduces the scene value to
+`uAmbient.xyz = gZelda3dAmbient * materialAmbient` and supplies only the enabled-light count in
+`uAmbient.w`. The vertex shader consumes that reduced value as
+`uAmbient.xyz * uAmbient.w`; the fragment TEV path consequently has neither the two independent
+per-light ambient products nor a PICA fragment-configuration/LUT selection.
+
+That representation can reproduce the established vertex-lighting contract, but it cannot prove or
+implement the Hut result of `clamp(ambientProduct0 + ambientProduct1)` as a fragment-light mode. Do
+not alias `FRAGMENT_PRIMARY` to the vertex `PRIMARY` more broadly, or add a Hut-specific formula. A
+real port must first recover the enabled fragment formula and a configuration counterfactual, then
+add a cohesive raw PICA-light/configuration UBO contract from CMB descriptor and scene-light owners
+to both renderer backends.
