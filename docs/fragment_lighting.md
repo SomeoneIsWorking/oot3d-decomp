@@ -62,6 +62,11 @@ primary approximation until a live fixed-function caller is grounded.
 slots consumed by each operation. Cached output is
 `scratch/cmb_fragment_lighting_corpus.txt`; the scan never starts the oracle.
 
+The companion raw-texture oracle probe caches only completed source-identity observations, including
+their reproducible no-match diagnostics. Harness build, boot, and protocol failures are deliberately
+not cache results: they contain no oracle data and must be repaired before the same observation is
+attempted.
+
 Across 1,997 CMBs / 11,172 materials, with zero parse failures:
 
 - 205 materials set `IsFragmentLighting`;
