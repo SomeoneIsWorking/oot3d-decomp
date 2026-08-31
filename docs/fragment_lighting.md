@@ -83,7 +83,7 @@ TEV use or replaced by vertex color.
 |---:|---|
 | `+0x10` | `FUN_003f9b5c` material setup, which dispatches software vertex lighting at `+0x18` |
 | `+0x14` | `FUN_003fa5d0`, the candidate fixed-function-light setup |
-| `+0x18` | `FUN_003fa34c`, the software vertex-light sibling |
+| `+0x18` | `FUN_003fa34c`, the configuration-template path |
 
 Static checks found no direct ARM or Thumb branch into the constructor or candidate method, and the
 only literal references to this vtable are the class's own constructor/destructor pools. RomFS has
@@ -94,8 +94,8 @@ The cache-owned `kokiri-save-overlay` control is stored through
 `tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`. The
 first cached run watched `FUN_003fa5d0` and recorded zero hits; the independently keyed v8 capture
 watched the earlier `FUN_003f9b5c` material-setup slot and also recorded zero hits. Therefore this
-fixture does not invoke the candidate `CmbRenderer` at all, rather than merely skipping its optional
-fixed-function branch. Its screenshot proves the fixture is the Start-button Save overlay, not the
+fixture does not invoke the `+0x10` material-setup route or its optional fixed-function branch. It
+does not test the independent `+0x18` configuration-template route. Its screenshot proves the fixture is the Start-button Save overlay, not the
 pause-menu Link model, so this is a bounded negative for that frame only. The PICA logger is trusted:
 each cached run executes its one-shot self-test first, logging `picaLit=1` for exactly one diagnostic
 draw and restoring the register before the next draw. Both raw logs are cache artifacts under the
@@ -188,8 +188,8 @@ that decides when this no-LUT form, or a LUT-enabled form, is selected.
 
 An independent cache-owned PC watch on the candidate `CmbRenderer` material-setup entry
 `FUN_003f9b5c` recorded no entry in this *positive* Hut fixture; its immediate repeat returned that
-cached failure. The candidate is therefore not the active configuration transport even where the known
-enabled material and `picaLit=1` draw are present.
+cached failure. It rules out that particular `+0x10` material-setup route; it does not rule out every
+CmbRenderer virtual slot.
 
 The previously mapped generic PICA light-command boundary `FUN_0030ed80` is also inactive in this
 fixture. A cache-owned watch on that function recorded no entry, and its immediate repeat returned the
@@ -389,6 +389,18 @@ configuration and constructs word 6 as its input-byte mask plus the unconditiona
 also disproves treating its `0x400` bit as a direct encoding of the CMB owner bit: this builder forces
 that literal independently of the as-yet-unmapped input fields. Do not turn the resulting fixed state
 into a host lighting mode until the builder input object and enabled fragment calculation are grounded.
+
+The next synchronous input-state watch completes the ownership bridge. The persisted Ghidra function
+boundary `FUN_00308498` (`0x00308498..0x003084e3`, derived C
+`build/decomp/00308498.c`) calls `FUN_0040d040` and then `FUN_0040cdd8`; Ghidra finds its sole direct
+caller at `FUN_003fa34c+0x25c`. That function is the `+0x18` slot of the `0x004ebd98` CmbRenderer
+vtable. The exact Hut watch at builder input `0x081d1538` records three writes; the decisive final
+one is `PC=0x003fa528`, the byte store inside `FUN_003fa34c`, with saved `r4=0x081d3aa0`. `r4` is the
+method's first argument from its ARM prologue, and `0x081d3aa0` is the same active renderer whose
+`+0x478` owner word received `0x402` from `FUN_003fac2c`. This proves the enabled Hut packet's
+configuration template is built through the active CmbRenderer `+0x18` route. It does not identify
+the two earlier state-initialization PCs (`0x004c6270`, `0x004c6374`) or yet derive a general
+fragment-light formula.
 
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 

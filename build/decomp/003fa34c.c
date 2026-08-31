@@ -94,6 +94,6 @@ void FUN_003fa34c(int param_1,int *param_2)
   }
   uVar5 = VectorFloatToUnsigned(fVar3 + fVar12 * fVar2,3);
   *(char *)((int)param_2 + 0x12) = (char)uVar5;
-  func_0x00308498(param_1 + 0x24,piVar7);
+  FUN_00308498(param_1 + 0x24,piVar7);
   return;
 }
