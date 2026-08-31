@@ -105,6 +105,12 @@ This falsifies the earlier claim that the Lon Lon/Navi fixture established a glo
 It does **not** prove PICA lighting is absent from every retail scene or authorize changing host
 fragment colors to zero for enabled materials.
 
+The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
+`FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
+calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
+at that function. This is another bounded negative: do not use `FUN_004C7AB0` to identify the
+active CMB draw class for that fixture or rerun the same observation.
+
 ## Next RE step
 
 Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
