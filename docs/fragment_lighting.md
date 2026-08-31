@@ -142,6 +142,19 @@ found eight compatible descriptors sharing one physical texture, and made zero e
 Its immediate repeat returned the cached failure. Thus ordinary Kokiri still has no identified visible
 enabled fragment-lighting CMB, even though it has a validated visible CMB identity control.
 
+## Fire Temple scene CMB identity (2026-08-31)
+
+The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
+enabled-only `/scene/hidan_21_info.zsi` capture made exact raw matches for scene textures
+`dg05_kabe_01`, `dg05_ten_01`, `dg05_gate_01`, and `dg05_yuka_01` at oracle draws 1--4; the repeat
+was a cache hit. Offline material parsing identifies material 5 as the scene CMB's only enabled
+fragment-primary consumer (one `FRAG_PRIMARY` use, no secondary use, three-stage TEV chain).
+
+Do **not** collapse those facts into “draws 1--4 are material 5.” Source identity proves the CMB,
+not its mesh/material submission index, and the cached PICA records for those draws still have
+`picaLit=0`. Trace that CMB's active material dispatch and associate material 5 with a PICA draw
+before treating the candidate fixed-function method as reached or changing the host's enabled branch.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
