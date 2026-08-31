@@ -208,6 +208,20 @@ page-watch write path sees the active command-list population. The remaining bou
 guest fast-memory/direct-map store path, not a reason to attribute the packet to an unrelated known
 renderer function.
 
+The cache-owned `tools/pica_command_submitter_oracle_probe.py` joins the raw PICA draw record to the
+same-run GSP submission by **both** physical command-list address and byte size. For Hut draw 4 this
+is `0x2058fa80` / 69648 bytes (17412 words), submitted from guest VA `0x1458fa80` at PC
+`0x004a0814`, LR `0x002c1970`. It persists both raw logs before accepting or rejecting the join, and
+the identical repeat is a cache hit; a temporary literal-`\\n` logger defect was recovered from those
+saved artifacts offline rather than re-running the oracle.
+
+Ghidra decompilation bounds that PC precisely: `FUN_004a07f8` is a 40-byte kernel-service wrapper
+which loads the current thread/process context, issues `SVC 0x32`, and returns its service result.
+`FUN_002c1970`, the captured LR, is an eight-byte return stub. The committed decomp dumps are
+`build/decomp/004a07f8.c` and `build/decomp/002c1970.c`. This proves the active packet reaches the
+GSP transport, but it does **not** identify the material renderer or the list builder; do not port the
+SVC wrapper or treat its PC as a material-dispatch address.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
@@ -289,7 +303,9 @@ without rerunning the oracle.
 ## Next RE step
 
 Start from the grounded Gravekeeper's Hut draw 4, not the unreachable `CmbRenderer.cpp` candidate.
-Decode its no-LUT `config0/config1`, slot mapping, and light-register payload into the active material
-class's calculation, then trace the shipping dispatch that submits that material. Keep the raw
-material-to-draw association intact while extending to a LUT-enabled fixture; do not substitute an
-unrelated candidate path or invent LUT terms for the known no-LUT configuration.
+The no-LUT calculation is known for this fixture; the next missing ground truth is the shipping
+command-list **construction** path before its generic GSP service wrapper. Extend dynamic observation
+at the list-builder allocation/copy boundary so it records a guest caller before the list enters
+`FUN_004a07f8`. Keep the raw material-to-draw association intact while extending to a LUT-enabled
+fixture; do not substitute an unrelated candidate path or invent LUT terms for the known no-LUT
+configuration.
