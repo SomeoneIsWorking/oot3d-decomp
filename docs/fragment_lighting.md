@@ -90,10 +90,19 @@ TEV use or replaced by vertex color.
 | `+0x14` | `FUN_003fa5d0`, the candidate fixed-function-light setup |
 | `+0x18` | `FUN_003fa34c`, the configuration-template path |
 
-Static checks found no direct ARM or Thumb branch into the constructor or candidate method, and the
-only literal references to this vtable are the class's own constructor/destructor pools. RomFS has
-no CRO/CRS module that could supply an external caller. This library class is therefore an
+Static checks found no direct ARM or Thumb branch into the candidate method. A raw image scan finds
+the vtable value only in `FUN_003fb2a8`'s destructor and its data-pool copy; Ghidra's reference
+database reports zero references to either location. RomFS has no CRO/CRS module that could supply
+an external caller. The constructor/writer is therefore not statically recoverable through the
+vtable value, and this library class remains an
 **unproven candidate**, not proof that every CMB byte `+0x00` reaches live PICA state.
+
+The adjacent static lead is closed. `FUN_003fc2f8` calls the recovered
+`FUN_003f95c8`, which only refreshes a transform matrix. `FUN_003f9a30` queues a draw record, and
+`FUN_003f9b24` resets a 0x200-entry queue. None accesses the `renderer + 0x10 + light * 0x60`
+records or the `+0xe4` enable field. These functions rule out that nearby queue/transform setup as
+the missing per-light record owner; the next valid discriminator is a cacheable runtime watchpoint
+on the record allocation or write, not another static vtable sweep.
 
 The cache-owned `kokiri-save-overlay` control is stored through
 `tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`. The
@@ -529,7 +538,7 @@ Its argument helper `FUN_0040f74c` is likewise not the producer: it returns
 `*(arg0 + 8) + arg1 * 0x800`, selecting the fixed-vector record consumed by `FUN_00409390`.
 It has no writes and no relationship to the CmbRenderer's `0x60`-stride light records.
 
-The adjacent CmbRenderer `+0x1c` method `FUN_003fa5d0` establishes the role of those records. For
+The adjacent CmbRenderer `+0x14` method `FUN_003fa5d0` establishes the role of those records. For
 each of the same first three `renderer+0x10 + i*0x60` entries with `+0xe4 == 1.0f`, it serializes
 the negated direction at `+0xd8..+0xe0`, color terms at `+0x88..+0xc0`, and the selected slot into
 the renderer input before calling `FUN_004093f8` to emit the PICA light packets. This grounds the
