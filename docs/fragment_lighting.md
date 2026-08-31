@@ -426,6 +426,14 @@ from the cache watch's link register. The binder's conversion helpers are now de
 descriptor as PICA material state, but do not yet identify its serialized CMB schema or authorize
 host constants.
 
+The sole direct caller is now derived as `FUN_0031ff64` (call `0x00320370`, derived C:
+`build/decomp/0031ff64.c`). Its first argument is the loaded CMB container: it resolves the material
+chunk with the relative pointer at container `+0x28`, and passes that chunk directly to
+`FUN_004c34ac`. The descriptor chain is therefore CMB-container → material chunk → `0x15c` material
+entry → nested `+0x0cc` PICA descriptor; it is not built from the port's C++ `CmbMaterial` object.
+The current v6 parser's `mats + 0x0c`, `0x15c` material stride matches this independently recovered
+runtime walk, but individual descriptor members still need their own binary-to-PICA proof.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
