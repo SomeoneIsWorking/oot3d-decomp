@@ -142,6 +142,15 @@ found eight compatible descriptors sharing one physical texture, and made zero e
 Its immediate repeat returned the cached failure. Thus ordinary Kokiri still has no identified visible
 enabled fragment-lighting CMB, even though it has a validated visible CMB identity control.
 
+Hyrule Field is a distinct, actor-grounded negative rather than another title or Kokiri assumption.
+The retail scene table maps entrance `0x00cd` to `spot00`; its ZSI actor list contains 27
+`ACTOR_EN_WOOD02` entries, so it is a real Wood02-bearing fixture. The enabled-only Wood02 identity
+capture scanned 90 texture descriptors, found one source-compatible descriptor, read its physical GPU
+bytes, and made zero exact matches to the seven enabled wood/grass CMB source textures. Its immediate
+repeat returned that cached failure without launching the oracle. Thus the field frame still does not
+make a visible enabled Wood02 material available for dispatch tracing; do not infer it from actor
+presence alone.
+
 ## Fire Temple scene CMB identity (2026-08-31)
 
 The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
