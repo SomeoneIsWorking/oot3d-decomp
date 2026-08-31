@@ -91,12 +91,15 @@ no CRO/CRS module that could supply an external caller. This library class is th
 **unproven candidate**, not proof that every CMB byte `+0x00` reaches live PICA state.
 
 The cache-owned `kokiri-save-overlay` control is stored through
-`tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`; the
-guest-PC watch recorded zero hits at `FUN_003fa5d0`. Its screenshot proves the fixture is the
-Start-button Save overlay, not the pause-menu Link model, so this is a bounded negative for that
-frame only. The PICA logger is trusted: the same cached run executes its one-shot self-test first,
-logging `picaLit=1` for exactly one diagnostic draw and restoring the register before the next draw.
-Both raw logs are cache artifacts under the complete ROM/savestate/patch/texture-pack key.
+`tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`. The
+first cached run watched `FUN_003fa5d0` and recorded zero hits; the independently keyed v8 capture
+watched the earlier `FUN_003f9b5c` material-setup slot and also recorded zero hits. Therefore this
+fixture does not invoke the candidate `CmbRenderer` at all, rather than merely skipping its optional
+fixed-function branch. Its screenshot proves the fixture is the Start-button Save overlay, not the
+pause-menu Link model, so this is a bounded negative for that frame only. The PICA logger is trusted:
+each cached run executes its one-shot self-test first, logging `picaLit=1` for exactly one diagnostic
+draw and restoring the register before the next draw. Both raw logs are cache artifacts under the
+complete ROM/savestate/patch/texture-pack key.
 
 This falsifies the earlier claim that the Lon Lon/Navi fixture established a globally enabled path.
 It does **not** prove PICA lighting is absent from every retail scene or authorize changing host
