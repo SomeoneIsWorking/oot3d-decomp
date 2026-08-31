@@ -182,6 +182,23 @@ An independent cache-owned PC watch on the candidate `CmbRenderer` material-setu
 cached failure. The candidate is therefore not the active configuration transport even where the known
 enabled material and `picaLit=1` draw are present.
 
+The previously mapped generic PICA light-command boundary `FUN_0030ed80` is also inactive in this
+fixture. A cache-owned watch on that function recorded no entry, and its immediate repeat returned the
+cached failure. This does not contradict its known role for another light-command path; it rules out
+using that path to recover the active Hut configuration transport.
+
+## Water Temple authored flag is not live PICA lighting (2026-08-31)
+
+The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
+(`wtr_0_yuka_01_2`). Its cache-owned raw texture identity capture at entrance `0x0010` made an exact
+physical-byte match at PICA draw 27 (`tex0=0x1811c200/64x64/f12`); an immediate identical invocation
+returned that result from cache. The draw log records `vLit=1`, `fLit=0`, and `picaLit=0`.
+
+This grounds an authored enabled material to a live draw while falsifying it as an enabled
+fixed-function-lighting fixture. It is a scene/material-specific negative only: the byte `+0x00` flag
+does not itself select live PICA lighting, and Water Temple entrance `0x0010` must not be used to
+derive the enabled fragment calculation or to infer the active configuration transport.
+
 ## Fire Temple scene CMB identity (2026-08-31)
 
 The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
