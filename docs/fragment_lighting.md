@@ -111,6 +111,22 @@ calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame reco
 at that function. This is another bounded negative: do not use `FUN_004C7AB0` to identify the
 active CMB draw class for that fixture or rerun the same observation.
 
+## Direct PICA material-state route is also inactive in the Kokiri fixture (2026-08-31)
+
+`FUN_003fbba8` is a distinct virtual material-state method in the table rooted at `0x004EBE04`
+(its method entry is at `0x004EBE08`). It requires runtime material state `+0x174 >= 3`, prepares
+PICA state, and calls `FUN_003fb5ec`. That submitter in turn calls `FUN_003fb9ac`, which emits the
+same PICA texture/TEV-state helper interface as the rejected candidate route. There is no direct
+branch caller of `FUN_003fbba8`; the table reference explains why the class must be selected through
+an unresolved virtual dispatch rather than through a direct static call chain.
+
+The cache-owned `tools/cmb_material_state_oracle_probe.py` watches that virtual method without
+assuming the unrelated `FUN_004C7AB0` model-pointer layout. The deterministic Kokiri gameplay
+capture recorded zero entries and stored the failure under the complete cache key. Its immediate
+repeat reads that failure from cache and does not launch the oracle. This is a bounded negative for
+this direct PICA material-state class in this fixture, not evidence that the class is never used or
+that an enabled byte `+0x00` calculation may be approximated.
+
 ## Next RE step
 
 Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
