@@ -114,6 +114,24 @@ failure without launching the oracle. These are separate scene-scoped negatives.
 a logged PICA draw to a particular CMB source asset, so they cannot yet prove all 205 authored
 `IsFragmentLighting` flags are inert.
 
+## Enabled wood/grass source identity is not present in the Kokiri fixture (2026-08-31)
+
+The offline corpus identifies seven enabled fragment-primary CMBs under
+`/actor/zelda_wood02.zar`: `grass02_modelT`, `grass04_modelT`, `tree01_modelT`,
+`tree02_modelT`, `tree04_modelT`, `tree05_modelT`, and `tree06_modelT`. Their source textures use
+only PICA format 12 at either `32x64` (2 KiB) or `32x128` (4 KiB). The cache-owned
+`tools/cmb_texture_draw_identity_oracle_probe.py` captures the same deterministic Kokiri frame,
+then reads physical GPU bytes through the harness's existing `dumpphys` interface; `tex0` is a PICA
+physical address, so a virtual `mem` read is invalid and its version-1 failure is retained in cache.
+
+The version-2 physical capture scanned 107 `tex0` descriptors. Eight shared the wood source
+descriptor, but they all referred to one physical 4 KiB texture; its raw payload matched none of the
+seven source payloads. Both the PICA draw log and raw byte record are cached, and an immediate repeat
+returns the cached failure without launching Azahar. This is deliberately a no-false-positive asset
+identity test, not a claim that the object archive is unloaded or that its visible textures cannot be
+transformed by another path. It only rules out the current Kokiri frame as an exact-source fixture for
+the enabled wood/grass materials; do not reuse it to infer the active CMB renderer.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
@@ -148,6 +166,7 @@ without rerunning the oracle.
 
 Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
 Start from shipping model-draw dispatch, not the unreachable `CmbRenderer.cpp` candidate, and trace
-the material-class gate to a concrete function/asset. Then capture that grounded draw's
+the material-class gate to a concrete function/asset. Use a source identity with a positive control,
+not the descriptor-colliding Kokiri wood/grass frame. Then capture that grounded draw's
 `config0/config1`, enabled-slot mapping, global ambient, LUT selectors/scales, and selected LUTs
 through the cache-owned probe. Only that capture can justify porting the enabled equations.
