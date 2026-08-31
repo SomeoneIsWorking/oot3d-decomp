@@ -529,6 +529,13 @@ Its argument helper `FUN_0040f74c` is likewise not the producer: it returns
 `*(arg0 + 8) + arg1 * 0x800`, selecting the fixed-vector record consumed by `FUN_00409390`.
 It has no writes and no relationship to the CmbRenderer's `0x60`-stride light records.
 
+The adjacent CmbRenderer `+0x1c` method `FUN_003fa5d0` establishes the role of those records. For
+each of the same first three `renderer+0x10 + i*0x60` entries with `+0xe4 == 1.0f`, it serializes
+the negated direction at `+0xd8..+0xe0`, color terms at `+0x88..+0xc0`, and the selected slot into
+the renderer input before calling `FUN_004093f8` to emit the PICA light packets. This grounds the
+records as per-light source data shared with the configuration finalizer; it does not identify their
+allocation or the still-unrecovered slots and masks.
+
 `FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
 from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
 their enable inverses at bit positions `1,5,9,…,25`. It receives the same transient input before
