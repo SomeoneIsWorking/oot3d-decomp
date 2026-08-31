@@ -168,6 +168,15 @@ artifact: the probe now persists raw state before checking LUT policy, and its c
 raw JSON. Decode this exact configuration before selecting a host fixed-function calculation; do not
 invent a LUT contribution because other PICA lighting configurations may use one.
 
+The cache-owned exact-template capture (writer probe v16) records the live input to the recovered
+`FUN_0040cdd8` at its direct `0x0040cfe4` store of template word `0x005b31b4`. The function's
+decomp-grounded input base is `0x081d1538` (`r10 - 0x100` at that store). Its `+0x184..+0x190` words,
+which contain every byte used to form output word 6, are all zero; only the independent loop field
+`+0x164` is `0x00000101`. Nevertheless word 6 is `0x80000400`, exactly as the recovered C requires
+from its unconditional OR. This rules out treating either set bit as evidence that the active CMB
+owner-mask `0x400` was converted into PICA `config0`; it does not yet type the transient input object
+or identify its constructor/caller.
+
 Azahar's PICA register definitions make the no-LUT branch concrete. `config1=0xff7fffff` disables
 shadow, spot, distance, and every supported LUT feature; the two active slots are directional lights
 0 and 1, both with zero diffuse/specular and identical ambient product `0x05a2208d` =
