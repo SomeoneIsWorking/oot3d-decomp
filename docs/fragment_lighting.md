@@ -365,7 +365,26 @@ material slots, it allocates each packet descriptor and calls `FUN_00454760` (de
 storage, records the byte count, then tail-calls the copy loop. Therefore `config0` originates in a
 prepared renderer template, not in `FUN_003fad68`, `FUN_003f9d9c`, or `FUN_003fa5d0`.
 
-At the exact copy store the template-source register is `r1=0x005b31bc`. The next ground-truth step
-is to recover the producer that initializes this template word before `FUN_0030f4d0` copies it; do
-not turn the resulting fixed state into a host lighting mode until that initializer and the enabled
-fragment calculation are both grounded.
+At the exact copy store the template-source register is `r1=0x005b31bc`. ARM disassembly corrects
+the tempting direct interpretation: `FUN_00371758` has already executed two `ldmia r1!` loads, so
+the second four-word group it stores came from `[0x005b31ac, 0x005b31bc)`, not from the post-increment
+value itself. The next ground-truth step is to recover the producer of that group before
+`FUN_0030f4d0` copies it; do not turn the resulting fixed state into a host lighting mode until that
+initializer and the enabled fragment calculation are both grounded.
+
+## CMB lighting bits reach the active renderer state (2026-08-31)
+
+`FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
+starts renderer-owner field `+0x478` at `0x2`, then maps material byte `+0x01` to `0x200` and byte
+`+0x00` to `0x400`. Its remaining source halfword bits `0x4/0x8/0x10/0x20` map to
+`0x20/0x40/0x80/0x100`; it then emits the associated PICA state record through
+`FUN_003142dc` (`build/decomp/003142dc.c`). The generic packet writer beneath that helper is
+`FUN_00307ccc` (`build/decomp/00307ccc.c`).
+
+The cache-owned Hut object-field watch (`pica-command-writer_190_53bcc935cd.json`) proves this is
+the live owner from the earlier dispatcher trace: at `0x081d3aa0 + 0x478 = 0x081d3f18`, exact guest
+PC `0x003facd8` writes `0x402` once (`r1=0x402`, `r2=0x20`). Thus the selected material's CMB
+fragment-lighting byte is not merely authored metadata: it contributes the real `0x400` renderer bit
+for this enabled draw. The packet's final PICA `config0=0x80000400` is separately observed, so the
+remaining gap is the conversion from this renderer mask to that PICA encoding and the resulting
+fragment calculation; neither is inferred here.

@@ -68,6 +68,6 @@ void FUN_003fac2c(int param_1,undefined4 *param_2)
   uStack_1c = *(undefined4 *)(iVar5 + 0xb4);
   uStack_18 = uRam003fad64;
   uStack_28 = uRam003fad64;
-  func_0x003142dc(param_1 + 0x24,&uStack_34);
+  FUN_003142dc(param_1 + 0x24,&uStack_34);
   return;
 }
