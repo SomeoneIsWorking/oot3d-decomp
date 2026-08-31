@@ -136,6 +136,12 @@ the physical-byte identity method for this fixture and makes the wood/grass nega
 frame's matching `32x64/f7` descriptor is Navi, not an enabled wood/grass material. It still does not
 identify the shipping CMB renderer class, so do not use the draw number alone to infer that class.
 
+The archive's two enabled fragment-primary `elf/model/light_model.cmb` materials are not that visible
+Navi feather draw either. The independently keyed enabled-only archive capture scanned 106 descriptors,
+found eight compatible descriptors sharing one physical texture, and made zero exact source matches.
+Its immediate repeat returned the cached failure. Thus ordinary Kokiri still has no identified visible
+enabled fragment-lighting CMB, even though it has a validated visible CMB identity control.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
