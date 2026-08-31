@@ -229,6 +229,14 @@ valid caller frame and must not be promoted to a renderer identity. The result r
 fixed `sp+offset` return chain at the GSP wrapper; the next instrument needs callback-frame-aware
 unwinding or a list-builder allocation/copy trace.
 
+The cache-owned direct-pointer trace armed the full measured list arena `0x14480000:0x145a0000` and
+joined against the exact Hut list VA `0x1458fa80`. It recorded **zero** `MemorySystem::GetPointer`
+acquisitions for that address; its raw empty log and matching PICA/GSP captures are retained under the
+complete cache key. Together with the existing page-watch, `MemorySystem::Write`, and disabled-fastmem
+negatives, this rules out attributing list construction to the ordinary virtual-memory access APIs. The
+producer remains an unresolved lower direct-map/copy path; do not turn this negative into a guessed
+host fragment-lighting implementation.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
