@@ -720,10 +720,10 @@ linear-filtered shipping renderer.
 
 Once the fade-in delay timer (`+0x1C0`) reaches 0 and the "seen" latch (`+0x1C2`) is still
 0, and `globalState` (`+0x1C8`) is ≥ 2 (DISPLAY or later), the update fn reads
-`*(byte*)(inputCtx + 8)` every frame, where `inputCtx = *piRam001dad08` (a fixed global
-pointer, not traced further this session — static RE budget went to the composite
-mechanism instead; functionally it behaves exactly like a per-frame "confirm/START pressed
-this frame" latch read from a title-menu input-polling struct). This is the actual
+`*(byte*)(inputCtx + 8)` every frame, where `inputCtx = *piRam001dad08`. The literal at
+`0x001DAD08` resolves to runtime storage `0x0050BB50`, which is zero in the static image and
+has zero Ghidra data references: its writer is dynamic and must be caught with a runtime
+watchpoint before assigning title-button semantics. This is the actual
 "press-START" detection; it is NOT gated on any specific button code visible in this
 function (the byte is pre-resolved elsewhere), so it may key off START **or** A/confirm —
 not distinguished at this call site.
