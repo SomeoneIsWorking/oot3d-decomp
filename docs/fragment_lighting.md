@@ -201,6 +201,13 @@ is therefore an allocation-lifetime or write-history capture that binds a comman
 the guest PC before PICA consumes it; do not watch a stale linear-buffer address or guess from the packet
 constant.
 
+The follow-up page-watch capture armed the measured rotating command-list arena before the deterministic
+frame, then queried the exact packet address after the draw was identified. It too recorded no writer;
+the immediate repeat returned the cached failure. Thus neither `MemorySystem::Write` nor the emulator's
+page-watch write path sees the active command-list population. The remaining boundary is a lower-level
+guest fast-memory/direct-map store path, not a reason to attribute the packet to an unrelated known
+renderer function.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
