@@ -520,6 +520,11 @@ slot `i` when the float at `+0xe4` equals `1.0f`. The remaining five slots and a
 still arrive through an unrecovered renderer input path. Do not assign those bits or masks in the
 host until that owner is recovered.
 
+The finalizer's preceding `FUN_00409390` call is not that per-light producer: recovered C shows it
+only copies four fixed global words into a local 16-byte record and submits that record through the
+generic writer. It supplies a separate packet vector before slot selection, not the `renderer+0x10`
+records or the transient slot/mask arrays.
+
 `FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
 from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
 their enable inverses at bit positions `1,5,9,…,25`. It receives the same transient input before
