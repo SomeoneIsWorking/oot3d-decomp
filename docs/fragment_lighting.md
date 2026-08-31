@@ -222,6 +222,13 @@ which loads the current thread/process context, issues `SVC 0x32`, and returns i
 GSP transport, but it does **not** identify the material renderer or the list builder; do not port the
 SVC wrapper or treat its PC as a material-dispatch address.
 
+The follow-up cache-owned submission capture includes 17 non-faulting stack words. For the same exact
+Hut packet it records `s7=0x00493b88`, the epilogue (`add sp,#0x24; pop {...,pc}`) immediately before
+the catalogued `FUN_00493b94`, but the higher candidate saved-return words are zero. This is not a
+valid caller frame and must not be promoted to a renderer identity. The result rules out assuming a
+fixed `sp+offset` return chain at the GSP wrapper; the next instrument needs callback-frame-aware
+unwinding or a list-builder allocation/copy trace.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
