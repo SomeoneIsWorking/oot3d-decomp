@@ -728,6 +728,16 @@ watchpoint before assigning title-button semantics. This is the actual
 function (the byte is pre-resolved elsewhere), so it may key off START **or** A/confirm —
 not distinguished at this call site.
 
+Runtime observation under the current `p45-00401070` checkpoint makes the lifecycle constraint
+concrete. At the settled title cursor 85, `0x0050BB50` is null. After 300 bounded harness frames it
+resolves to `0x08005e44`; a four-frame START hold writes its `+8` latch twice
+(`0x00010100 -> 0x01010101`). The title is still not gameplay after the recovered 25-frame grace
+plus a 60-frame settle. A subsequent A confirmation also writes twice, but the old latch storage no
+longer contains a stable input value after that title transition. Therefore a bootstrap must resolve
+`0x0050BB50` again after every transition; it must not retain an input-context pointer across a menu
+state change. The raw cache artifacts are `title-input-context-start` observations keyed by the p45
+title state, texture-pack-off context, advance count, settle count, and exact button sequence.
+
 ### 7.2 State fan-out on press: which target state depends on WHEN you pressed
 
 ```c
