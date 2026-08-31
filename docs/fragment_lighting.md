@@ -177,6 +177,11 @@ computes `FRAGMENT_PRIMARY.rgb = clamp(light0.ambient + light1.ambient, 0, 1)` =
 is grounded for the Hut draw only. The remaining RE task is the live renderer's configuration transport
 that decides when this no-LUT form, or a LUT-enabled form, is selected.
 
+An independent cache-owned PC watch on the candidate `CmbRenderer` material-setup entry
+`FUN_003f9b5c` recorded no entry in this *positive* Hut fixture; its immediate repeat returned that
+cached failure. The candidate is therefore not the active configuration transport even where the known
+enabled material and `picaLit=1` draw are present.
+
 ## Fire Temple scene CMB identity (2026-08-31)
 
 The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
