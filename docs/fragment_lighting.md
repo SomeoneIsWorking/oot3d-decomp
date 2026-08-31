@@ -517,6 +517,13 @@ zero. This is an exact builder equation, not a CMB-field mapping: the current de
 does not initialize `+0x18d..+0x190`, and the eight slot/mask arrays arrive through the separate
 renderer input path. Do not assign those bits or masks in the host until that owner is recovered.
 
+`FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
+from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
+their enable inverses at bit positions `1,5,9,…,25`. It receives the same transient input before
+`FUN_0040cdd8`, but neither it nor the descriptor binder establishes the remaining light-slot arrays
+or `+0x18d..+0x190`. This separates the CMB-controlled descriptor subset from the still-unrecovered
+renderer light/configuration transport.
+
 This makes the existing candidates meaningful without declaring a formula. Hut's default
 `+0x10/+0x12/+0x18/+0x1c` values map to zero, so those fields cannot explain its forced
 `0x80000400` baseline. Morpha's `0x84c2`/`0x62c9` values map to nonzero and therefore change at
