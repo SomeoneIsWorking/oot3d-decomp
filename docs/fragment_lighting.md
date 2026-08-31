@@ -151,6 +151,23 @@ repeat returned that cached failure without launching the oracle. Thus the field
 make a visible enabled Wood02 material available for dispatch tracing; do not infer it from actor
 presence alone.
 
+## Gravekeeper's Hut provides the first grounded enabled draw (2026-08-31)
+
+The direct scene CMB `/scene/hut_0_info.zsi` (model `rm_danpei_00`) has one enabled
+fragment-primary material: material 5 on mesh 3, with TEX0 slot 5 (`rm_dp_kusari_01`). The retail
+entrance table maps Gravekeeper's Hut to `0x030d`. Its cache-owned raw texture capture made an exact
+payload match for that texture at PICA draw 4 (`tex0=0x1808dd00/32x64/f13`). The same cached draw log
+records `vLit=0`, `fLit=1`, and `picaLit=1`, so this is the required material-to-live-enabled-draw
+association rather than a source-CMB or actor-presence inference.
+
+The cache-owned `lighting_capture` state for draw 4 has `disable=0`, `config0=0x80000400`,
+`config1=0xff7fffff`, slot mapping `[0,1,0,0,0,0,0,0]`, `light_enable=0x00000010`, and
+`max_light_index=1`; its raw PICA light records are retained under the complete fixture cache key.
+The capture has an empty active-LUT list. That is a real no-LUT enabled configuration, not a missing
+artifact: the probe now persists raw state before checking LUT policy, and its cached failure cites the
+raw JSON. Decode this exact configuration before selecting a host fixed-function calculation; do not
+invent a LUT contribution because other PICA lighting configurations may use one.
+
 ## Fire Temple scene CMB identity (2026-08-31)
 
 The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
@@ -219,10 +236,8 @@ without rerunning the oracle.
 
 ## Next RE step
 
-Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
-Start from shipping model-draw dispatch, not the unreachable `CmbRenderer.cpp` candidate, and trace
-the material-class gate to a concrete function/asset. The raw-byte source identity now has a cached
-positive control, so use it to find an actually visible enabled material rather than the Kokiri
-wood/grass negative. Then capture that grounded draw's
-`config0/config1`, enabled-slot mapping, global ambient, LUT selectors/scales, and selected LUTs
-through the cache-owned probe. Only that capture can justify porting the enabled equations.
+Start from the grounded Gravekeeper's Hut draw 4, not the unreachable `CmbRenderer.cpp` candidate.
+Decode its no-LUT `config0/config1`, slot mapping, and light-register payload into the active material
+class's calculation, then trace the shipping dispatch that submits that material. Keep the raw
+material-to-draw association intact while extending to a LUT-enabled fixture; do not substitute an
+unrelated candidate path or invent LUT terms for the known no-LUT configuration.
