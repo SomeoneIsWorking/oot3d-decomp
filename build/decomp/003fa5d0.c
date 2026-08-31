@@ -27,35 +27,35 @@ void FUN_003fa5d0(int param_1,int *param_2,int param_3)
   float fVar21;
   float fVar22;
   undefined4 uVar23;
-  float local_38;
-  float local_34;
-  float local_30;
-  float local_2c;
-  
-  fVar1 = DAT_003fa9dc;
+  float fStack_38;
+  float fStack_34;
+  float fStack_30;
+  float fStack_2c;
+
+  fVar1 = fRam003fa9dc;
   if (*(char *)*param_2 != '\0') {
     if (*(char *)(*(int *)(*(int *)(param_1 + 0xc) + 4) + param_3 * 0x124) == '\0') {
-      local_38 = (float)VectorUnsignedToFloat
-                                  ((uint)(byte)((char *)*param_2)[0xa8],(byte)(in_fpscr >> 0x15) & 3
-                                  );
-      local_38 = local_38 * DAT_003fa9dc;
-      local_34 = (float)VectorUnsignedToFloat
-                                  ((uint)*(byte *)(*param_2 + 0xa9),(byte)(in_fpscr >> 0x15) & 3);
-      local_34 = local_34 * DAT_003fa9dc;
-      local_30 = (float)VectorUnsignedToFloat
-                                  ((uint)*(byte *)(*param_2 + 0xaa),(byte)(in_fpscr >> 0x15) & 3);
-      local_30 = local_30 * DAT_003fa9dc;
-      local_2c = (float)VectorUnsignedToFloat
-                                  ((uint)*(byte *)(*param_2 + 0xab),(byte)(in_fpscr >> 0x15) & 3);
-      local_2c = local_2c * DAT_003fa9dc;
+      fStack_38 = (float)VectorUnsignedToFloat
+                                   ((uint)(byte)((char *)*param_2)[0xa8],
+                                    (byte)(in_fpscr >> 0x15) & 3);
+      fStack_38 = fStack_38 * fRam003fa9dc;
+      fStack_34 = (float)VectorUnsignedToFloat
+                                   ((uint)*(byte *)(*param_2 + 0xa9),(byte)(in_fpscr >> 0x15) & 3);
+      fStack_34 = fStack_34 * fRam003fa9dc;
+      fStack_30 = (float)VectorUnsignedToFloat
+                                   ((uint)*(byte *)(*param_2 + 0xaa),(byte)(in_fpscr >> 0x15) & 3);
+      fStack_30 = fStack_30 * fRam003fa9dc;
+      fStack_2c = (float)VectorUnsignedToFloat
+                                   ((uint)*(byte *)(*param_2 + 0xab),(byte)(in_fpscr >> 0x15) & 3);
+      fStack_2c = fStack_2c * fRam003fa9dc;
     }
     else {
-      FUN_00333abc(*(int *)(param_1 + 0xc),param_3,&local_38);
+      func_0x00333abc(*(int *)(param_1 + 0xc),param_3,&fStack_38);
     }
-    fVar5 = DAT_003fa9ec;
-    fVar4 = DAT_003fa9e8;
-    fVar3 = DAT_003fa9e4;
-    fVar2 = DAT_003fa9e0;
+    fVar5 = fRam003fa9ec;
+    fVar4 = fRam003fa9e8;
+    fVar3 = fRam003fa9e4;
+    fVar2 = fRam003fa9e0;
     iVar6 = *param_2;
     piVar8 = param_2 + 4;
     iVar10 = 0;
@@ -121,21 +121,21 @@ void FUN_003fa5d0(int param_1,int *param_2,int param_3)
         piVar8[iVar10 * 0xb + 6] = uVar9;
         *(undefined1 *)(piVar8 + iVar10 * 0xb + 7) = 1;
         iVar6 = *(int *)(param_1 + 0x10) + iVar10 * 0x60;
-        fVar21 = *(float *)(iVar6 + 0x88) * local_38;
+        fVar21 = *(float *)(iVar6 + 0x88) * fStack_38;
         fVar20 = fVar2;
         if ((fVar2 <= fVar21) && (fVar20 = fVar21, 0x3f800000 < (int)fVar21)) {
           fVar20 = fVar3;
         }
         uVar23 = VectorFloatToUnsigned(fVar5 + fVar20 * fVar4,3);
         *(char *)(piVar8 + iVar10 * 0xb + 2) = (char)uVar23;
-        fVar21 = *(float *)(iVar6 + 0x8c) * local_34;
+        fVar21 = *(float *)(iVar6 + 0x8c) * fStack_34;
         fVar20 = fVar2;
         if ((fVar2 <= fVar21) && (fVar20 = fVar21, 0x3f800000 < (int)fVar21)) {
           fVar20 = fVar3;
         }
         uVar23 = VectorFloatToUnsigned(fVar5 + fVar20 * fVar4,3);
         *(char *)((int)piVar8 + iVar10 * 0x2c + 9) = (char)uVar23;
-        fVar21 = *(float *)(iVar6 + 0x90) * local_30;
+        fVar21 = *(float *)(iVar6 + 0x90) * fStack_30;
         fVar20 = fVar2;
         if ((fVar2 <= fVar21) && (fVar20 = fVar21, 0x3f800000 < (int)fVar21)) {
           fVar20 = fVar3;
@@ -227,8 +227,7 @@ void FUN_003fa5d0(int param_1,int *param_2,int param_3)
       }
       iVar10 = iVar10 + 1;
     } while (iVar10 < 3);
-    FUN_004093f8(param_1 + 0x24,piVar8);
+    func_0x004093f8(param_1 + 0x24,piVar8);
   }
   return;
 }
-

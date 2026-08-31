@@ -2,15 +2,17 @@
 
 ## Scope
 
-CMB materials have two independent lighting paths:
+CMB materials declare two independent lighting capabilities:
 
 - byte `+0x01` selects the software vertex-lighting branch in `CmbVShader.shbin`;
-- byte `+0x00` selects PICA's fixed-function fragment Lighting Unit, whose outputs reach TEV as
-  `FRAGMENT_PRIMARY_COLOR_DMP` (`0x6210`) and `FRAGMENT_SECONDARY_COLOR_DMP` (`0x6211`).
+- byte `+0x00` is consumed by the recovered *candidate* PICA fixed-function-lighting method, whose
+  outputs would reach TEV as `FRAGMENT_PRIMARY_COLOR_DMP` (`0x6210`) and
+  `FRAGMENT_SECONDARY_COLOR_DMP` (`0x6211`).
 
-This document tracks the second path. It is separate from the already-ported vertex `PRIMARY`.
+The retail renderer's activation of byte `+0x00` is a separate question. This document tracks that
+RE frontier without conflating an authored asset flag with a live PICA state.
 
-## CPU light/material setup — `FUN_003fa5d0`
+## Candidate CPU light/material setup — `FUN_003fa5d0`
 
 OoT3D VA `0x003fa5d0`, 1,608 bytes, is decompiled at
 `build/decomp/003fa5d0.c`. It returns immediately when material byte `+0x00` is clear. When set,
@@ -52,7 +54,7 @@ The host generic TEV evaluator previously aliased `FRAGMENT_PRIMARY` to vertex `
 opaque black for `FRAGMENT_SECONDARY`. The port now carries material byte `+0x00` through the draw
 group and UBO, passes fragment sources separately into the shared TEV evaluator, and supplies the
 exact zero/zero result when the flag is clear. The enabled branch deliberately retains its old
-primary approximation until the fixed-function calculation below is grounded.
+primary approximation until a live fixed-function caller is grounded.
 
 ## Retail corpus inventory (offline, 2026-08-30)
 
@@ -73,11 +75,37 @@ and one `spot10_2` scene material. Dark Link is the retail close-test: material 
 clear and stage 0 consumes `FRAGMENT_PRIMARY`, proving that source identity cannot be inferred from
 TEV use or replaced by vertex color.
 
+## Candidate-class reachability and cache-owned negative control (2026-08-31)
+
+`FUN_003fa5d0` belongs to the `CmbRenderer.cpp` vtable at `0x004EBD98`:
+
+| vtable offset | target |
+|---:|---|
+| `+0x10` | `FUN_003f9b5c` material setup, which dispatches software vertex lighting at `+0x18` |
+| `+0x14` | `FUN_003fa5d0`, the candidate fixed-function-light setup |
+| `+0x18` | `FUN_003fa34c`, the software vertex-light sibling |
+
+Static checks found no direct ARM or Thumb branch into the constructor or candidate method, and the
+only literal references to this vtable are the class's own constructor/destructor pools. RomFS has
+no CRO/CRS module that could supply an external caller. This library class is therefore an
+**unproven candidate**, not proof that every CMB byte `+0x00` reaches live PICA state.
+
+The cache-owned `kokiri-save-overlay` control is stored through
+`tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`; the
+guest-PC watch recorded zero hits at `FUN_003fa5d0`. Its screenshot proves the fixture is the
+Start-button Save overlay, not the pause-menu Link model, so this is a bounded negative for that
+frame only. The PICA logger is trusted: the same cached run executes its one-shot self-test first,
+logging `picaLit=1` for exactly one diagnostic draw and restoring the register before the next draw.
+Both raw logs are cache artifacts under the complete ROM/savestate/patch/texture-pack key.
+
+This falsifies the earlier claim that the Lon Lon/Navi fixture established a globally enabled path.
+It does **not** prove PICA lighting is absent from every retail scene or authorize changing host
+fragment colors to zero for enabled materials.
+
 ## Next RE step
 
-Recover one complete enabled draw's fixed-function state as a cacheable structured probe:
-`config0/config1`, enabled-slot mapping, global ambient, all light records, LUT selectors/scales,
-and only the LUT tables those selectors activate. The probe must be stored through
-`OracleCache.put_probe`/`put_artifact` under the savestate/ROM/patch/texture-pack key so later shader
-work reuses it without another oracle boot. Validate the capture against the statically recovered
-`FUN_003fa5d0` material products before implementing the enabled shader path.
+Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
+Start from shipping model-draw dispatch, not the unreachable `CmbRenderer.cpp` candidate, and trace
+the material-class gate to a concrete function/asset. Then capture that grounded draw's
+`config0/config1`, enabled-slot mapping, global ambient, LUT selectors/scales, and selected LUTs
+through the cache-owned probe. Only that capture can justify porting the enabled equations.
