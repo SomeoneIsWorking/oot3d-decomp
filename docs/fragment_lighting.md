@@ -327,12 +327,33 @@ does not identify a material class for this fixture and must not be assumed to d
 `0x004EBE04` table above. This makes the indirect edge explicit and preserves the negative result
 without rerunning the oracle.
 
-## Next RE step
+## Grounded Hut command-list construction (2026-08-31)
 
-Start from the grounded Gravekeeper's Hut draw 4, not the unreachable `CmbRenderer.cpp` candidate.
-The no-LUT calculation is known for this fixture; the next missing ground truth is the shipping
-command-list **construction** path before its generic GSP service wrapper. Extend dynamic observation
-at the list-builder allocation/copy boundary so it records a guest caller before the list enters
-`FUN_004a07f8`. Keep the raw material-to-draw association intact while extending to a LUT-enabled
-fixture; do not substitute an unrelated candidate path or invent LUT terms for the known no-LUT
-configuration.
+The cache-owned interpreter capture for the same Hut draw 4 now joins the selected
+`config0=0x80000400` packet at list VA `0x144b0cb8` to its actual guest writer and material
+dispatcher. The result is stored under
+`c57f33c936bb6002_6510135ae6c38599_p44-6bc8e697_tpoff` (capture version 11); repeating the
+same probe must read this entry rather than launching another oracle.
+
+`FUN_00466e0c` (derived C: `build/decomp/00466e60.c`) reserves an output range, then copies its
+prepared packet stream in word pairs. The exact `config0` store is its loop instruction
+`0x00466e60`, with `lr=0x00466e20`. This is transport only: it is not the fragment formula and
+must not be ported into the host renderer.
+
+Its sole direct caller is `FUN_004527e8` (derived C: `build/decomp/004527e8.c`). That dispatcher
+iterates visible material passes, invokes three table slots, then submits the completed packet
+descriptor to `FUN_00466e0c`. At the exact enabled Hut store, the saved caller object is
+`0x081d3aa0`; its dispatch table is `0x004ebd98`, its descriptor array is `0x081d3f44`, and the
+active descriptor is `0x081d3f8c` (source pointer `0x0821e710`, byte count `0x4c8`). The combined
+static/dynamic join resolves the invoked slots in execution order:
+
+| Slot | Target | Grounded role |
+| --- | --- | --- |
+| `+0x24` | `FUN_003fad68` (`build/decomp/003fad68.c`) | material/PICA state-record setup |
+| `+0x20` | `FUN_003f9d9c` (`build/decomp/003f9d9c.c`) | up-to-six light color setup |
+| `+0x14` | `FUN_003fa5d0` (`build/decomp/003fa5d0.c`) | fixed-function light-vector and intensity setup |
+
+This confirms that the Hut enabled draw uses the `0x004ebd98` CMB renderer table; it does **not**
+yet attribute `config0` to one individual slot or derive a general enabled-host shader. The next
+ground-truth step is to trace the exact packet-record write inside these three grounded methods,
+then port only the verified enabled fragment behavior and validate it against the Hut fixture.

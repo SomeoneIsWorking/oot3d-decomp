@@ -110,6 +110,10 @@ if os.path.isfile(targets_file):
             print("DECOMP FAIL %08x (fn=%s)" % (va, fn))
             continue
         p = os.path.join(OUT, "%08x.c" % fn.getEntryPoint().getOffset())
+        lines = c.splitlines()
+        while lines and not lines[-1].strip():
+            lines.pop()
+        c = "\n".join(line.rstrip() for line in lines) + "\n"
         f = open(p, "w")
         f.write("// OoT3D decomp @ %08x  name=%s  size=%d\n" %
                 (fn.getEntryPoint().getOffset(), fn.getName(), fn.getBody().getNumAddresses()))
