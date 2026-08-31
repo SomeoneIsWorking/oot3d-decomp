@@ -452,6 +452,14 @@ and four rarer signatures vary additional fields. `menu_link_omote.cmb` and `men
 for the next *new* cache probe. The static conversion proves they differ at the binder; it does not by
 itself prove the final PICA configuration, so no host mode follows until an exact draw is captured.
 
+The first title-side counterfactual capture is now retained as raw evidence rather than treated as a
+host-renderer result: fixture cursor `1093`, draw `77` has a 9,788-word command list at `0x200123f0`
+with the selected draw ending at word `1432`. Its cached packet decode contains 1,077 writes to 125
+registers and no write to fragment register `0x1c3` before that cursor (only `0x1c6=1` in the
+`0x1b0..0x1ff` range). This falsifies that selected title draw as an observation of the CMB fragment
+configuration; the command list and provenance remain cached for offline comparison, and no CMB/host
+conclusion follows from it.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
