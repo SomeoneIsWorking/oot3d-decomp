@@ -525,6 +525,10 @@ only copies four fixed global words into a local 16-byte record and submits that
 generic writer. It supplies a separate packet vector before slot selection, not the `renderer+0x10`
 records or the transient slot/mask arrays.
 
+Its argument helper `FUN_0040f74c` is likewise not the producer: it returns
+`*(arg0 + 8) + arg1 * 0x800`, selecting the fixed-vector record consumed by `FUN_00409390`.
+It has no writes and no relationship to the CmbRenderer's `0x60`-stride light records.
+
 `FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
 from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
 their enable inverses at bit positions `1,5,9,…,25`. It receives the same transient input before
