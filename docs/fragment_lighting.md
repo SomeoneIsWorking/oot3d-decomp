@@ -402,6 +402,16 @@ configuration template is built through the active CmbRenderer `+0x18` route. It
 the two earlier state-initialization PCs (`0x004c6270`, `0x004c6374`) or yet derive a general
 fragment-light formula.
 
+Those two initialization PCs are now recovered in persistent Ghidra C. `FUN_004c6264`
+(`build/decomp/004c6264.c`) starts the input state's lifetime: its observed `0x004c6270` byte clear
+is followed by the fixed defaults and eight-entry zeroed tables which `FUN_0040cdd8` later reads.
+`FUN_004c6364` (`build/decomp/004c6364.c`) writes the same input at observed PC `0x004c6374`, binds
+its material pointer, and derives the state flags consumed by `FUN_0040d040` / `FUN_0040cdd8` from
+that material. Thus the live chain is initialization (`0x004c6264`), material binding (`0x004c6364`),
+active CmbRenderer finalization (`0x003fa34c`), and template construction (`0x00308498` →
+`0x0040d040` → `0x0040cdd8`). The material input is still not fully typed, so its raw offsets remain
+decomp evidence rather than host port constants.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
