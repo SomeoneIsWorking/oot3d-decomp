@@ -155,6 +155,12 @@ not its mesh/material submission index, and the cached PICA records for those dr
 `picaLit=0`. Trace that CMB's active material dispatch and associate material 5 with a PICA draw
 before treating the candidate fixed-function method as reached or changing the host's enabled branch.
 
+The CMB's own mesh/material order resolves the current fixture further: material 5 binds texture slot
+6, while the cached exact identities are slots 0--3. Therefore material 5 is not visible in this
+frame; the source-CMB match is a valid identity control but not an enabled-light fixture. This
+falsifies using Fire Temple entrance `0x0165` for the enabled branch and prevents a false association
+from its superficially promising scene identity.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
