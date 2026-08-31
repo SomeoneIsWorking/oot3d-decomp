@@ -176,6 +176,17 @@ the cached failure. Because `FUN_003fa5d0` reaches that helper when its candidat
 are emitted, this independently rules out that lower candidate boundary for this real scene-CMB frame;
 it does not identify the distinct command path the active scene renderer uses.
 
+The same fixture also has two cached boundaries outside the active scene-CMB route: the independently
+recovered PICA command-`0x19` helper `FUN_0030ed80` and the direct CMB material-state virtual entry
+`FUN_003fbba8` both recorded no entry, with immediate cache-hit failures. These negatives are limited
+to entrance `0x0165`; they rule out three concrete candidate paths for this known scene CMB but do not
+make a claim about all renderers or all lighting-enabled materials.
+
+The cached PICA records for the four exact scene-texture draws instead carry `vLit=1`, `fLit=0`, and
+`picaLit=0`. The observed renderer therefore uses the shared CmbVShader software vertex-lighting path
+for these scene materials while not enabling PICA fragment lighting; it is distinct from every rejected
+fixed-function candidate above.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
