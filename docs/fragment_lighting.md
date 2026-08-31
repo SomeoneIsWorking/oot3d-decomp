@@ -439,6 +439,11 @@ entry → nested `+0x0cc` PICA descriptor; it is not built from the port's C++ `
 The current v6 parser's `mats + 0x0c`, `0x15c` material stride matches this independently recovered
 runtime walk, but individual descriptor members still need their own binary-to-PICA proof.
 
+The host now preserves this nested record as `CmbMaterial::FragmentLightingDescriptor` rather than
+discarding it. Its bounded enum, flag, enable, and scale fields retain the serialized values without
+assigning unproven host semantics; the ROM-backed Morpha close-test pins the divergent descriptor.
+This is descriptor transport only, not an enabled fragment-light implementation.
+
 The cache-owned Hut state watch now records the descriptor synchronously at the exact binder store
 `PC=0x004c6374`; this is schema-version 2 of that bounded watch, not a rerun of an existing result.
 The saved `r1=0x08eec8d8` words decode as `+0x10=0x84c0`, `+0x12=0x62c8`, `+0x14=0`,
