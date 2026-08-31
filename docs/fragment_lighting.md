@@ -170,6 +170,12 @@ frame; the source-CMB match is a valid identity control but not an enabled-light
 falsifies using Fire Temple entrance `0x0165` for the enabled branch and prevents a false association
 from its superficially promising scene identity.
 
+The reusable cache-owned guest-PC probe also watched the candidate command-list append helper
+`FUN_004093f8` in this same Fire Temple fixture. It recorded no entry, and its immediate rerun read
+the cached failure. Because `FUN_003fa5d0` reaches that helper when its candidate lighting records
+are emitted, this independently rules out that lower candidate boundary for this real scene-CMB frame;
+it does not identify the distinct command path the active scene renderer uses.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
