@@ -354,6 +354,18 @@ static/dynamic join resolves the invoked slots in execution order:
 | `+0x14` | `FUN_003fa5d0` (`build/decomp/003fa5d0.c`) | fixed-function light-vector and intensity setup |
 
 This confirms that the Hut enabled draw uses the `0x004ebd98` CMB renderer table; it does **not**
-yet attribute `config0` to one individual slot or derive a general enabled-host shader. The next
-ground-truth step is to trace the exact packet-record write inside these three grounded methods,
-then port only the verified enabled fragment behavior and validate it against the Hut fixture.
+yet derive a general enabled-host shader.
+
+The cache-owned source-range trace falsifies the presumed per-slot `config0` writer. The copied source
+word is `0x0821e968` (not `r0+4`: ARM `stmia r0!` has advanced the logged cursor); it is written as
+`0x80000400` by `FUN_00371758`, the generic 32-byte copy loop, with `lr=0x0030f5a8`. The ARM caller
+at `0x0030f5a4` is `FUN_0030f4d0` (derived C: `build/decomp/0030f4d0.c`): before it dispatches any
+material slots, it allocates each packet descriptor and calls `FUN_00454760` (derived C:
+`build/decomp/00454760.c`) to copy a prepared template into it. `FUN_00454760` allocates aligned
+storage, records the byte count, then tail-calls the copy loop. Therefore `config0` originates in a
+prepared renderer template, not in `FUN_003fad68`, `FUN_003f9d9c`, or `FUN_003fa5d0`.
+
+At the exact copy store the template-source register is `r1=0x005b31bc`. The next ground-truth step
+is to recover the producer that initializes this template word before `FUN_0030f4d0` copies it; do
+not turn the resulting fixed state into a host lighting mode until that initializer and the enabled
+fragment calculation are both grounded.
