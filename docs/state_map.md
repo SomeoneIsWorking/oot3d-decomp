@@ -22,7 +22,7 @@ which chains into unrecognized-Thumb helpers for actual demo advance.
 | 0     | 0x00449048  | First-boot asset loader (140B)                    |        |
 | 1     | 0x004490d8  | Scene init (calls Scene_ExecuteCommands + Env_Init) | ported (z_scene.c) |
 | 2     | 0x004487f0  | Scene-transition dispatcher for special entrance codes; explicitly handles scene 0x51 (title) and 0x6B (title live). Returns state 3 when entering title. | not yet |
-| 3     | 0x004489f8  | **Title playback tick** — input-skip check (BTN 0x21/0x22 or 0x2D/0x2E combo), transitions to file-select on skip, otherwise continues playback via chained Thumb helpers at func_0x00452348 / func_0x0045719c / func_0x00451a4c. Zeroes `param_1 + 0x7f12` (the CS runner state u8) each frame — so the CS runner NEVER ADVANCES during title. | not yet |
+| 3     | 0x004489f8  | **Title playback tick** — when the game-manager `+0xA4` selector is `-0x7FFF`, remaps action codes `0x21→0x22` and, if that is absent, `0x2D→0x2E` through `FUN_00316cec`; it is **not** the input-skip check previously claimed here. It then continues playback via chained Thumb helpers at `func_0x00452348` / `func_0x0045719c` / `func_0x00451a4c`. Zeroes `param_1 + 0x7f12` (the CS runner state u8) each frame — so the CS runner NEVER ADVANCES during title. | not yet |
 | 4     | 0x00448bb4  | Actor spawn state — calls Actor_SpawnList via `FUN_0044e7a0(play, play+0x208c actorCtx, spawnList)` | not yet |
 | 5     | 0x00448c68  | Small (18-line) init                              |        |
 | 6     | 0x00448c88  | Actor/collision setup (67 lines)                  |        |

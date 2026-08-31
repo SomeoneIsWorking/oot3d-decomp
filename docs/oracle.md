@@ -46,8 +46,8 @@ Warping uses the game's own mechanism — `nextEntranceIndex` (s16 @ `play+0x5C3
 `transitionTrigger` (s8 @ `play+0x5C2D`) = `TRANS_TRIGGER_START` (20); see `ram_map.md`. It works
 **only from a loaded save**: at the title there is nothing for the transition driver to spawn into.
 
-`harness_gameplay.boot_to_gameplay(h, entrance=…)` handles that. It loads
-`scratch/gameplay_settled.state` (**no input driving at all**) or, the first time, drives the title
+`harness_gameplay.boot_to_gameplay(h, entrance=…)` handles that. It loads the render-contract-versioned
+`scratch/gameplay_settled.<contract>.state` (**no input driving at all**) or, the first time, drives the title
 once with short rapid taps and saves that state so the cold path never runs again. Then it warps and
 verifies the game stayed in gameplay.
 
