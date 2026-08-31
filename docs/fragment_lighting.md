@@ -104,6 +104,13 @@ records or the `+0xe4` enable field. These functions rule out that nearby queue/
 the missing per-light record owner; the next valid discriminator is a cacheable runtime watchpoint
 on the record allocation or write, not another static vtable sweep.
 
+`tools/cmb_light_record_writer_oracle_probe.py` is that discriminator. It refuses before starting
+Azahar unless the current render-contract gameplay state exists, then watches the active
+`FUN_003fa34c` entry, requires `r0` to carry vtable `0x004ebd98`, resolves `*(r0 + 0x10)`, and
+watches exactly the resulting three `0x60`-byte records for their writer PCs. A result at the
+128-record watch-buffer cap is rejected as truncated. Completed raw observations and their schema
+are cache-keyed; no old-contract state or untyped renderer address is replayed.
+
 The cache-owned `kokiri-save-overlay` control is stored through
 `tools/cmb_fragment_lighting_oracle_probe.py`. Its 99 retail draws all reported `picaLit=0`. The
 first cached run watched `FUN_003fa5d0` and recorded zero hits; the independently keyed v8 capture
