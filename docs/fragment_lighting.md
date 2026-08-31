@@ -443,6 +443,15 @@ the enabled Hut draw, while the `+0x24` boolean alone initializes state byte `+0
 exact descriptor-to-runtime-state observation, not yet a general fragment-lighting formula or a host
 mode: the PICA template builder still forces its `0x80000400` literal.
 
+`tools/cmb_fragment_lighting_survey.py --details` now reports the seven raw descriptor words for every
+relevant retail material without launching the oracle. Its 210-record survey has seven distinct
+signatures: the Hut/default signature accounts for 139 records, while 54 records change the descriptor
+at `+0x1f` / `+0x26`, 12 change both `+0x10..+0x12` to `0x84c1` / `0x62c9` and `+0x26` to `0x62a2`,
+and four rarer signatures vary additional fields. `menu_link_omote.cmb` and `menu_link_ura.cmb` use the
+12-record signature; Morpha has the most divergent record. These are grounded counterfactual candidates
+for the next *new* cache probe. The static conversion proves they differ at the binder; it does not by
+itself prove the final PICA configuration, so no host mode follows until an exact draw is captured.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
