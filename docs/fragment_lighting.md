@@ -488,6 +488,33 @@ newly recovered template builder forces PICA bit `0x400`; therefore the two equa
 yet a proven conversion. The remaining gap is the builder-input mapping and the resulting enabled
 fragment calculation; neither is inferred here.
 
+## Descriptor-dependent PICA configuration bits (2026-08-31)
+
+The persisted Ghidra C now gives a bounded static counterfactual before another oracle observation.
+`FUN_004c6364` maps the nested descriptor into the input object consumed by `FUN_0040cdd8`, and the
+builder directly packs the latter's `+0x184..+0x191` fields into the observed `config0` command word.
+For the descriptor-controlled subset, the chain is:
+
+| CMB descriptor member | bounded runtime value | `config0` contribution in `FUN_0040cdd8` |
+| --- | --- | --- |
+| `+0x10` (`0x84c0..0x84c3`) | `0..3` at `+0x18c` | nonzero sets bit 18 |
+| `+0x12` (`0x62c8..0x62ca`) | `0..2` at `+0x18b` | nonzero sets bit 19; also participates in the builder's separate packed record |
+| `+0x18` (`0x62b0..0x62b7`) | `0,1..6,8` at `+0x188` | packed verbatim beginning at bit 22 |
+| `+0x1c` (`0x62c0..0x62c3`) | `0..3` at `+0x189` | nonzero sets bit 16 and contributes to bit 0's aggregate |
+
+The other descriptor fields are still real inputs but have a different immediate destination:
+`+0x14` writes runtime `+0x191`; `+0x1e/+0x1f/+0x20/+0x23` write
+`+0x192/+0x193/+0x194/+0x195`; `+0x24` is the enable at `+0x199`; and `+0x26/+0x28` map to
+`+0x198/+0x19a`. `FUN_0040d040` serializes the `+0x194..+0x1ae` family before
+`FUN_0040cdd8`; no register assignment is claimed here without the packet-template association.
+
+This makes the existing candidates meaningful without declaring a formula. Hut's default
+`+0x10/+0x12/+0x18/+0x1c` values map to zero, so those fields cannot explain its forced
+`0x80000400` baseline. Morpha's `0x84c2`/`0x62c9` values map to nonzero and therefore change at
+least bits 18 and 19 if its descriptor reaches an active draw. A Morpha identity capture is the
+right next counterfactual; do not synthesize those bits in the host or assume that every material
+with that descriptor uses PICA fixed-function lighting.
+
 ## Host transport boundary (2026-08-31)
 
 The current SDL3-GPU UBO cannot express the grounded Hut fixed-function input without a new,
