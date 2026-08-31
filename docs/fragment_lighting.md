@@ -127,10 +127,14 @@ physical address, so a virtual `mem` read is invalid and its version-1 failure i
 The version-2 physical capture scanned 107 `tex0` descriptors. Eight shared the wood source
 descriptor, but they all referred to one physical 4 KiB texture; its raw payload matched none of the
 seven source payloads. Both the PICA draw log and raw byte record are cached, and an immediate repeat
-returns the cached failure without launching Azahar. This is deliberately a no-false-positive asset
-identity test, not a claim that the object archive is unloaded or that its visible textures cannot be
-transformed by another path. It only rules out the current Kokiri frame as an exact-source fixture for
-the enabled wood/grass materials; do not reuse it to infer the active CMB renderer.
+returns the cached failure without launching Azahar.
+
+The same capture was then queried through the `any` source mode against `/actor/zelda_keep.zar` as a
+positive control. It made exact source matches for Navi's `elf_fly_mdl_info.cmb` feather texture at
+draws 74--81, plus the foot-shadow, general shadow, heart, and rupee source textures. That validates
+the physical-byte identity method for this fixture and makes the wood/grass negative meaningful: this
+frame's matching `32x64/f7` descriptor is Navi, not an enabled wood/grass material. It still does not
+identify the shipping CMB renderer class, so do not use the draw number alone to infer that class.
 
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
@@ -166,7 +170,8 @@ without rerunning the oracle.
 
 Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
 Start from shipping model-draw dispatch, not the unreachable `CmbRenderer.cpp` candidate, and trace
-the material-class gate to a concrete function/asset. Use a source identity with a positive control,
-not the descriptor-colliding Kokiri wood/grass frame. Then capture that grounded draw's
+the material-class gate to a concrete function/asset. The raw-byte source identity now has a cached
+positive control, so use it to find an actually visible enabled material rather than the Kokiri
+wood/grass negative. Then capture that grounded draw's
 `config0/config1`, enabled-slot mapping, global ambient, LUT selectors/scales, and selected LUTs
 through the cache-owned probe. Only that capture can justify porting the enabled equations.
