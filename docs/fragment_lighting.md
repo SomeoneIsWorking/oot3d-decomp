@@ -514,8 +514,11 @@ light slots (`input+0x164[i]`) when the corresponding `input+0x17c[i]`, `+0x16c[
 `+0x174[i]` mask byte is nonzero. It also packs the inverse predicates of `input+0x18f`, `+0x190`,
 and `+0x185` into bits 16, 17, and 19 respectively, and writes `7 << 20` when `input+0x191` is
 zero. This is an exact builder equation, not a CMB-field mapping: the current descriptor binder
-does not initialize `+0x18d..+0x190`, and the eight slot/mask arrays arrive through the separate
-renderer input path. Do not assign those bits or masks in the host until that owner is recovered.
+does not initialize `+0x18d..+0x190`. The active CmbRenderer `+0x18` finalizer (`FUN_003fa34c`)
+does initialize the first three `+0x164` slot bytes: for each `renderer+0x10 + i*0x60`, it writes
+slot `i` when the float at `+0xe4` equals `1.0f`. The remaining five slots and all three mask arrays
+still arrive through an unrecovered renderer input path. Do not assign those bits or masks in the
+host until that owner is recovered.
 
 `FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
 from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
