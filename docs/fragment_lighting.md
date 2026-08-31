@@ -127,6 +127,14 @@ repeat reads that failure from cache and does not launch the oracle. This is a b
 this direct PICA material-state class in this fixture, not evidence that the class is never used or
 that an enabled byte `+0x00` calculation may be approximated.
 
+`FUN_003fcc70` is a separate generic virtual bridge: it obtains a target object from context `+0x04`
+and a method table from context `+0x08`, then invokes the table's `+0x04` and `+0x08` methods. The
+same probe has an independently keyed `virtual-dispatch` target that records that runtime table and
+both methods only if this bridge is reached. Its cache-owned Kokiri capture has zero entries, so it
+does not identify a material class for this fixture and must not be assumed to dispatch to the
+`0x004EBE04` table above. This makes the indirect edge explicit and preserves the negative result
+without rerunning the oracle.
+
 ## Next RE step
 
 Recover the *active* CMB renderer that owns byte `+0x00` before choosing another oracle fixture.
