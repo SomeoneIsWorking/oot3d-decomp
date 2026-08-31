@@ -508,6 +508,15 @@ The other descriptor fields are still real inputs but have a different immediate
 `+0x198/+0x19a`. `FUN_0040d040` serializes the `+0x194..+0x1ae` family before
 `FUN_0040cdd8`; no register assignment is claimed here without the packet-template association.
 
+The builder's next template word is the observed `config1` record. `FUN_0040cdd8` starts it at
+`0xff04ffff`, then conditionally clears bit `i`, `i+8`, or `i+24` for each selected one of eight
+light slots (`input+0x164[i]`) when the corresponding `input+0x17c[i]`, `+0x16c[i]`, or
+`+0x174[i]` mask byte is nonzero. It also packs the inverse predicates of `input+0x18f`, `+0x190`,
+and `+0x185` into bits 16, 17, and 19 respectively, and writes `7 << 20` when `input+0x191` is
+zero. This is an exact builder equation, not a CMB-field mapping: the current descriptor binder
+does not initialize `+0x18d..+0x190`, and the eight slot/mask arrays arrive through the separate
+renderer input path. Do not assign those bits or masks in the host until that owner is recovered.
+
 This makes the existing candidates meaningful without declaring a formula. Hut's default
 `+0x10/+0x12/+0x18/+0x1c` values map to zero, so those fields cannot explain its forced
 `0x80000400` baseline. Morpha's `0x84c2`/`0x62c9` values map to nonzero and therefore change at
