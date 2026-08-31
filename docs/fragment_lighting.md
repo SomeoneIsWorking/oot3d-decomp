@@ -237,6 +237,15 @@ negatives, this rules out attributing list construction to the ordinary virtual-
 producer remains an unresolved lower direct-map/copy path; do not turn this negative into a guessed
 host fragment-lighting implementation.
 
+The same deterministic Hut capture now also records every overlapping page chunk entering
+`MemorySystem::WriteBlockImpl`, including `CopyBlock` destinations, before its host `memcpy`. The
+cache key `c57f33c936bb6002_6510135ae6c38599_p44-822588b5_tpoff` retained an empty raw bulk-write log:
+there were **zero** writes overlapping the active interval `[0x1458fa80, 0x145a0a90)` (69,648 bytes).
+Thus the active command list was not populated through `WriteBlock`/`CopyBlock`. Combined with the
+page-watch, scalar-write, direct-pointer, and disabled-fastmem negatives, the remaining producer
+boundary is a direct mapped-store path below the regular `MemorySystem` APIs. This is only a transport
+finding; it neither names the renderer nor derives a host lighting formula.
+
 ## Water Temple authored flag is not live PICA lighting (2026-08-31)
 
 The direct scene CMB `/scene/mizusin_20_info.zsi` has enabled material 0 on mesh 9, with TEX0 slot 0
