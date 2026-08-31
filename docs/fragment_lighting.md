@@ -412,6 +412,20 @@ active CmbRenderer finalization (`0x003fa34c`), and template construction (`0x00
 `0x0040d040` → `0x0040cdd8`). The material input is still not fully typed, so its raw offsets remain
 decomp evidence rather than host port constants.
 
+`FUN_004c34ac` (`0x004c34ac..0x004c3663`, derived C: `build/decomp/004c34ac.c`) establishes the
+material record boundary that was missing from that statement. It allocates one `0x1cc`-byte runtime
+state per source entry, where the entries start at its second argument `+0x0c` and have stride
+`0x15c`. For each entry it initializes the runtime state with `FUN_004c6264`, then calls
+`FUN_004c6364(runtime + 0x0c, source_entry + 0x0cc)`. The descriptor consumed by the live binder is
+therefore a nested record at `+0x0cc` of a `0x15c`-byte source material entry, rather than an
+unproven offset into the host CMB representation. This is the exact call at `0x004c3644` recovered
+from the cache watch's link register. The binder's conversion helpers are now derived as well:
+`FUN_004c7ce8` maps DMP values `0x62a0..0x62a5` to `0..5`; `FUN_004c7d60` maps scale values
+`1, 2, 4, 8, 0.25, 0.5` to `0, 1, 2, 3, 6, 7`; and `FUN_004c7ddc`, `FUN_004c7e18`,
+`FUN_004c7eb8`, and `FUN_004c7f08` map the remaining bounded PICA enums. These establish the
+descriptor as PICA material state, but do not yet identify its serialized CMB schema or authorize
+host constants.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
