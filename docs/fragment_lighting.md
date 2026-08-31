@@ -105,6 +105,15 @@ This falsifies the earlier claim that the Lon Lon/Navi fixture established a glo
 It does **not** prove PICA lighting is absent from every retail scene or authorize changing host
 fragment colors to zero for enabled materials.
 
+The same cache-owned PICA probe now has no-input gameplay fixtures, selected from the entrance table
+rather than by input scripting. Ordinary Kokiri gameplay (`0x00EE`) scanned 106 retail draws and
+Fire Temple's normal entrance (`0x0165`) scanned 74; both recorded zero `picaLit=1` draws and zero
+`FUN_003f9b5c` hits after the logger's enabled self-test passed. Each result has an immutable
+fixture screenshot and discovery log in its cache identity; its immediate repeat reads the cached
+failure without launching the oracle. These are separate scene-scoped negatives. They do not attach
+a logged PICA draw to a particular CMB source asset, so they cannot yet prove all 205 authored
+`IsFragmentLighting` flags are inert.
+
 The separately cache-owned `tools/cmb_model_dispatch_oracle_probe.py` also watched
 `FUN_004C7AB0`, a recovered model-submission helper that reads the model object from `r1+0x28` and
 calls its vtable `+0x08` draw slot. The deterministic Kokiri gameplay frame recorded zero entries
