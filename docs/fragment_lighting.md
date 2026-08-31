@@ -368,9 +368,18 @@ prepared renderer template, not in `FUN_003fad68`, `FUN_003f9d9c`, or `FUN_003fa
 At the exact copy store the template-source register is `r1=0x005b31bc`. ARM disassembly corrects
 the tempting direct interpretation: `FUN_00371758` has already executed two `ldmia r1!` loads, so
 the second four-word group it stores came from `[0x005b31ac, 0x005b31bc)`, not from the post-increment
-value itself. The next ground-truth step is to recover the producer of that group before
-`FUN_0030f4d0` copies it; do not turn the resulting fixed state into a host lighting mode until that
-initializer and the enabled fragment calculation are both grounded.
+value itself. A second exact four-byte cache-owned watch of the staging word `0x0821e968` records the
+selected value in `r9`, deriving its template address as `0x005b31b4`.
+
+The next exact cache-owned watch of `0x005b31b4` records `PC=0x0040cfe4` storing
+`0x80000400` directly. Ghidra had incorrectly split the ARM body at that store; the persistent
+analysis project now restores the enclosing `FUN_0040cdd8` body (`0x0040cdd8..0x0040d028`, 592 bytes),
+and the regenerated derived C is `build/decomp/0040cdd8.c`. That builder emits a 14-word renderer
+configuration and constructs word 6 as its input-byte mask plus the unconditional literal
+`0x80000400`. Thus this capture proves the transport and producer of the observed PICA word, but it
+also disproves treating its `0x400` bit as a direct encoding of the CMB owner bit: this builder forces
+that literal independently of the as-yet-unmapped input fields. Do not turn the resulting fixed state
+into a host lighting mode until the builder input object and enabled fragment calculation are grounded.
 
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
@@ -385,6 +394,7 @@ The cache-owned Hut object-field watch (`pica-command-writer_190_53bcc935cd.json
 the live owner from the earlier dispatcher trace: at `0x081d3aa0 + 0x478 = 0x081d3f18`, exact guest
 PC `0x003facd8` writes `0x402` once (`r1=0x402`, `r2=0x20`). Thus the selected material's CMB
 fragment-lighting byte is not merely authored metadata: it contributes the real `0x400` renderer bit
-for this enabled draw. The packet's final PICA `config0=0x80000400` is separately observed, so the
-remaining gap is the conversion from this renderer mask to that PICA encoding and the resulting
+for this enabled draw. The packet's final PICA `config0=0x80000400` is separately observed, but its
+newly recovered template builder forces PICA bit `0x400`; therefore the two equal-valued bits are not
+yet a proven conversion. The remaining gap is the builder-input mapping and the resulting enabled
 fragment calculation; neither is inferred here.

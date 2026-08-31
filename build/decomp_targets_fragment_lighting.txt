@@ -1,0 +1,2 @@
+# Exact PICA-config builder containing the observed template-word store for register 0x1c3.
+0x0040cdd8
