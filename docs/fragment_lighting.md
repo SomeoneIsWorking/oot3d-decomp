@@ -168,6 +168,15 @@ artifact: the probe now persists raw state before checking LUT policy, and its c
 raw JSON. Decode this exact configuration before selecting a host fixed-function calculation; do not
 invent a LUT contribution because other PICA lighting configurations may use one.
 
+Azahar's PICA register definitions make the no-LUT branch concrete. `config1=0xff7fffff` disables
+shadow, spot, distance, and every supported LUT feature; the two active slots are directional lights
+0 and 1, both with zero diffuse/specular and identical ambient product `0x05a2208d` =
+`(90,136,141)/255`. The material's ambient is white and global ambient is zero. Therefore the oracle
+computes `FRAGMENT_PRIMARY.rgb = clamp(light0.ambient + light1.ambient, 0, 1)` =
+`(0.705882,1,1)` and leaves its primary alpha at 1; `FRAGMENT_SECONDARY.rgb` is zero. This equation
+is grounded for the Hut draw only. The remaining RE task is the live renderer's configuration transport
+that decides when this no-LUT form, or a LUT-enabled form, is selected.
+
 ## Fire Temple scene CMB identity (2026-08-31)
 
 The deterministic Fire Temple entrance (`0x0165`) provides a stronger source identity. Its
