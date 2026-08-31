@@ -536,6 +536,14 @@ the renderer input before calling `FUN_004093f8` to emit the PICA light packets.
 records as per-light source data shared with the configuration finalizer; it does not identify their
 allocation or the still-unrecovered slots and masks.
 
+The downstream packet layout is now exact. `FUN_004093f8` only advances the command-stream cursor
+through `FUN_0040d15c`; that function visits all eight slot bytes at input `+0x164` and emits a
+record only when a slot is enabled. `FUN_0040d1a8` serializes one 0x2c-byte transient record into
+fourteen command words, with the command header selecting PICA light register block
+`0x140 + slot*0x10`. It packs the direction, color, attenuation, and feature bytes from the record
+at offsets `+0x00..+0x28`; this is the packet boundary underlying the cached Hut light writes.
+It does not change the ownership gap for the record's remaining slots or configuration masks.
+
 `FUN_0040d040` is likewise a serializer, not that owner: it writes three preceding template values
 from the repeated input records `+0x194..+0x1ae`, packing seven four-bit selectors per word and
 their enable inverses at bit positions `1,5,9,…,25`. It receives the same transient input before
