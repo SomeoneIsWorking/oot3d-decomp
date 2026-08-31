@@ -119,7 +119,7 @@ a logged PICA draw to a particular CMB source asset, so they cannot yet prove al
 The offline corpus identifies seven enabled fragment-primary CMBs under
 `/actor/zelda_wood02.zar`: `grass02_modelT`, `grass04_modelT`, `tree01_modelT`,
 `tree02_modelT`, `tree04_modelT`, `tree05_modelT`, and `tree06_modelT`. Their source textures use
-only PICA format 12 at either `32x64` (2 KiB) or `32x128` (4 KiB). The cache-owned
+only PICA format 7 at either `32x64` (2 KiB) or `32x128` (4 KiB). The cache-owned
 `tools/cmb_texture_draw_identity_oracle_probe.py` captures the same deterministic Kokiri frame,
 then reads physical GPU bytes through the harness's existing `dumpphys` interface; `tex0` is a PICA
 physical address, so a virtual `mem` read is invalid and its version-1 failure is retained in cache.
