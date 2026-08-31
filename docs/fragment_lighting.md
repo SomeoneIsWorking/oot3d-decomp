@@ -434,6 +434,15 @@ entry → nested `+0x0cc` PICA descriptor; it is not built from the port's C++ `
 The current v6 parser's `mats + 0x0c`, `0x15c` material stride matches this independently recovered
 runtime walk, but individual descriptor members still need their own binary-to-PICA proof.
 
+The cache-owned Hut state watch now records the descriptor synchronously at the exact binder store
+`PC=0x004c6374`; this is schema-version 2 of that bounded watch, not a rerun of an existing result.
+The saved `r1=0x08eec8d8` words decode as `+0x10=0x84c0`, `+0x12=0x62c8`, `+0x14=0`,
+`+0x18=0x62b0`, `+0x1c=0x62c0`, `+0x20..+0x23=0`, `+0x24=1`, `+0x26=0x62a0`, and
+`+0x28=1.0`. Therefore every enum conversion in `FUN_004c6364` takes its zero/default branch for
+the enabled Hut draw, while the `+0x24` boolean alone initializes state byte `+0x199`. This is an
+exact descriptor-to-runtime-state observation, not yet a general fragment-lighting formula or a host
+mode: the PICA template builder still forces its `0x80000400` literal.
+
 ## CMB lighting bits reach the active renderer state (2026-08-31)
 
 `FUN_003fac2c` (derived C: `build/decomp/003fac2c.c`) is the active CMB material-state builder. It
