@@ -80,6 +80,10 @@ the libretro pointer device. Coordinates use libretro's signed 16-bit range and 
 state; this drives the fork's existing touchscreen path rather than writing game memory. Set
 `ZELDA3D_HARNESS_TOUCH_LAYOUT=1` for a `default` two-screen layout while driving the pointer; the
 shipping harness keeps its single-screen capture layout unless this diagnostic override is set.
+The harness answers the fork's touchscreen option queries explicitly, so this in-process adapter
+does not depend on `FetchVariable` fallbacks. The fork's separate `PacketType::Touch` UDP-RPC
+handler is only available through its optional standalone scripting server and is not the embedded
+transport.
 
 ## Comparator verification status
 
