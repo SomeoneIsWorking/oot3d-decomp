@@ -76,7 +76,9 @@ not infer the current patch set from an older oracle note.
 
 The first-party harness also exposes `pointer <x> <y> <p>` for title/file-select flows that require
 the libretro pointer device. Coordinates use libretro's signed 16-bit range and `p` is the pressed
-state; this drives the fork's existing touchscreen path rather than writing game memory.
+state; this drives the fork's existing touchscreen path rather than writing game memory. Set
+`ZELDA3D_HARNESS_TOUCH_LAYOUT=1` for a `default` two-screen layout while driving the pointer; the
+shipping harness keeps its single-screen capture layout unless this diagnostic override is set.
 
 ## Comparator verification status
 
