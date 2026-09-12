@@ -20,6 +20,7 @@ The tooling lives in the superproject (`<zelda3d>/tools`):
 
     run <n>              advance n frames            mem <va> <n>     hexdump guest RAM
     r / w                read/write a word           input <mask>     held pad bits
+    pointer <x> <y> <p>  touchscreen pointer (s16 coordinates, p=0|1)
     loadstate/savestate  emulator state              snapshot <base>  PPM framebuffer readback
     playstate            PlayState ptr + mode=play|title
     gameplay             ok yes|no — a real gameplay scene, NOT the title demo
@@ -72,6 +73,10 @@ title demo's PlayState so introspection works there, so it answers ok on the tit
 `Azahar/` is gitignored; the patches to re-apply after a fresh clone are recorded in
 `<zelda3d>/tools/soh3d_harness/AZAHAR_PATCH.md`. That document is the complete patch manifest; do
 not infer the current patch set from an older oracle note.
+
+The first-party harness also exposes `pointer <x> <y> <p>` for title/file-select flows that require
+the libretro pointer device. Coordinates use libretro's signed 16-bit range and `p` is the pressed
+state; this drives the fork's existing touchscreen path rather than writing game memory.
 
 ## Comparator verification status
 
