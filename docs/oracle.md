@@ -28,6 +28,7 @@ The tooling lives in the superproject (`<zelda3d>/tools`):
     warp <entrance>      scene transition (see below)
     soh_boot / soh_step / step / compare / force     the side-by-side SoH3D half
     watch / hits / unwatch                           write watchpoints (writer PC + LR + regs)
+    diag                 includes joypad and pointer poll counters
 
 The paired gameplay-camera control is:
 
