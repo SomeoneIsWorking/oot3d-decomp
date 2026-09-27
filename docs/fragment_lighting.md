@@ -301,6 +301,37 @@ rather than assumed:
   and held in game data -- consistent with the recorded "template word `0x005b31b4`" being one *word
   value* carried by a template far larger than the CMB's descriptor.
 
+#### DEAD END: the template is not findable by signature in `code.bin` (2026-09-27, later still)
+
+The obvious attack -- search the code image for a material's slot-enable/mode shape -- was tried and
+**does not work**, with numbers rather than an assertion. `build/code.bin` is 4.36 MiB and 18.5% zero
+bytes. A 2-light lighting object predicts a 61-byte shape at `+0x160`: `01 01 00*6`, then 24 zero
+flag-plane bytes, then 19 zero mode bytes. Searching for it and for its 1-, 3- and 4-light variants:
+
+| shape | hits | 4-byte-aligned |
+| --- | --- | --- |
+| 1 light | 34 | 22 |
+| 2 lights | 4 | 2 |
+| 3 lights | 2 | 1 |
+| 4 lights | 2 | 1 |
+
+27 distinct aligned hits across all variants -- and **not one repeated delta between consecutive
+hits**, so there is no table and no stride. The baselines say why the count means nothing: **473**
+8-byte windows in the image are shaped like a 1..8-light enable plane on their own, and **484**
+61-byte windows are entirely zero. 27 is what the intersection of two weak constraints yields.
+
+**Do not treat any of those 27 offsets as the template.** The consequence for the next step is that the
+template is not in the code image under this layout, which is consistent with it being a
+data-container object (the 3DS toolchain emits compiled C materials into game data, not into the code
+section) or with its slot-enable region not being shaped as assumed. The next search has to be a
+different one: the game's data archives, or a runtime capture of the copy's source pointer. Neither has
+been done.
+
+Incidentally, reading the builder's trailing rodata confirms `offset == VA` for `code.bin`: its five
+constant words sit exactly where `FUN_0040cdd8` ends (`0x0040cdd8` + 592 = `0x0040d028`). Four of the
+five are zero; `0x0040d038` holds `0x005288dc`.
+
+
 `FUN_0040d040` also earns its place in the record: it is a pre-pass over the same object that reads
 `+0x195`/`+0x199`/`+0x19d` and produces the buffer the builder then fills, so the object is consumed by
 two functions, not one. Anyone implementing the host side needs both, and the four `func_0x004c7xxx`
