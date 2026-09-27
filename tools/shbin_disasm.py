@@ -92,10 +92,45 @@ def decode_flow(word):
     return dict(num_instr=num_instr, dest_off=dest_off, bool_id=(word>>0x16)&0xf,
                 int_id=(word>>0x16)&0x3, refx=bool((word>>0x19)&1), refy=bool((word>>0x18)&1))
 
-def disasm_one(word, opdescs):
+# Flow control tests `conditional_code[i] == ref<i>` -- the refs are EQUALITY operands, not
+# "does this component participate" flags (Azahar shader_interpreter.cpp evaluate_condition).
+# Getting that backwards turns every `ifc` into the wrong branch, so print the real test.
+FLOW_OPS = ['or', 'and', 'justX', 'justY']
+
+def flow_condition(f):
+    rx, ry = int(f['refx']), int(f['refy'])
+    if f['int_id'] == 0:
+        return f"cc[0]=={rx} || cc[1]=={ry}"
+    if f['int_id'] == 1:
+        return f"cc[0]=={rx} && cc[1]=={ry}"
+    if f['int_id'] == 2:
+        return f"cc[0]=={rx}"
+    return f"cc[1]=={ry}"
+
+# `cmp` (0x2E/0x2F) is Compare-form arithmetic, NOT a two-argument arithmetic op: it writes
+# `conditional_code[0]` and `[1]` with a per-component comparison and never writes a
+# destination register. Decoding it as add/mul-shaped is what hid the shader's uniform-driven
+# branch chains (the texture mapping-method switch) behind meaningless text.
+CMP_OPS = ['==', '!=', '<', '<=', '>', '>=', 'unk6', 'unk7']
+
+def decode_cmp(word, opdescs):
+    d = decode_common(word, opdescs)
+    desc = opdescs.get(d['opdesc_id'])
+    s1 = desc['src1_str'] if desc else 'src1?'
+    s2 = desc['src2_str'] if desc else 'src2?'
+    op_x = CMP_OPS[(word >> 0x18) & 0x7]
+    op_y = CMP_OPS[(word >> 0x15) & 0x7]
+    src1 = regname(d['src1'], 'src')
+    src2 = regname(d['src2'], 'src')
+    return (f"cc[0] = ({src1}.{s1[0]}) {op_x} ({src2}.{s2[0]}); "
+            f"cc[1] = ({src1}.{s1[1]}) {op_y} ({src2}.{s2[1]})")
+
+def disasm_one(word, opdescs, pc=None):
     op = (word >> 0x1a) & 0x3f
     name = OPNAMES.get(op, f'unk_{op:#x}')
     addrname = {0:'',1:',a0.x',2:',a0.y',3:',aL'}
+    if name == 'cmp':
+        return f"cmp    {decode_cmp(word, opdescs)}"
     if name in TWO_ARG or name in ONE_ARG or name == 'mov' or name == 'mova':
         d = decode_common(word, opdescs)
         inv = name.endswith('i')
@@ -129,7 +164,24 @@ def disasm_one(word, opdescs):
         return name
     elif name in ('breakc','call','callc','callu','ifu','ifc','loop','jmpc','jmpu'):
         f = decode_flow(word)
-        return f"{name:6} num={f['num_instr']} dest_off={f['dest_off']} bool={f['bool_id']} int={f['int_id']} refx={f['refx']} refy={f['refy']}"
+        if name in ('call', 'callu'):
+            cond = ""
+        elif name in ('ifc', 'breakc', 'callc', 'jmpc'):
+            cond = f"if {flow_condition(f)}"
+        else:
+            cond = f"if b{f['bool_id']}"
+        # An if has TWO sibling blocks, not one: `then` runs pc+1..dest_off-1, `else` runs
+        # dest_off..dest_off+num_instr-1, and both fall through to dest_off+num_instr. Printing
+        # the raw offsets alone made the sibling blocks look like a single run of dead code.
+        blocks = ""
+        if name in ('ifu', 'ifc') and pc is not None:
+            blocks = (f" | then {pc+1}..{f['dest_off']-1} "
+                      f"else {f['dest_off']}..{f['dest_off']+f['num_instr']-1} "
+                      f"-> {f['dest_off']+f['num_instr']}")
+        else:
+            blocks = f" num={f['num_instr']} dest_off={f['dest_off']}"
+        return (f"{name:6} {cond} bool={f['bool_id']} refx={int(f['refx'])} "
+                f"refy={int(f['refy'])}{blocks}".rstrip())
     elif name == 'setemit':
         return f"setemit winding={(word>>0x16)&1} prim_emit={(word>>0x17)&1} vtx_id={(word>>0x18)&3}"
     else:
@@ -296,7 +348,7 @@ def main():
         for i in range(lo, hi):
             if i >= len(p['words']): break
             w = p['words'][i]
-            print(f"   {i:4d} ({p['code_base']+4*i:#08x}): {w:08x}  {disasm_one(w, p['opdescs'])}")
+            print(f"   {i:4d} ({p['code_base']+4*i:#08x}): {w:08x}  {disasm_one(w, p['opdescs'], i)}")
 
 if __name__ == '__main__':
     main()
