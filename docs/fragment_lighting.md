@@ -337,6 +337,88 @@ five are zero; `0x0040d038` holds `0x005288dc`.
 two functions, not one. Anyone implementing the host side needs both, and the four `func_0x004c7xxx`
 enum conversions still gate the `config0` bits they feed.
 
+#### A call-graph tool, and a challenge to the "bulk copy" identification (2026-09-27, later still)
+
+The next search named above ("the game's data archives, or a runtime capture of the copy's source
+pointer") needs a caller search, and there wasn't a usable one: `build/decomp/*.c` are per-function
+Ghidra dumps with **no call edges**, so `tools/codequery.py callers` finds nothing there.
+`tools/callers_bl.py` walks the code image's `BL` instructions instead, exactly, with no symbol table.
+
+**The addressing is the whole trap, and it produces a result indistinguishable from a real negative.**
+`disasm.py` establishes `byte offset = vaddr - 0x00100000`. Computing a `BL` target in *offset* space
+and searching for a function's VA returns **zero callers for every function** -- including
+`FUN_0040cdd8`, the builder, which is provably called. I made exactly that mistake first and it read
+as "nothing calls the whole chain". The tool therefore self-validates on every run: a correct ARM scan
+sends most targets back inside the code image (measured **70.6%**, 5163 of 7315), because real code
+calls code, and a decoder that scatters targets outside the image is refused rather than reported.
+`tests/test_callers_bl.py` (14 cases) pins the PC+8 arithmetic, sign extension in both directions,
+that only `BL` is recognised, and the refusal.
+
+With that, the recorded chain is **independently confirmed from the binary**, not just asserted:
+
+| function | ARM callers | call site |
+| --- | --- | --- |
+| `FUN_00308498` | 1 | `0x003fa5a8` |
+| `FUN_0040d040` (pre-pass) | 1 | `0x003084b4` |
+| `FUN_0040cdd8` (builder) | 1 | `0x003084c4` |
+| `FUN_004c6264` (construct) | 1 | `0x004c3528` |
+| `FUN_004c6364` (feed) | 1 | `0x004c3644` |
+
+**And one load-bearing claim does not survive: the recorded edge into `FUN_00371758` does not exist
+in the binary.** The frontier row for this step records an "exact template-word chain
+`FUN_00466e0c` -> `FUN_00371758` (`r9`, `0x005b31b4`)". Checked three ways:
+
+* **No ARM `BL` caller.** Zero call sites for `0x00371758` and for `0x00471758`, on the validated
+  scanner. The control matters: `FUN_00466e0c` and `FUN_00308498` each have exactly one, so the scan
+  does find callers where they exist.
+* **No function-pointer table entry.** Neither `0x00371758` nor its Thumb-bit form `0x00371759` (nor
+  the `0x0047xxxx` variants) occurs as a 32-bit literal anywhere in the image, so it is not reached
+  through a data table either. (A literal search is *not* evidence about ARM `BL` -- ARM encodes the
+  offset inline, and the control `0x00308498` also has zero literals despite having a caller -- but it
+  is valid evidence against an indirect call through a table.)
+* **`FUN_00466e0c` demonstrably does not call it.** Disassembled in full: it is an 8-bytes-per-
+  iteration list copier whose only calls are `0x2f9ca0` and `0x2f9c88`. The recorded edge is a
+  co-occurrence of register values at one sampled moment, not a call.
+
+So the note above's "the delivery mechanism is a bulk copy" -- and the whole "provenance question about
+the source bytes" framing built on it -- is **refuted for the ARM image**. Only a Thumb-1 `BL`/`BLX`
+caller remains unexcluded: the Thumb decoder I wrote produced a 1:1 target ratio with 2.2% of targets
+in-image, which is garbage, so no Thumb negative is claimed. **Re-derive the delivery step from
+`FUN_00308498`, which is on the confirmed chain.**
+
+That function is now readable and it changes the shape of the question. It is nine instructions:
+
+```
+mov  r4, r0            ; r4 = arg0
+ldr  r0, [r0]          ; arg0->f0
+ldr  r0, [r0, #8]      ; arg0->f0->f8
+mov  r1, r0
+mov  r0, r5            ; r5 = arg1
+bl   0x40d040          ; pre-pass(arg1, arg0->f0->f8)
+mov  r1, r0
+mov  r2, #1
+mov  r0, r5
+bl   0x40cdd8          ; builder(arg1, <pre-pass result>, 1)
+ldr  r2, [r4]
+mov  r1, r0
+mov  r0, r2
+str  r1, [r0, #8]      ; arg0->f0->f8 = builder result
+```
+
+**`arg1` is passed straight through to both the pre-pass and the builder as the builder's `param_1`.**
+So the 0x4C8-byte object is not loaded from a table inside this chain at all -- it arrives as an
+argument. Its only writer-side preparation is three byte stores at offsets 0, 1 and 2 of the object
+(`strb r0, [r6]`, `[r6,#1]`, `[r6,#2]` at `0x003fa528`/`0x003fa564`/`0x003fa5a0`), i.e. the leading
+three bytes are set and the builder fills the rest.
+
+The call site is `add r0, r4, #0x24` / `bl 0x308498`, so the object pointer arrives in `r1` from a
+function at `0x003f9f68` whose prologue is `push {...}` then `mov r6, r1` -- **`r6` is that function's
+own second argument**. That function has exactly one ARM caller, at `0x003f9d58`, which sets
+`r1 = r6` from its own `r6`. So the object pointer is threaded down at least three frames without ever
+being computed from a table in this chain, which is why an address-table search over `code.bin` (the
+"27 hits, no stride" dead end above) could not have found it: **there is no address table here to find.**
+The next step is to keep walking up until the frame where `r6` is *produced* rather than forwarded.
+
 #### The obvious candidate for the producer is REFUTED (2026-09-27)
 
 The nested descriptor `FUN_004c6364` consumes at material-entry `+0x0cc` is the natural suspect, and
