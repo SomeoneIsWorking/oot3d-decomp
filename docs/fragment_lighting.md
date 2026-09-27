@@ -204,8 +204,45 @@ shadow, spot, distance, and every supported LUT feature; the two active slots ar
 `(90,136,141)/255`. The material's ambient is white and global ambient is zero. Therefore the oracle
 computes `FRAGMENT_PRIMARY.rgb = clamp(light0.ambient + light1.ambient, 0, 1)` =
 `(0.705882,1,1)` and leaves its primary alpha at 1; `FRAGMENT_SECONDARY.rgb` is zero. This equation
-is grounded for the Hut draw only. The remaining RE task is the live renderer's configuration transport
-that decides when this no-LUT form, or a LUT-enabled form, is selected.
+is grounded for the Hut draw only.
+
+### The configuration builder is now executed, not just described (2026-09-27)
+
+The remaining RE task named above was the *transport* that decides when the no-LUT form, or a
+LUT-enabled form, is selected. The **builder** half of that is now closed: `FUN_0040cdd8`
+(`build/decomp/0040cdd8.c`, 592 bytes) was transcribed to
+`tools/pica_lighting_config.py::build_lighting_config` and checked against the oracle's own recorded
+words. It reproduces **all three** of the fixture's observed values from the decompiled source plus
+the fixture's recorded input bytes:
+
+| observed in the oracle's live registers | recomputed from `FUN_0040cdd8` |
+| --- | --- |
+| `config0 = 0x80000400` | `0x80000400` |
+| `config1 = 0xff7fffff` | `0xff7fffff` |
+| `light_enable = 0x00000010` | `0x00000010` |
+
+and the two-slot count agrees with the recorded slot mapping. Three independent values predicted from
+source, so the builder is understood well enough to port rather than merely described.
+`tests/test_pica_lighting_config.py` (13 cases) runs that check on every invocation, and each output
+was mutation-verified: dropping the unconditional `0x400` from `config0`, replacing the slot index with
+a constant in the light-enable mask, and moving the LUT-select shift into the top byte each make it
+fail.
+
+Three things this reading corrected, all of which had been written down wrongly or not at all:
+
+* **The LUT-select shift is `0x13` (bit 19), not `0x19`.** Bit 25 is already set in the `0xff04ffff`
+  base, so the wrong shift ORs a no-op and costs only bit 19 -- it yields a *plausible* `config1`
+  (`0xff77ffff`) rather than an obviously broken one. That was the real bug in the first transcription.
+* **`light_enable` is the loop's `uVar13` (packet word 0xC), not the slot map.** `param_2[2]` is the
+  slot map and comes from the object's own first three bytes (`p[0] | p[1]<<10 | p[2]<<20`). For the Hut
+  both outputs are small, so conflating them still reproduced `0x10`.
+* **The loop shifts by the count BEFORE incrementing it**, so the first occupied slot lands in bit 0.
+
+**What is still open, and it is exactly one thing:** the *producer* of the input object. The builder
+reads mode bytes at `+0x185`/`+0x18F`/`+0x190`/`+0x191`, eight slot-enable bytes at `+0x164`, and three
+per-slot flag planes at `+0x16C`/`+0x174`/`+0x17C`; nothing yet says which CMB material fields write
+them. Until that is typed the host can reproduce the builder but not feed it, so this stays a
+transport gap rather than a formula gap.
 
 An independent cache-owned PC watch on the candidate `CmbRenderer` material-setup entry
 `FUN_003f9b5c` recorded no entry in this *positive* Hut fixture; its immediate repeat returned that
