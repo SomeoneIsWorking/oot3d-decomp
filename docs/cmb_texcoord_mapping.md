@@ -350,5 +350,30 @@ them (`zelda_bw` torch, `zelda_bb` bubble, the `l_j_*` Jabu set, `dk_trap`, …)
 MM3D's 70 are too — so both need a gameplay capture or the game's material-state builder. Note the
 arms are **not** interchangeable: coordinator 1 has no `w` output, so it never divides regardless of
 the type; only coordinator 0 would, and §5's second retail population confirms no material uses
-method 4 there. `uInvView` is not in the oracle's `vsuni_log` line either, so observing it needs one
-more `log_v4` entry beside the existing `texSlotMap` / `modelView` / `texMtx` ones.
+method 4 there.
+
+## 10. The whole uniform array is now readable offline
+
+`uInvView` (c76..c78) was the last input the mapping-4 arms needed, and it is not in the oracle's
+`vsuni_log` line. It turns out no new instrumentation is needed at all: the uniform writes are
+*register writes* inside the command list, and `tools/pica_shader_uniforms.py` replays them the way
+`ShaderSetup::WriteUniformFloatReg` does — `0x2c0` sets the target index (bits 0-6) and the transfer
+format (bit 31), `0x2c1..0x2c8` append to a queue that decodes into `uniforms.f[index]` when full
+(3 words in float24 mode, 4 in float32) and then auto-increments, with an incomplete tail discarded
+because `PackedAttribute::Get` resets rather than pads.
+
+Validated against the oracle's own logged uniform state for one cached title draw, all 15 overlapping
+uniforms agreeing (`matDif` c8, `matAmb` c9, `uModelView` c4..c7, `TexMtx0/1` rows, `TexCoordSlot`/
+`ShaderMode` c89, `VertexAttributeScale0` c90, `TexMappingMethod` c92). Two unrelated capture paths,
+so agreement is evidence about the decode. `tools/test_pica_shader_uniforms.py` is that check.
+
+What the title draw then shows, for the mapping arms specifically:
+
+* `uInvView` (c76..c78) is the **identity** for every title draw, while `uModelView` (c4..c7) is
+  identity in its first three rows and carries the title overlay's translation in row 3. That is
+  consistent with `uInvView` being the inverse of the view part, which would make the shader's
+  `p = uInvView . viewPos` the *model*-space position — the host's own `aPosition`, so the mapping-4
+  arm would need no new uniform. One identity-matrix draw cannot prove the rule, so this is the next
+  measurement, and the decoder is what makes it one command away.
+* `TexMtx` row 2 is `(0, 0, 1, 0)` for all three coordinators in the capture, so the row the host has
+  never carried is a constant rather than authored data.
