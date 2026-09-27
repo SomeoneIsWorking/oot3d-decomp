@@ -286,14 +286,20 @@ rather than assumed:
   `+0x195`, `+0x199`, `+0x19d` and pre-computes the builder's output pointer) and `FUN_004c6364`
   (which writes `+0x189`/`+0x18B`/`+0x191`/`+0x192`/`+0x193`/`+0x195`). `FUN_003fa34c` and
   `FUN_00308498` do not touch `0x180..0x19C` at all. So the clearing is not on the recovered path.
-* **The leading candidate is the bulk copy, not a field writer.** The write-up already records that
-  the configuration is delivered by `FUN_00466e0c -> FUN_00371758`, "the generic 32-byte copy loop",
-  sourcing template word `0x005b31b4`, and that the source-range trace falsified a per-slot `config0`
-  writer in favour of that copy. A 32-byte-granular copy would overwrite `+0x18A` wholesale rather
-  than through a field assignment, which is exactly the shape of the missing write. **That is a
-  hypothesis with a named next step, not a conclusion:** read `FUN_00371758` and the template at
-  `0x005b31b4`, and check the template's byte at the `+0x18A` position. If it is zero, the whole feed
-  closes with no further RE.
+* **The delivery mechanism is a bulk copy, and reading it settles what kind of question is left.**
+  `FUN_00371758` (92 bytes) is a **pure 32-byte block copy** -- `*param_1 = unaff_r7; param_1[1] =
+  unaff_r8; ...` with no field logic, no branches on offsets, and no per-byte handling. So it cannot
+  selectively clear `+0x18A`; whatever the source holds at that position is what lands there. The
+  missing write is therefore a **provenance question about the source bytes**, not an absent writer.
+  (This corrects the previous revision of this note, which named the bulk copy as the leading
+  candidate *writer*. It is the mechanism; the source is the question.)
+* **And the source is not the CMB material, by arithmetic rather than inference.** The copy needs
+  `0x4C8` bytes; the material stride leaves only `0x90` bytes (OoT3D, stride `0x15C`) or `0xA0`
+  (MM3D, stride `0x16C`) after the nested descriptor at `+0xCC`, and the descriptor the parser reads is
+  just `0x2C` bytes long. A 0x4C8-byte source cannot live inside a material entry in either game. So
+  the copy's source is a **separate 0x4C8-byte object**, authored per material by the 3DS toolchain
+  and held in game data -- consistent with the recorded "template word `0x005b31b4`" being one *word
+  value* carried by a template far larger than the CMB's descriptor.
 
 `FUN_0040d040` also earns its place in the record: it is a pre-pass over the same object that reads
 `+0x195`/`+0x199`/`+0x19d` and produces the buffer the builder then fills, so the object is consumed by
