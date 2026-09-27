@@ -275,9 +275,30 @@ different `config1` than one without. And the four `func_0x004c7xxx` enum conver
 **not** transcribed -- their tables live in the 3DS material compiler and are not recovered -- so
 those outputs keep the constructor's value rather than being invented.
 
-**So the remaining work is: find the writer that clears `+0x18A`, and recover the four enum helpers if
-the config0 bits they feed turn out to matter.** Both are single-function reads in the decomp, not
-open-ended RE.
+#### `+0x18A` narrowed to "outside the recovered chain" (2026-09-27, later still)
+
+The chain is `FUN_004c6264` (construct) -> `FUN_004c6364` (descriptor feed) -> `FUN_003fa34c` (slot
+enables) -> `FUN_00308498` -> `FUN_0040d040` -> `FUN_0040cdd8` (builder). Two things were checked
+rather than assumed:
+
+* **No function on that chain writes `+0x18A`.** All 21 decompiled functions that reference the offset
+  were enumerated; the chain members that touch the mode block at all are `FUN_0040d040` (which READS
+  `+0x195`, `+0x199`, `+0x19d` and pre-computes the builder's output pointer) and `FUN_004c6364`
+  (which writes `+0x189`/`+0x18B`/`+0x191`/`+0x192`/`+0x193`/`+0x195`). `FUN_003fa34c` and
+  `FUN_00308498` do not touch `0x180..0x19C` at all. So the clearing is not on the recovered path.
+* **The leading candidate is the bulk copy, not a field writer.** The write-up already records that
+  the configuration is delivered by `FUN_00466e0c -> FUN_00371758`, "the generic 32-byte copy loop",
+  sourcing template word `0x005b31b4`, and that the source-range trace falsified a per-slot `config0`
+  writer in favour of that copy. A 32-byte-granular copy would overwrite `+0x18A` wholesale rather
+  than through a field assignment, which is exactly the shape of the missing write. **That is a
+  hypothesis with a named next step, not a conclusion:** read `FUN_00371758` and the template at
+  `0x005b31b4`, and check the template's byte at the `+0x18A` position. If it is zero, the whole feed
+  closes with no further RE.
+
+`FUN_0040d040` also earns its place in the record: it is a pre-pass over the same object that reads
+`+0x195`/`+0x199`/`+0x19d` and produces the buffer the builder then fills, so the object is consumed by
+two functions, not one. Anyone implementing the host side needs both, and the four `func_0x004c7xxx`
+enum conversions still gate the `config0` bits they feed.
 
 #### The obvious candidate for the producer is REFUTED (2026-09-27)
 
