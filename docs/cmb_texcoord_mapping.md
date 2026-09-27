@@ -218,6 +218,31 @@ Method 3 appears on all three, 518 times over the consumed population. Combined 
 mapping-4 or mapping-3 material is only actually mapped when it also takes `body@14`; otherwise it
 is plain.
 
+### Majora's Mask corroborates the same structure
+
+MM3D ships its models in a different container (`/actors/*.gar[.lzs]`, GAR2 with on-demand LzS
+inflation) but the same CMB material layout, so the same survey runs over it
+(`tools/cmb_corpus.py` owns which container each game uses). Over MM3D's 1,448 actor CMBs / 2,968
+materials, counting only the two methods that reach a pixel:
+
+| coordinator / method | consumed | declared-only |
+| --- | --- | --- |
+| tex0 CameraSphereEnvMap | 38 | 0 |
+| tex1 CameraSphereEnvMap | 543 | 20 |
+| tex1 ProjectionMap | 70 | 3 |
+| tex2 CameraSphereEnvMap | 84 | 0 |
+
+A second, independent retail population puts method 4 on coordinator 1 and nowhere else, exactly as
+OoT3D does. That is what makes §9's "no retail material uses method 4 on coordinator 0" a fact
+about these games rather than an accident of one ROM, and it is why the projective arm's missing
+`w` divide is not a gap anyone is missing pixels over.
+
+The lighting split is the notable difference between the games. OoT3D's mapped materials are almost
+entirely **vertex**-lit (409 of 423 for the tex1 sphere family, 354 of 354 for tex1 projection, and
+zero fragment-only in either); MM3D's are almost entirely **fragment**-lit (488 of 508 and 57 of
+60). A host rule that infers "mapped" from "vertex-lit" would therefore work on OoT3D and break on
+MM3D, which is a second reason the lit-gate in §8 must stay dropped.
+
 ## 6. The conclusion the old instrument produced, and why it is wrong
 
 Decoding `body@14` and `body@214` as straight-line code makes the mapping switch look dead: for
@@ -319,8 +344,11 @@ The title's mapped draws already answer their own case: for title draw 77 (wordm
 (`Texture2D`), `mag = min = Linear`, `wrapS = wrapT = Repeat`. That is the only self-consistent
 answer, since the sphere arm leaves `o2.z = 0` and a `Projection2D` divide would be by zero.
 
-**Still open**: the same read on a method-4 draw. The title contains none — every method-4 material
-(`zelda_bw` torch, `zelda_bb` bubble, the `l_j_*` Jabu set, `dk_trap`, …) is a gameplay actor, so
-this needs either a gameplay capture or the game's material-state builder. Note the two arms are
-**not** interchangeable: coordinator 1 has no `w` output, so it never divides regardless of the
-type; only coordinator 0 does, and no retail material uses method 4 there.
+**Still open**: the same read on a method-4 draw, and the value of `uInvView` (c76..c78) that the
+mapping-4 arms multiply the view position by. The title contains no method-4 material — every one of
+them (`zelda_bw` torch, `zelda_bb` bubble, the `l_j_*` Jabu set, `dk_trap`, …) is a gameplay actor, and
+MM3D's 70 are too — so both need a gameplay capture or the game's material-state builder. Note the
+arms are **not** interchangeable: coordinator 1 has no `w` output, so it never divides regardless of
+the type; only coordinator 0 would, and §5's second retail population confirms no material uses
+method 4 there. `uInvView` is not in the oracle's `vsuni_log` line either, so observing it needs one
+more `log_v4` entry beside the existing `texSlotMap` / `modelView` / `texMtx` ones.
