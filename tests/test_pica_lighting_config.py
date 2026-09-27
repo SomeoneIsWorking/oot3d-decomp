@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 from pica_lighting_config import (  # noqa: E402
     CONFIG0_UNCONDITIONAL,
+    DESCRIPTOR_MODE_MAP,
     HUT_LIGHTING_OBJECT,
     HUT_OBSERVED,
     MODE_LUT_ENABLE,
@@ -31,7 +32,9 @@ from pica_lighting_config import (  # noqa: E402
     MODE_SPOT,
     SLOT_ENABLE_BASE,
     SLOT_FIELD_BASES,
+    apply_descriptor,
     build_lighting_config,
+    construct_lighting_object,
 )
 
 
@@ -65,6 +68,88 @@ class ReproducesTheOracleCapture(unittest.TestCase):
         self.assertEqual(packet.config0, CONFIG0_UNCONDITIONAL)
         self.assertEqual(packet.config0 & 0x400, 0x400)
         self.assertEqual(packet.config0 & 0x80000000, 0x80000000)
+
+
+class ConstructorDefaultsReproduceConfig1(unittest.TestCase):
+    """A second, independent path to the same observed value.
+
+    `FUN_004c6264` initialises the runtime lighting object before any descriptor is applied, and its
+    defaults alone already produce the fixture's `config1`. That matters because it is derived from
+    the object's constructor rather than from the fixture's recorded input bytes -- two unrelated
+    sources agreeing on the same word is much stronger than either alone, and it is what makes the
+    feed tractable: the mode block is typed, not guessed.
+    """
+
+    def test_config1_needs_no_descriptor_at_all(self) -> None:
+        packet = build_lighting_config(construct_lighting_object())
+        self.assertEqual(packet.config1, HUT_OBSERVED["config1"])
+
+    def test_no_lights_are_enabled_before_the_slot_writer_runs(self) -> None:
+        packet = build_lighting_config(construct_lighting_object())
+        self.assertEqual(packet.light_count, 0)
+        self.assertEqual(packet.light_enable, 0)
+
+    def test_config0_differs_from_the_fixture_by_exactly_one_bit(self) -> None:
+        """The open byte, recorded rather than hidden.
+
+        The constructor sets `+0x18A = 1`, and `FUN_0040cdd8` maps that byte to config0 bit 0x11, so a
+        constructor-only object yields `0x80020400` where the oracle recorded `0x80000400`. The
+        difference is exactly bit 0x11 and nothing else, which localises the remaining unknown to a
+        SINGLE byte: something clears `+0x18A` on the Hut's path, and no recovered function writes it
+        (`FUN_004c6364` covers +0x189/+0x18B/+0x191/+0x192/+0x193/+0x195 only).
+
+        When that writer is found, this test is the thing that flips -- and until then it is the
+        standing evidence that the feed is one byte from complete.
+        """
+        packet = build_lighting_config(construct_lighting_object())
+        self.assertEqual(packet.config0 & ~0x20000, HUT_OBSERVED["config0"])
+        self.assertNotEqual(packet.config0, HUT_OBSERVED["config0"])
+        self.assertEqual(packet.config0 ^ HUT_OBSERVED["config0"], 0x20000)
+
+
+class DescriptorFeedMapsOntoTheBuilderInputs(unittest.TestCase):
+    def test_builder_inputs_written_by_the_feed_are_real_builder_inputs(self) -> None:
+        """`FUN_004c6364` writes more than the builder consumes; name the difference.
+
+        +0x192, +0x193, +0x195 and +0x199 are runtime flags the builder does not read -- they belong to
+        other consumers of the same object. Asserting "every written byte is a builder input" would
+        be false, and quietly dropping the extras would hide that the object is shared. So the
+        non-builder bytes are named, and the test fails if a byte lands in neither set.
+        """
+        builder_inputs = {
+            0x184, 0x185, 0x186, 0x187, 0x188, 0x189, 0x18A, 0x18B, 0x18C, 0x18D, 0x18E, 0x18F,
+            0x190, 0x191,
+        }
+        other_consumers = {0x192, 0x193, 0x195, 0x199}
+        for offset in DESCRIPTOR_MODE_MAP:
+            self.assertTrue(
+                offset in builder_inputs or offset in other_consumers,
+                f"+0x{offset:X} is written by FUN_004c6364 but is neither a builder input nor a"
+                " declared other-consumer flag",
+            )
+        # The overlap that matters: the feed must actually cover the mode bytes the builder reads.
+        self.assertEqual(
+            sorted(set(DESCRIPTOR_MODE_MAP) & builder_inputs), [0x189, 0x18B, 0x191]
+        )
+
+    def test_flag_14_drives_the_lut_enable_mode_byte(self) -> None:
+        """The one builder input whose descriptor source is a plain bool, not an enum helper.
+
+        `FUN_004c6364` writes `param_1[0x191] = descriptor[0x14] != 0`, and `+0x191` is exactly the
+        builder's LUT-enable mode byte -- so a material with `flag_14` set selects a different config1
+        than one without it. That is the switch between the no-LUT and LUT forms, and it is reachable
+        from an authored material field.
+        """
+        lighting = construct_lighting_object()
+        self.assertEqual(build_lighting_config(lighting).config1 & 0x700000, 0x700000)
+        fed = apply_descriptor(lighting, {"flag_14": True})
+        self.assertEqual(build_lighting_config(fed).config1 & 0x700000, 0)
+
+    def test_apply_descriptor_does_not_mutate_its_input(self) -> None:
+        lighting = construct_lighting_object()
+        before = dict(lighting)
+        apply_descriptor(lighting, {"flag_14": True, "enabled": True})
+        self.assertEqual(lighting, before)
 
 
 class TheBuilderActuallyRespondsToItsInputs(unittest.TestCase):

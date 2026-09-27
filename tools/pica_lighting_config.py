@@ -136,6 +136,78 @@ def build_lighting_config(lighting: bytes | bytearray | dict[int, int]) -> Light
     return LightingConfigPacket(config0, config1, light_enable, slot_map, light_count)
 
 
+# --- The runtime lighting object: constructor and descriptor feed -------------------------
+#
+# `FUN_004c6264` (252 bytes) CONSTRUCTS the object the builder reads: it zeroes four 8-byte light
+# slot planes at +0x160/+0x168/+0x170/+0x178 (so the whole +0x160..+0x17F block the builder indexes
+# into is cleared), zeroes the mode block, and sets exactly two mode bytes to 1.
+#
+# `FUN_003fa5d0` (1,608 bytes) and `FUN_003fa34c` (672 bytes) then set the eight slot-enable bytes at
+# +0x164..+0x16B for occupied slots, which is the `+0x164 = 1` the fixture shows.
+#
+# `FUN_004c6364` (224 bytes) is the DESCRIPTOR FEED: given the nested descriptor it writes the mode
+# bytes the builder reads, and the shipping parser already retains every field it consumes.
+CONSTRUCTOR_MODE_DEFAULTS: dict[int, int] = {
+    0x18A: 1,
+    0x18D: 1,
+    0x190: 0,
+}
+# Zeroed mode block: every byte the builder indexes that the constructor does not set to 1.
+CONSTRUCTOR_ZEROED_MODE: tuple[int, ...] = tuple(
+    offset for offset in range(0x180, 0x19D) if offset not in CONSTRUCTOR_MODE_DEFAULTS
+)
+
+
+def construct_lighting_object() -> dict[int, int]:
+    """The object as `FUN_004c6264` leaves it, before any descriptor is applied.
+
+    Only the bytes the builder reads are modelled; the slot planes are all zero, which is what the
+    constructor's four-plane loop establishes for +0x160..+0x17F.
+    """
+    lighting: dict[int, int] = {offset: 0 for offset in range(0x160, 0x1A0)}
+    lighting.update(CONSTRUCTOR_MODE_DEFAULTS)
+    return lighting
+
+
+# `FUN_004c6364`'s descriptor -> mode-byte map, in the decomp's own order. `param_1` is the runtime
+# object; `param_2` is the nested descriptor the shipping parser keeps as
+# `CmbMaterial::FragmentLightingDescriptor`. The `func_0x004c7xxx` helpers are bounded enum
+# conversions, so each contributes a presence/absence byte rather than a raw descriptor word.
+DESCRIPTOR_MODE_MAP: dict[int, str] = {
+    0x189: "enum_1c",
+    0x18B: "enum_12",
+    0x191: "flag_14",
+    0x192: "flag_1e",
+    0x193: "flag_1f",
+    0x195: "flag_23",
+    0x199: "enabled",
+}
+# Written through an enum helper, so the byte is "did this descriptor field select a valid value",
+# not the field's own numeric encoding.
+DESCRIPTOR_MODE_VIA_ENUM_HELPER: dict[int, str] = {
+    0x63: "enum_10",
+    0x62: "enum_18",
+    0x66: "enum_26",
+    0x19A: "scale",
+}
+
+
+def apply_descriptor(lighting: dict[int, int], descriptor: dict[str, int | bool]) -> dict[int, int]:
+    """Apply `FUN_004c6364` to a constructed object, returning a new mapping.
+
+    Only the boolean-ish fields are carried through faithfully: the four `func_0x004c7xxx` helpers
+    are bounded enum conversions whose exact tables live in the 3DS material compiler and are NOT
+    recovered here, so those outputs are left at the constructor's value rather than invented. That
+    omission is deliberate and is why `config0` does not yet reproduce the fixture -- see the test.
+    """
+    updated = dict(lighting)
+    for offset, field in DESCRIPTOR_MODE_MAP.items():
+        updated[offset] = 1 if descriptor.get(field) else 0
+    for offset in DESCRIPTOR_MODE_VIA_ENUM_HELPER:
+        updated.setdefault(offset, 0)
+    return updated
+
+
 # The Gravekeeper's Hut entrance 0x030d draw 4 fixture, as recorded by the oracle's own register
 # capture: `config0=0x80000400`, `config1=0xff7fffff`, `light_enable=0x00000010`, slot mapping
 # [0,1,0,0,0,0,0,0], max_light_index=1. Its input object had every +0x184..+0x190 byte zero and

@@ -238,11 +238,46 @@ Three things this reading corrected, all of which had been written down wrongly 
   both outputs are small, so conflating them still reproduced `0x10`.
 * **The loop shifts by the count BEFORE incrementing it**, so the first occupied slot lands in bit 0.
 
-**What is still open, and it is exactly one thing:** the *producer* of the input object. The builder
-reads mode bytes at `+0x185`/`+0x18F`/`+0x190`/`+0x191`, eight slot-enable bytes at `+0x164`, and three
-per-slot flag planes at `+0x16C`/`+0x174`/`+0x17C`; nothing yet says which CMB material fields write
-them. Until that is typed the host can reproduce the builder but not feed it, so this stays a
-transport gap rather than a formula gap.
+#### The feed is now mapped, and it is ONE BYTE from complete (2026-09-27, later)
+
+The producer question above is closed to a single byte. Three recovered functions between the
+descriptor and the builder type the object:
+
+* **`FUN_004c6264` (252 bytes) is the CONSTRUCTOR.** It zeroes four 8-byte light-slot planes at
+  `+0x160`/`+0x168`/`+0x170`/`+0x178` — covering the whole `+0x160..+0x17F` block the builder indexes —
+  zeroes the mode block `+0x180..+0x19C`, and sets exactly two mode bytes: `+0x18A = 1` and `+0x18D = 1`.
+* **`FUN_003fa5d0` (1,608 bytes) and `FUN_003fa34c` (672 bytes) set the eight slot-enable bytes** at
+  `+0x164..+0x16B` for occupied slots — the `+0x164 = 1` the fixture shows.
+* **`FUN_004c6364` (224 bytes) is the DESCRIPTOR FEED.** Given the nested descriptor the shipping
+  parser already retains, it writes `+0x189` from `enum_1c`, `+0x18B` from `enum_12`, **`+0x191` from
+  `flag_14`**, `+0x192` from `flag_1e`, `+0x193` from `flag_1f`, `+0x195` from `flag_23`, `+0x199` from
+  the enable byte at descriptor `+0x24`, plus four enum-helper outputs (`enum_10`, `enum_18`,
+  `enum_26`, `scale`). **Every descriptor field it consumes is already parsed by `cmb.cpp`**
+  (`CmbMaterial::FragmentLightingDescriptor`) — the feed needs no new asset data at all.
+
+Two results follow, and the second is the important one:
+
+1. **The constructor's defaults alone reproduce `config1 = 0xff7fffff`** — the fixture's observed
+   value — with no descriptor applied at all. That is a second, independent path to the same word
+   (the object's initialiser rather than the fixture's recorded input bytes), which is much stronger
+   than either alone.
+2. **`config0` comes out `0x80020400` against the observed `0x80000400`: a difference of exactly bit
+   `0x11` and nothing else.** That bit is `param_1[0x18A] << 0x11`, and the constructor sets `+0x18A =
+   1`. So the Hut's path **clears `+0x18A` somewhere between construction and the builder**, and no
+   recovered function writes it (`FUN_004c6364` covers only `+0x189`/`+0x18B`/`+0x191`/`+0x192`/
+   `+0x193`/`+0x195`). This is asserted in
+   `tests/test_pica_lighting_config.py::ConstructorDefaultsReproduceConfig1::test_config0_differs_from_the_fixture_by_exactly_one_bit`,
+   so the gap is a standing red-to-green test rather than a sentence that can rot.
+
+The same tests also record that `flag_14` is the authored switch between the no-LUT and LUT forms: it
+drives `+0x191`, which is the builder's LUT-enable mode byte, so a material with `flag_14` set gets a
+different `config1` than one without. And the four `func_0x004c7xxx` enum conversions are deliberately
+**not** transcribed -- their tables live in the 3DS material compiler and are not recovered -- so
+those outputs keep the constructor's value rather than being invented.
+
+**So the remaining work is: find the writer that clears `+0x18A`, and recover the four enum helpers if
+the config0 bits they feed turn out to matter.** Both are single-function reads in the decomp, not
+open-ended RE.
 
 #### The obvious candidate for the producer is REFUTED (2026-09-27)
 
