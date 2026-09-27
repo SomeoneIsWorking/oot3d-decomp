@@ -10,7 +10,8 @@ vertex bodies a draw executes, and (2) what each coordinator computes for mappin
 It exists because the port previously treated mapping method as "3 = sphere, everything else =
 plain UV". That is half right: method 3 was implemented, method 4 was documented as "not
 emulated and falls back to plain UV", and nothing recorded that the mapping switch only exists in
-ONE of the shader's two bodies. All of that is below, cited by code-word index.
+ONE of the shader's two bodies, nor which draws reach it. All of that is below, cited by code-word
+index, with §8 recording what the oracle measured about it.
 
 Reproduce (the extractor lives in the Zelda3D repo, not here):
 
@@ -246,14 +247,80 @@ Established, from the retail program:
 
 Not established here, and each needs its own evidence:
 
-* **Whether the game programs the PICA texture-0 type as projective for method-4 materials.**
-  Coordinator 0's `+0.5 * t.z` form only makes sense under that divide, but the register that
-  decides it is written by game code, not by this shader. Until it is read, the port should
-  implement coordinator 0's arm as `t.xy / t.z + 0.5` and mark it as derived, not measured.
-* **Which retail materials actually carry `ShaderMode.w` 0 or 1.** The value is a live uniform
-  (`vsuni_log` reports it), but the host does not currently transport it, so the host cannot
-  decide per draw whether the mapping switch applied. A mapping-3 or mapping-4 material on the
-  `body@214` path is plain, and the host applying the sphere map to it is a divergence.
+* **Which retail materials actually carry `ShaderMode.w` 0 or 1.** See §8 for what one real
+  capture already answers and what it leaves open.
+* **The PICA texture-0 type on a method-4 draw.** §9 gives the register, the field map, and the
+  one case the title can already answer; the method-4 value needs a gameplay draw.
 * **Whether `TexCoordSlot` is ever non-zero per coordinator in retail data** — the host already
   carries `coord*_source` through the same `sub@276` path, but the corpus has not been checked for
   a coordinator whose slot differs from its index.
+
+## 8. What the oracle says: `ShaderMode.w` is NOT "lit"
+
+The shader suggests a tempting shortcut: `body@14` is the only body with an `IsVertexLighting`
+(b9) and an `IsFragmentLighting` (b10) block, while `body@214` has neither and seeds `PRIMARY`
+from the flat `c8 MatDiffuseColor`. So `ShaderMode.w ∈ {0,1}` "looks like" *lit*, and gating the
+host's mapping on the two lighting bytes the host already parses would then need no new transport.
+
+**A real capture refutes that.** The oracle's `vsuni_log` prints `ShaderMode.w` as
+`texSlotMap.w` on the same line as `vLit`/`fLit`; `tools/cmb_shader_mode_correlation.py` reads the
+correlation off a capture. From the cached title frame (cs 1093, oracle frame 2010, 102 draws):
+
+| `ShaderMode.w` | draws | lit | unlit |
+| --- | --- | --- | --- |
+| 0 | 89 | 85 | **4** |
+| 2 | 13 | 0 | 13 |
+
+and:
+
+* all 38 draws sampling a coordinator with mapping method 3 or 4 are at `ShaderMode.w = 0`, so
+  every mapped draw really did reach the mapping switch;
+* the 13 mode-2 draws bind no lights at all (`dif0 = amb0 = 0`, `dir0 = dir1 = dir2 = (0,0,-1,0)`,
+  all light colours zero) and draw 0 carries an orthographic projection — they are the 2D overlay
+  layer, which the host already renders through its own quad path rather than the model path;
+* `TexCoordSlot.xyz` is `(0,0,0)` for all 102 title draws.
+
+So mode 0 is a superset of lit, and the mode-0 population is the model/CMB draw path while mode 2
+is the 2D overlay path. The host's rule — apply the mapping unconditionally on the model path,
+and never on the overlay path — is what the oracle actually does. **Do not add a lit-ness gate**;
+it was written, measured against this capture, and dropped. The test that keeps it dropped is
+`tools/test_cmb_shader_mode_correlation.py::test_real_title_capture_refutes_the_lit_gate`.
+
+Blast radius if it ever were needed, from `tools/cmb_texcoord_mapping_survey.py` (units a combiner
+actually samples, 1,997 CMBs / 11,172 materials):
+
+| coordinator / method | lit | unlit |
+| --- | --- | --- |
+| tex0 CameraSphereEnvMap | 15 | 16 |
+| tex1 CameraSphereEnvMap | 423 | 43 |
+| tex1 ProjectionMap | 354 | 12 |
+| tex2 CameraSphereEnvMap | 21 | 0 |
+
+## 9. Reading the PICA texture-0 type, for the method-4 divide
+
+Whether coordinator 0's `t.xy + 0.5 * t.z` is a real projective divide depends on the PICA
+texture-0 type, which the game writes and the shader does not. This is measurable from a cached
+command list with no new instrumentation, because `TextureConfig` is a plain register block:
+
+| PICA register | field |
+| --- | --- |
+| `0x080` | `texturing.main_config` — `texture{0,1,2}_enable`, `texture2_use_coord1` |
+| `0x081..0x085` | `TextureConfig` unit 0: border colour, height/width, **filter/wrap/type**, LOD, address |
+| `0x083` bits 28-30 | `type` — `0 Texture2D`, `1 TextureCube`, `2 Shadow2D`, **`3 Projection2D`**, `4 ShadowCube`, `5 Disabled` |
+| `0x08f` | `fragment_lighting_enable` |
+| `0x091`, `0x096` | `TextureConfig` unit 1, its format |
+
+(`Azahar/src/video_core/pica/regs_internal.h`'s `ASSERT_REG_POSITION` lines fix these; the field
+order inside `TextureConfig` is `regs_texturing.h`. `tools/pica_texturing_registers.py` owns the
+map and `tools/test_pica_texturing_registers.py` checks it against the capture.)
+
+The title's mapped draws already answer their own case: for title draw 77 (wordmark,
+`CameraSphereEnvMap` on coordinator 0) register `0x083` is `0x00002206`, so `type = 0`
+(`Texture2D`), `mag = min = Linear`, `wrapS = wrapT = Repeat`. That is the only self-consistent
+answer, since the sphere arm leaves `o2.z = 0` and a `Projection2D` divide would be by zero.
+
+**Still open**: the same read on a method-4 draw. The title contains none — every method-4 material
+(`zelda_bw` torch, `zelda_bb` bubble, the `l_j_*` Jabu set, `dk_trap`, …) is a gameplay actor, so
+this needs either a gameplay capture or the game's material-state builder. Note the two arms are
+**not** interchangeable: coordinator 1 has no `w` output, so it never divides regardless of the
+type; only coordinator 0 does, and no retail material uses method 4 there.
