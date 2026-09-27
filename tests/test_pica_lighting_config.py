@@ -35,6 +35,7 @@ from pica_lighting_config import (  # noqa: E402
     apply_descriptor,
     build_lighting_config,
     construct_lighting_object,
+    LIGHTING_OBJECT_SIZE,
 )
 
 
@@ -154,6 +155,27 @@ class DescriptorFeedMapsOntoTheBuilderInputs(unittest.TestCase):
 
 class TheBuilderActuallyRespondsToItsInputs(unittest.TestCase):
     """Negative controls. A builder that ignored its input would pass the fixture test."""
+
+    def test_an_all_zero_object_reproduces_the_oracle_baseline(self) -> None:
+        """Checked against LIVE runtime bytes, not a transcribed fixture.
+
+        The 0x4C8-byte configuration object is located at
+        `CmbRenderer + 0x400 + material_index * 0x4C8` (the record maps CMB `+0x00` to
+        `CmbRenderer + 0x400`, and 0x4C8 is the expanded per-material stride -- the file's
+        0x15C/0x16C entry is a different thing). Dumped from the oracle at the title screen,
+        material slot 1 -- an unlit material -- is all zeros in the fields the builder reads, and
+        this model fed those live bytes returns exactly the `config0`/`config1` pair the oracle's own
+        registers were recorded at. The `light_enable` difference is not a failure: the recorded
+        fixture is a ONE-light material and this slot has no light enabled.
+
+        Pinned as the all-zero object rather than as the captured bytes so the test needs no captured
+        data and no ROM, while still being a reproduction of observed oracle registers.
+        """
+        packet = build_lighting_config(bytes(LIGHTING_OBJECT_SIZE))
+        words = packet.as_observed_words()
+        self.assertEqual(words["config0"], 0x80000400)
+        self.assertEqual(words["config1"], 0xFF7FFFFF)
+        self.assertEqual(packet.light_enable, 0)
 
     def test_an_empty_object_has_no_lights(self) -> None:
         packet = build_lighting_config({})

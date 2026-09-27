@@ -301,6 +301,59 @@ rather than assumed:
   and held in game data -- consistent with the recorded "template word `0x005b31b4`" being one *word
   value* carried by a template far larger than the CMB's descriptor.
 
+#### FOUND: the object is live runtime state at `CmbRenderer + 0x400 + index * 0x4C8` (2026-09-27, latest)
+
+The chain bottoms out in the ARM image. `FUN_003f9b5c` -- the top of the confirmed chain, whose
+`arg1` IS the 0x4C8-byte object -- has **zero ARM `BL` callers** (validated
+`tools/callers_bl.py`). So the object is not constructed anywhere in the ARM code image; it arrives
+from outside as an argument. That closes the static route and makes the runtime route the only one
+left, which is what this record asked for.
+
+`tools/lit_object_dump.py` does it with the harness's bulk `dumprange <va> <size> <path>`, at the
+**title screen** -- no gameplay save needed, because the title demo renders the world through the same
+fragment path. The address is not guessed: the record already maps CMB `+0x00` to
+`CmbRenderer + 0x400` and names the live `CmbRenderer` as `0x081d3aa0`, so the object base is
+`0x081d3ea0` and 0x4C8 is both the copied length and the stride. Dumping four consecutive slots:
+
+| slot | address | nonzero | `+0x18A` | first words |
+| --- | --- | --- | --- | --- |
+| 0 | `0x081d3ea0` | 296/1224 (24.2%) | **0x80** | `3f800000` x2, `43200000` (150.0f), `41c00000` (24.0f) |
+| 1 | `0x081d4368` | 187/1224 (15.3%) | 0x00 | all zero |
+| 2 | `0x081d4830` | 177/1224 (14.5%) | 0x00 | `3f333333` (0.7f), `3e99999a` (0.3f) x3 |
+| 3 | `0x081d4cf8` | 360/1224 (29.4%) | 0x00 | mostly zero, `08a0f2ac` tail pointer |
+
+Consecutive slots have *different* densities and different leading floats, so this is per-material
+authored data, not one repeating blob. Slot 2's `0.7` / `0.3` pair is a recognisable material blend.
+
+**`+0x18A` is `0x80` on slot 0** -- authored, non-zero, per-material. So the framing "no function on the
+chain writes `+0x18A`" was never the problem: the byte is *source data* in the object, exactly as the
+"provenance question about the source bytes" note argued, and the source is now readable on demand.
+
+**And the builder is validated end to end for the first time against live data.** Feeding the live
+bytes through `tools/pica_lighting_config.py`:
+
+| slot | `config0` | `config1` | `light_enable` |
+| --- | --- | --- | --- |
+| 0 | `0xd90a0400` | `0x3f7e3f3f` | `0x00000076` |
+| **1** | **`0x80000400`** | **`0xff7fffff`** | `0x00000000` |
+| 2 | `0xd1000400` | `0xff7fffff` | `0x00000000` |
+| 3 | `0xd0000400` | `0xf37fffff` | `0x00007632` |
+
+Slot 1 returns **exactly** the `config0`/`config1` pair the oracle's own registers were recorded at
+(`0x80000400` / `0xff7fffff`). Its `light_enable` is 0 where the recorded fixture says `0x00000010`,
+and that is **not** a contradiction: the recorded fixture is a ONE-light material (Gravekeeper's Hut)
+and slot 1 is an unlit title material. Feeding an all-zero 0x4C8 object gives the same
+`0x80000400`/`0xff7fffff` baseline, which is now a standing test
+(`test_an_all_zero_object_reproduces_the_oracle_baseline`) written against live-derived values without
+capturing any data or needing a ROM.
+
+What this closes and what it does not: the object is located, its size and stride are measured, its
+per-material authorship is visible, and the recovered builder reproduces observed oracle registers
+from live bytes. What remains open is narrower and now checkable against a re-dump rather than a
+transcribed fixture: the `+0x18A` byte's contribution to `config0` (bit `0x11`), and the per-slot
+enable bytes for a *lit* material, where slot 0 (`light_enable=0x76`, five slots) and slot 3
+(`0x7632`) are the live cases to resolve against.
+
 #### DEAD END: the template is not findable by signature in `code.bin` (2026-09-27, later still)
 
 The obvious attack -- search the code image for a material's slot-enable/mode shape -- was tried and

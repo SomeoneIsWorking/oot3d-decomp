@@ -56,6 +56,15 @@ CONFIG0_BITS = {
 CONFIG0_SHADOW_GATE_OFFSET = 0x187  # bit 0x1E is set only when this is set AND 0x18D is clear
 CONFIG0_SHADOW_INHIBIT_OFFSET = 0x18D
 
+# Size of one expanded per-material lighting-configuration object, and the stride between
+# consecutive ones. Derived from the LIVE oracle, not from the file layout: the object lives at
+# `CmbRenderer + 0x400 + material_index * STRIDE` (the record maps CMB `+0x00` to
+# `CmbRenderer + 0x400`), and 0x4C8 is both the length the delivery step copies and the stride that
+# makes consecutive slots' contents differ. This is NOT the file's material entry, which is 0x15C
+# (OoT3D) / 0x16C (MM3D) -- the file entry expands into this struct.
+LIGHTING_OBJECT_SIZE = 0x4C8
+LIGHTING_OBJECT_STRIDE = 0x4C8
+
 
 def _clamped_inverse(value: int) -> int:
     """`1 - value`, floored at 0 — the decomp's `1 - (uint)x` with its `if (1 < x) iVar = 0` guard."""
