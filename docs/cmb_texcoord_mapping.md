@@ -222,14 +222,33 @@ is plain.
 
 MM3D ships its models in a different container (`/actors/*.gar[.lzs]`, GAR2 with on-demand LzS
 inflation) but the same CMB material layout, so the same survey runs over it
-(`tools/cmb_corpus.py` owns which container each game uses). Over MM3D's 1,448 actor CMBs / 2,968
-materials, counting only the two methods that reach a pixel:
+(`tools/cmb_corpus.py` owns which container each game uses).
+
+**RE-MEASURED 2026-09-27 on the corrected population.** These figures were originally taken over
+MM3D's 1,448 *actor* CMBs / 2,968 materials, because `cmb_corpus` asserted MM3D shipped no scene
+CMBs. That assertion was half-true and the conclusion was wrong: MM3D ships 424 `/scenes/*.zsi` files
+of which **241 carry a valid inline CMB** (183 do not, as 114 of OoT3D's 724 do not). `iter_mm3d_cmbs`
+now walks `/scenes/*.gar` members and the inline scene CMBs, so both games share one population shape
+and every number below is on the full set. Over MM3D's **1,704 files / 6,791 materials**, counting
+only the methods that reach a pixel:
 
 | coordinator / method | consumed | declared-only |
 | --- | --- | --- |
-| tex0 CameraSphereEnvMap | 38 | 0 |
-| tex1 CameraSphereEnvMap | 543 | 20 |
-| tex1 ProjectionMap | 70 | 3 |
+| tex0 CameraSphereEnvMap | 44 | 0 |
+| tex1 CameraSphereEnvMap | 1121 | 23 |
+| tex1 ProjectionMap | 163 | 3 |
+| tex2 CameraSphereEnvMap | 105 | 0 |
+
+Two corrections fall out of the re-measurement, and both matter:
+
+- **Method 4 is on coordinator 1 and nowhere else — still true, and now larger.** 163 MM3D materials
+  rather than 70; 366 in OoT3D; **529 total** unimplemented ProjectionMap materials across the two
+  games.
+- **Coordinator-2 mapping exists in BOTH games** (105 MM3D, 21 OoT3D), which the actor-only population
+  showed as zero. The host already implements it: `uTevCtl[2] = coord2Mapping`
+  (`zelda3d_sdl3gpu_pass.cpp:804`) and the `uTevCtl.z == 3` sphere-mapped branch
+  (`zelda3d_sdl3gpu_shaders.cpp:227`). That is newly measured reach of an existing mechanism, not a
+  new gap — the same check run on the corrected OoT3D population agrees.
 | tex2 CameraSphereEnvMap | 84 | 0 |
 
 A second, independent retail population puts method 4 on coordinator 1 and nowhere else, exactly as
