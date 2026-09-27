@@ -918,3 +918,108 @@ not alias `FRAGMENT_PRIMARY` to the vertex `PRIMARY` more broadly, or add a Hut-
 real port must first recover the enabled fragment formula and a configuration counterfactual, then
 add a cohesive raw PICA-light/configuration UBO contract from CMB descriptor and scene-light owners
 to both renderer backends.
+
+---
+
+## FOUND: the transport is the material entry, and the "separate 0x4C8 authored object" is refuted (2026-09-28)
+
+Three claims above are load-bearing and two of them are wrong. `FUN_004c34ac` (408 bytes, one caller of
+`FUN_004c6264` at `0x004c3528`) is the function that builds the per-material lighting state, and it
+settles the "provenance question about the source bytes" by showing there is no separate authored
+object to find.
+
+### What `FUN_004c34ac` actually does
+
+```c
+puVar6 = *(undefined4 **)(param_3 + 8);
+*(undefined4 **)(param_3 + 8) = puVar6 + *(int *)(param_2 + 8) * 0x73;   // count * 0x73 WORDS
+puVar7 = puVar6;
+do {
+  *puVar7 = 0; puVar7[1] = 0; puVar7[2] = 0; puVar7[3] = 0;
+  FUN_004c6264(puVar7 + 4);              // the lighting object is at record + 0x10
+  puVar7 = puVar7 + 0x73;                // stride 0x73 words = 0x1CC bytes
+} while (++i < *(int *)(*param_1 + 8));
+```
+
+then, per material, with `iVar3 = param_2 + 0xC + i * 0x15C` (the same base and stride the host's
+`cmb.cpp` uses):
+
+```c
+*piVar8      = iVar3;                     // record word 0 = the material entry
+piVar8[1]    = param_1[2];
+piVar8[2]    = param_2 + 0xC + iVar5 * 0x15C;
+if (*(char *)(iVar3 + 0x138) == 1) { ...blend block, 0x138..0x158... } else { *(u8*)(piVar8+0x70) = 0; }
+FUN_004c6364(piVar8 + 3, *piVar8 + 0xcc);   // the DESCRIPTOR FEED, from material + 0xCC
+```
+
+So the per-material runtime record is **0x1CC bytes at stride 0x1CC**, the lighting object is its word
+3, and the object is **constructed then fed from the material entry** — not copied from a
+0x4C8-byte authored blob. Three earlier claims fall:
+
+* **"The copy's source is a separate 0x4C8-byte object, authored per material by the 3DS toolchain and
+  held in game data."** Refuted. There is no separate object: the record stride is 0x1CC, the object is
+  built by `FUN_004c6264` and fed by `FUN_004c6364` at construction time, and both are called from
+  `FUN_004c34ac`. The note's own arithmetic ("a 0x4C8-byte source cannot live inside a material entry")
+  was correct and was the tell: the source is not 0x4C8 bytes at all.
+* **"`FUN_00371758` is the delivery mechanism, a pure 32-byte block copy."** Already refuted above for
+  the ARM image. A correct Thumb `BL`/`BLX` scanner (`tools/callers_thumb.py`, 15 cases against
+  hand-computed encodings) finds **zero** Thumb branches in the image whose target is a known function
+  entry out of 22,223 matches, so it cannot establish a Thumb caller either -- the image's Thumb
+  branches are not reaching code at all. The decoder also had to fix one real bug: `BLX`'s second
+  halfword is `11 J1 0 J2 H imm10H`, so the offset field is 10 bits and bit 0 is the H flag; reading 11
+  bits folds H into the offset and is wrong for every `BLX`. Either way `FUN_00371758` is not on this
+  path, and `FUN_00308498` is the entry that is.
+* **"The fragment-lighting mode bytes come from material `+0x138`/`+0x13C..`."** Wrong, and this one
+  would have produced a plausible-looking wrong port. Measured over both corpora at the SAME base
+  (`mats + 0x0C`, stride 0x15C/0x16C):
+
+  | field | OoT3D distinct values | MM3D distinct values | reading |
+  |---|---|---|---|
+  | `+0x138` | 2 (0: 9661, 1: 1511) | 3 (0: 5697, 1: 1093, 2: 1) | the **blend** gate |
+  | `+0x13C` | 4, all in the GL blend set | 4, all in the GL blend set | `blendSrcRGB` (0x0302 x10781) |
+  | `+0x13E` | 6, 90.3% in the GL blend set | 3, 89.3% | `blendDstRGB` (0x0303 x9970) |
+  | `+0x140` | 2, 100% (0x8006 x11166) | 2, 100% | `blendEqRGB` (FUNC_ADD) |
+  | `+0x144` | 1, all <= 8 (0x0001) | 2, all <= 8 | `blendSrcA` (ONE) |
+  | `+0x146` | 1 (0x0000) | 1 (0x0000) | `blendDstA` (ZERO) |
+  | `+0x148` | 1 (0x8006) | 2 | `blendEqA` (FUNC_ADD) |
+  | `+0x00` | 205 of 11172 set | **6428 of 6791 set** | the **fragment-lighting** gate |
+
+  Six GL blend enums with 1-4 distinct values each cannot be bounded enum indices, and `+0x138` is
+  0-or-1 for 9661/1511 and 0/1/2 for 5697/1093/1 -- the shape of a blend enable, not of the
+  fragment-lighting gate. The `+0x00` count is the independent check: 205 and **6428** reproduce the
+  two figures this note already recorded from a different direction (the combiner-side
+  `cmb_fragment_lighting_survey.py` populations), so `+0x00` is the gate and `0x138` is the blend gate.
+  The host's names in `cmb.cpp:276-284` are correct and the decomp's block is a **blend-state** build.
+
+### What the transport therefore is, and it is complete
+
+`FUN_004c6364(param_1, param_2)` stores `*param_1 = param_2` and then reads, through that stored
+pointer, `param_2 + {0x10, 0x12, 0x14, 0x18, 0x1C, 0x1E, 0x1F, 0x20, 0x23, 0x24, 0x26, 0x28}` -- and
+`param_2` is `*piVar8 + 0xcc`, i.e. **material + 0xCC**. Those twelve offsets are exactly
+`CmbMaterial::fragment_lighting_descriptor`'s twelve field names in the shipping parser
+(`enum_10, enum_12, flag_14, enum_18, enum_1c, flag_1e, flag_1f, flag_20, flag_23, enabled, enum_26,
+scale`), and the `+0x199/+0x19A/+0x66/+0x63/+0x18B/+0x191/+0x62/+0x189/+0x192/+0x193/+0x195/+0x65`
+destinations are the mode bytes the builder reads. So:
+
+* **the descriptor feed is confirmed, and its input is data the host already retains** -- no new asset
+  bytes are needed, which is what the "producer of the builder's input object" question was asking;
+* the gate is `material + 0x00`, which the host already parses as `CmbMaterial::fragment_lighting`;
+* the object is constructed per material at record stride **0x1CC**, so the earlier live measurement of
+  a 0x4C8 stride at `CmbRenderer + 0x400` is a DIFFERENT array and must not be read as this one. That
+  discrepancy is unresolved and is the next thing to settle, not something to assume away.
+
+### What is still missing, and it is now a short list
+
+1. **The eight slot-enable bytes** (`+0x164..+0x16B`), set by `FUN_003fa5d0` (1608 B) and
+   `FUN_003fa34c` (672 B) in the CMB renderer rather than by this chain. The host models two enabled
+   slots per draw (`uLitDif1`/`uLitDif2` plus `uAmbient.w` as the enabled-slot multiplicity), so the
+   question is whether PICA's `lights_num` is that same 2 for every material -- recoverable by
+   reading those two functions, not by inference.
+2. **The reconciliation above** (0x1CC vs 0x4C8).
+3. The **configuration counterfactual** still required by the conclusion above: a real port needs an
+   observed lit material's `config0`/`config1` to compare the builder's prediction against, and the
+   title demo never enables fragment lighting (0 of 207 draws, `picaLit` register), so this remains
+   gated on issue #23.
+
+So the transport gap is closed for the mode bytes and the gate, and what is left is the renderer's
+slot-enable rule plus one live lit material to check the prediction against.
