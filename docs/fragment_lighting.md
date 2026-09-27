@@ -244,6 +244,29 @@ per-slot flag planes at `+0x16C`/`+0x174`/`+0x17C`; nothing yet says which CMB m
 them. Until that is typed the host can reproduce the builder but not feed it, so this stays a
 transport gap rather than a formula gap.
 
+#### The obvious candidate for the producer is REFUTED (2026-09-27)
+
+The nested descriptor `FUN_004c6364` consumes at material-entry `+0x0cc` is the natural suspect, and
+the recovered copy is a straight `0x4c8`-byte `FUN_00371758` loop — so if `param_1 + 0x164` were the
+descriptor's first byte, the builder would be reading the descriptor directly. **Measured over every
+fragment-lighting-flagged material in both retail corpora (205 OoT3D, 6,428 MM3D), that is false, for
+two independent reasons:**
+
+* **The slot bytes are uniformly zero.** `descriptor + 0x00..0x07` is all zeros for **205 of 205**
+  OoT3D and **6,428 of 6,428** MM3D flagged materials. Under the hypothesis those are the eight
+  light-slot enables, which would mean *no material in either game ever has a lit fragment-light
+  slot* — flatly contradicted by the Hut fixture, which has slots 0 and 1 occupied (`+0x164` is
+  `0x00000101`).
+* **The mode-byte region holds floats, not mode bytes.** `descriptor + 0x20..+0x2D` is dominated by
+  `(0,0,0,0, 1,255,160,98, 0,0,128,63, 1,255)` — `0x3F800000` (1.0f) and `0x62A0A000` — i.e. the
+  descriptor's float fields (the parser's `scale` at `+0x28` is 1.0, which is exactly that pattern).
+  Reading a mode flag out of a float is not a transport, it is a coincidence waiting to happen.
+
+So the builder's input is a *runtime* lighting object, not the authored descriptor — consistent with
+`FUN_003fa5d0` emitting light records from three 0x60-byte runtime slots. The producer is therefore
+somewhere between the descriptor and the builder, and neither end constrains the middle yet. Do not
+re-derive the zero-offset alignment: it is measured, twice, and wrong.
+
 An independent cache-owned PC watch on the candidate `CmbRenderer` material-setup entry
 `FUN_003f9b5c` recorded no entry in this *positive* Hut fixture; its immediate repeat returned that
 cached failure. It rules out that particular `+0x10` material-setup route; it does not rule out every
