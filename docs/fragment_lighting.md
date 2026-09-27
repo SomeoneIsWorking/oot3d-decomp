@@ -349,10 +349,50 @@ capturing any data or needing a ROM.
 
 What this closes and what it does not: the object is located, its size and stride are measured, its
 per-material authorship is visible, and the recovered builder reproduces observed oracle registers
-from live bytes. What remains open is narrower and now checkable against a re-dump rather than a
-transcribed fixture: the `+0x18A` byte's contribution to `config0` (bit `0x11`), and the per-slot
-enable bytes for a *lit* material, where slot 0 (`light_enable=0x76`, five slots) and slot 3
-(`0x7632`) are the live cases to resolve against.
+from live bytes.
+
+### The lit-material ground truth is NOT obtainable at the title (2026-09-27, latest)
+
+With the object located, the obvious next step was a ground-truth triple for one **lit** material: the
+object's bytes, the registers the 3DS actually programmed, and what `pica_lighting_config.py` predicts
+from those bytes. The oracle exposes exactly that -- `vsuni_log <path>` for per-draw discovery and
+`lighting_capture <draw> <path>` for one draw's raw `config0`/`config1`, light-slot map and activated
+LUTs -- and `tools/lit_pica_capture.py` drives both directly, bypassing
+`tools/cmb_fragment_lighting_oracle_probe.py`, which starts from the absent `GAMEPLAY_STATE`.
+
+**The title demo never enables PICA fragment lighting.** Two independent samples at different points in
+the demo:
+
+| sample | draws | `picaLit=1` | `vLit=1` | `hasCol=0` |
+| --- | --- | --- | --- | --- |
+| A | 138 | **0** | 106 | - |
+| B | 69 | **0** | 53 | 34 |
+
+**207 draws, zero PICA-lit, 159 vertex-lit.** `picaLit` is the authoritative
+`regs.lighting.disable` register, not the independent CmbVShader boolean, so this is the real state and
+not a logging artefact.
+
+That is the explanation for this project's entire run of fragment-lighting negatives -- the committed
+probe's own `kokiri-save-overlay` fixture is labelled a PICA-disabled negative control, and so is every
+capture derived from it. It is not that the capture path is broken; **the reachable scenes are
+vertex-lit.**
+
+Consequence, stated plainly: the two remaining questions -- the `+0x18A` byte's contribution to
+`config0` bit `0x11`, and the per-slot enable bytes for a lit material -- **require a gameplay scene**,
+and every gameplay scene is behind the blocked cold title route
+(`docs/issues/0023-embedded-oot3d-oracle-cannot-reach-its-boot-hand.md`: no `0004000e` system title, a
+corrupt 34-byte save index, and a NAND with no `title/` directory). The object-location work stands on
+its own and is not blocked; the lit-material *ground truth* is. Do not spend further title-side effort
+on it.
+
+One more trap, now pinned by `tools/test_lit_pica_capture.py` (8 cases, mutation-verified): the log's
+draw id lives in `n=`, not `draw=`. Matching the wrong token parses a log full of draws as **empty**,
+and the tool then reports "no draw has fragment lighting enabled" -- a confident wrong negative that
+looks exactly like the finding above. It was the wrong token first; the corrected parser produced the
+207-draw measurement. Where the two open questions used to be stated: the `+0x18A` byte's contribution
+to `config0` (bit `0x11`), and the per-slot enable bytes for a lit material, where title slot 0
+(`light_enable=0x76`, five slots) and slot 3 (`0x7632`) are the live objects to dump once a lit scene
+is reachable.
 
 #### DEAD END: the template is not findable by signature in `code.bin` (2026-09-27, later still)
 
