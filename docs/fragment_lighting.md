@@ -1167,3 +1167,66 @@ MM3D is blocked on having any MM3D image to compare against.
 
 Do not re-attempt this from the title screen. The three reasons above are measurements, not obstacles
 to try harder against.
+
+## FOUND: the configuration counterfactual, measured in MM3D (2026-09-28)
+
+The previous section is half-wrong and is corrected here rather than annotated. Its reason (c) — "MM3D
+needs no rare fixture but has no oracle capture at all" — is **refuted**: MM3D has an oracle, and the
+counterfactual was in it the whole time. Reasons (a) and (b) are about **OoT3D's content** and stand
+untouched, because no MM3D evidence can speak to them. The title's own scene
+`/scene/spot99_info.zsi` contains none of the 205 fragment-lit materials (a content fact no route
+changes), and the equipment screen's Link model is 30 of them but the title never enters a menu.
+
+**The measurement.** On the authoritative `picaLit` field (`regs.lighting.disable`, not the CmbVShader
+boolean), MM3D's opening is fragment-lit on **116–143 of 131–161 draws per frame** across frames
+1200–3800. `lighting_capture` at frame 2000, 12 captures from 24 armed — the misses are draw indices
+that stop being submitted when the scene advances between the arming frame and the next one, reported
+here rather than dropped:
+
+| register | value | draws |
+| --- | --- | --- |
+| `max_light_index` | `1` | 12/12 |
+| `slot_mapping` | `[0, 1, 0, 0, 0, 0, 0, 0]` | 12/12 |
+| `config0` | `0x80000400` | 12/12 |
+| `config1` | `0xff7fffff` | 11/12 |
+| `config1` | `0xff7effff` | 1/12 |
+| `light_enable` | `0x00000010` | 12/12 |
+| `luts` | *(empty)* | 12/12 |
+
+Four things follow, and only the first was open.
+
+**1. The host's slot count of 2 is now measured instead of assumed.** This is the project's first
+**two-light** fragment-lit fixture. Gravekeeper's Hut is a ONE-light material, so the OoT3D fixture
+could never discriminate a 2-slot host from a 3-slot one; `Zelda3D_GL_SetLightParams`'s literal `2` is
+consistent with 12 of 12 captures, with a denominator. It is still an *observation* rather than the
+predicate — `FUN_003fa34c` decides per material — but the constant is no longer a guess.
+
+**2. `config0 = 0x80000400` is the platform baseline, not a fixture coincidence.** MM3D and OoT3D have
+separate material compilers and different asset pipelines, and both land on the same word. That
+**strengthens the one open bit in the builder**: `pica_lighting_config.py`'s constructor default
+predicts `0x80020400` — the observed word plus exactly bit `0x11`, which comes solely from the
+constructor's `+0x18A = 1`, a byte `FUN_004c6364` covers but does not write. MM3D shows that bit clear
+on 12 of 12 draws in a *different title*, so "the ordinary lit path clears `+0x18A`" is now a
+cross-title fact rather than a single observation. **Which code clears it remains unknown and is not
+guessed** — the code-image search for its 0x4C8-byte source is already a recorded dead end.
+
+**3. `config1` is NOT a constant.** `0xff7effff` differs from `0xff7fffff` at bit `0x11`, which the
+builder names `MODE_SPOT_INDEX` (object `+0x190`). So a host that hardcodes `config1` is wrong for the
+materials that differ, and this is a real per-material input the transport has to carry — not a
+platform constant. Note the shape of the disagreement: `config0` is invariant across all 12 while
+`config1` varies, so the two words are not authored by the same rule and must not be carried as one.
+
+**4. No LUTs are in play.** `luts` is empty on 12/12, so these are the no-LUT form — the same form as
+the Gravekeeper fixture. The LUT-enabled half of this row still has no fixture in either title.
+
+### Two traps this measurement walked into, recorded so they are not walked into again
+
+* **`light_enable` is not a bitmask of enabled slots.** Azahar reads it as a per-slot **light index**
+  (`Azahar/src/video_core/pica/pica_core.cpp:100`, `regs.light_enable.GetNum(slot)`), and the
+  capture's `slot_mapping` array *is* that index per slot. A slot count derived by popcounting the word,
+  or by reading `0x10` as "slot 4 is enabled", produces a confident wrong answer — this one produced
+  exactly that before being caught. `max_light_index` and `slot_mapping` are the authority.
+* **`lighting_capture` only *arms* the request.** The PICA hook fills the file when that draw index is
+  actually submitted, so arming and reading immediately yields a **0-byte file** that looks like a
+  silent failure. Frames must run between the two. This is the same shape as reading `az_fog` before a
+  frame, and as matching `draw=` instead of `n=` in a `vsuni_log` — a confident false negative.
