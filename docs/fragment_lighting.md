@@ -1230,3 +1230,72 @@ the Gravekeeper fixture. The LUT-enabled half of this row still has no fixture i
   actually submitted, so arming and reading immediately yields a **0-byte file** that looks like a
   silent failure. Frames must run between the two. This is the same shape as reading `az_fog` before a
   frame, and as matching `draw=` instead of `n=` in a `vsuni_log` — a confident false negative.
+
+## The per-light transport contract, MEASURED on MM3D's registers (2026-09-28)
+
+Until now the per-slot transport was described in prose — "the host collapses ambient to
+`sceneAmbient * materialAmbient` plus an enabled-light count, so it lacks independent PICA per-light
+ambient products and fragment configuration/LUT selection" — and prose is what let the slot count stay
+hardcoded at `2` for this long. With MM3D booting, the registers are readable, so the contract's shape
+can be measured instead of asserted.
+
+### The decoder is transcribed from the emulator, and that mattered
+
+A first attempt used the widely-repeated "4 bits per channel plus an enable bit" colour layout and
+12.4 fixed point for the light position. Both are wrong. The authoritative layout is
+`Pica::LightSrc` in `Azahar/src/video_core/pica/regs_lighting.h:136-170`:
+
+| field | layout |
+| --- | --- |
+| `specular_0`, `specular_1`, `diffuse`, `ambient` | **10 bits per channel**, 255 == 1.0f, **no enable bit** |
+| `x`, `y`, `z` | **16-bit floating point** (not fixed point) |
+| `spot_x`, `spot_y`, `spot_z` | fixed 1.1.11, signed |
+| `config` | bit0 `directional`, bit1 `two_sided_diffuse`, bit2/3 `geometric_factor_0/1` |
+| `dist_atten_bias`, `dist_atten_scale` | 20 bits each |
+
+The 4-bit decode made both of MM3D's lit lights look near-black and invented an enable bit that does
+not exist. Corrected, the values are ordinary light colours. **Three separate wrong-element reads in
+one session, all producing clean-looking output, is the pattern worth recording.**
+
+### What the two lit slots actually contain
+
+Three `lighting_capture` reads at MM3D frame 2000, identical across all three (the scene is static,
+which is the control that these are scene constants and not per-frame noise):
+
+| | slot 0 | slot 1 |
+| --- | --- | --- |
+| `diffuse` | **(41, 31, 26)** | **(96, 82, 72)** |
+| `specular_0` | (83, 63, 53) | (193, 165, 146) |
+| `ambient` | (0, 0, 0) | (0, 0, 0) |
+| `x`, `y`, `z` | **-0.9365**, 0, 0 | **+0.9365**, 0, 0 |
+| `config` | `directional` | `directional` |
+| `dist_bias`, `dist_scale` | 0, 0 | 0, 0 |
+
+### What that decides about the transport
+
+Comparing each draw's own lit slots against each other, 3 draws / 6 slots:
+
+* **demonstrably PER-SLOT** (differs between a draw's own slots, so it needs its own slot in the
+  transport): **`diffuse`, `specular_0`, and the light direction `xy`**.
+* **not observed to vary** (equal in all 3 captures, which is NOT the same as constant):
+  `specular_1`, `ambient`, `z`, `spot_xy`, `spot_z`, `config`, `dist_bias`, `dist_scale`.
+
+The distinction is load-bearing: a field equal in three reads of one static scene is not evidence that
+it is constant, and the table says "not observed to vary" rather than "constant" for exactly that
+reason.
+
+**Both lights are `directional` and exactly antiparallel in x, but their COLOURS are not equal** —
+(41,31,26) against (96,82,72), a factor of ~2.3 on the same hue. The antiparallel geometry matches the
+N64 `EnvLightSettings` convention that the ZSI records follow (`light2Dir == -light1Dir`: 16 of 40
+emitted MM3D table slots are exactly antiparallel, 81.6% of records by the earlier measurement). So a
+host that derives light 2 by **negating light 1** would get the direction right and the colour wrong,
+and a host that copies the colour would get the direction wrong. Neither reduction works, which is the
+concrete reason the transport needs a genuine per-slot record.
+
+### Still open, and the reason is specific
+
+MM3D's dir scale measures ~119.5 where OoT3D's is ~124.7, and the natural hypothesis is a plain x127
+s8 scale — the live register's `x = 0.9365` gives `0.9365 * 127 = 118.9`, which is close. **This is
+consistent with, and does NOT confirm, the x127 scale**: the opening's palette is not in the recovered
+table at all, because the opening is not a scene ZSI, so the two sides cannot be joined. The scale stays
+open with that reason attached rather than being closed by a plausible multiplication.
