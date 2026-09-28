@@ -1023,3 +1023,82 @@ destinations are the mode bytes the builder reads. So:
 
 So the transport gap is closed for the mode bytes and the gate, and what is left is the renderer's
 slot-enable rule plus one live lit material to check the prediction against.
+
+---
+
+## The per-draw path is now fully read, and the host's two-slot model is a constant where a predicate belongs (2026-09-28)
+
+`FUN_003fa34c` (672 B) is the per-draw writer, and it is short enough to state completely. `param_2` is
+the 0x1CC-byte per-material record from `FUN_004c34ac`, so `param_2 + 0x10` is the lighting object and
+`*param_2` is the material entry.
+
+```c
+if (*(char *)*param_2 == '\0') { ... return; }              // (1) the gate
+...
+piVar7 = param_2 + 4;                                       // == object, at +0x10
+for (iVar4 = 0; iVar4 < 3; iVar4++) {                       // (2) THREE slots
+  iVar6 = *(int *)(param_1 + 0x10) + iVar4 * 0x60;          //     light record, stride 0x60
+  uStack_2c = *(undefined4 *)(iVar6 + 0xd8);                //     direction x,y,z at +0xD8..+0xE0
+  uStack_28 = *(undefined4 *)(iVar6 + 0xdc);
+  uStack_24 = *(undefined4 *)(iVar6 + 0xe0);
+  if (*(int *)(iVar6 + 0xe4) == 0x3f800000) {               //     enable test: +0xE4 == 1.0f
+    *(undefined1 *)((int)piVar7 + iVar4 + 0x164) = 1;       //     object +0x164 + i = 1
+  }
+}
+*(char *)piVar7       = scale_clamp(material + 0xA4);       // (3) object +0x10..+0x12
+*(char *)(param_2+1)  = scale_clamp(material + 0xA0);
+*(char *)(param_2+2)  = scale_clamp(material + 0xA6);
+FUN_00308498(param_1 + 0x24, piVar7);                       // (4) the confirmed chain
+```
+
+`FUN_003fa5d0` (1608 B) is the same routine with the full per-slot parameter pack: inside the same
+`+0xE4 == 1.0f` test it negates the slot direction (`-*(float *)(iVar6 + 0xd8)` and so on), so the
+direction it submits is light-TRAVEL, and it writes the slot's colour/attenuation bytes.
+
+### The four inputs, and where the host already has them
+
+| # | input | source | host status |
+|---|---|---|---|
+| 1 | the gate | `material[+0x00] != 0` | **have it** -- `CmbMaterial::fragment_lighting`, 205/11172 OoT3D and 6428/6791 MM3D |
+| 2 | slot enables | `light[i].+0xE4 == 1.0f`, **i in 0..2** | **constant where a predicate belongs** (see below) |
+| 3 | object `+0x10..+0x12` (the builder's `slot_map`) | a clamp+scale of the material's own `+0xA0/+0xA4/+0xA6` | **have it** -- `mat_ambient` / `mat_diffuse` |
+| 4 | the mode bytes | `material + 0xCC` via `FUN_004c6364` | **have it** -- `fragment_lighting_descriptor` |
+
+So three of the four are already in the host's parsed data and the fourth is a three-iteration loop
+over a field the host does not carry. The builder (`FUN_0040cdd8`) is already transcribed and
+mutation-tested, and the PICA200 fixed-function fragment-lighting math itself is the oracle's own
+(`Azahar`'s software rasterizer), not a recovered unknown. **The fragment-lighting port no longer has
+an RE blocker; it has one missing input.**
+
+### Three slots, and the host's `2` is standing in for the predicate
+
+`per_draw_light_setup.md` records the ACTOR configuration as two opposed directional terms
+(`dir0 = +D, dif0 = light2Color, amb0 = sceneAmbient; dir1 = -D, dif1 = light1Color, amb1 = 0`) and
+concludes the rig is "the standard N64 two-light rig". That conclusion is about the two configurations
+that were *observed*, and the oracle's per-draw log agrees (two occupied slots in every sample) -- but
+the rig is a **three-slot array at stride 0x60**, and the third slot is enabled by the same predicate
+as the first two. Nothing in the observed data distinguishes "the rig has two slots" from "the rig has
+three slots and the third was disabled in every sample", and the enabling field's producer is not in
+the decompiled set (1,321 of the image's functions), so the third slot's value cannot be read out
+statically.
+
+The host encodes the observation rather than the predicate: `Zelda3D_GL_SetLightParams(ambient,
+light1Color, light2Direction, light2Color, 2)` passes a literal `2`, which becomes the enabled-slot
+count the vertex shader and `uAmbient.w` use. That is correct for every configuration measured and
+**silently drops a third slot** if one is ever enabled. The fix is to carry the per-slot predicate
+rather than the count, which is a change to the light-bank UBO contract and to
+`Zelda3D_GL_SetLightParams`'s last argument, not to the lighting maths. It is recorded rather than
+attempted here, because the honest scope of the claim is "the rig has three slots and we observe two",
+and widening the UBO on an unverified third slot would be exactly the kind of speculative change that
+the `+0x138` misreading above would have been.
+
+### What this does NOT license
+
+* The host still must not alias `FRAGMENT_PRIMARY` to the vertex `PRIMARY` for the 197 OoT3D / 5,993
+  MM3D enabled consumers. This section supplies the inputs; it does not supply the counterfactual that
+  a port needs to be checked against, and the title demo never enables fragment lighting (0 of 207
+  draws on the authoritative `regs.lighting.disable` register), so that check is still behind issue
+  #23.
+* `+0xE4`'s producer is unidentified. The *rule* is read from the consumer, which is enough to
+  evaluate the predicate once the producer is found, but "which field is +0xE4" is not answered here.
+* The 0x1CC-vs-0x4C8 stride conflict above is unchanged and still unresolved.
