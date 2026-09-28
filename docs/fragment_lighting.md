@@ -1102,3 +1102,68 @@ the `+0x138` misreading above would have been.
 * `+0xE4`'s producer is unidentified. The *rule* is read from the consumer, which is enough to
   evaluate the predicate once the producer is found, but "which field is +0xE4" is not answered here.
 * The 0x1CC-vs-0x4C8 stride conflict above is unchanged and still unresolved.
+
+---
+
+## The counterfactual is blocked for three independent reasons, and one of them is content (2026-09-28)
+
+The title demo was already recorded as unable to supply a lit-material ground truth: 0 of 207 draws
+on the authoritative `regs.lighting.disable` register, with `picaLit` (not the CmbVShader `fLit`
+boolean) as the state that counts. That is a *state* argument. There are now two more, and the second
+is a content fact that no amount of title-side work can change.
+
+### 1. The title's content contains no fragment-lit material at all
+
+`material + 0x00` is the fragment-lighting gate (205 of 11,172 OoT3D materials; 6,428 of 6,791 MM3D),
+and the 205 OoT3D materials live in **150 files**, none of them the title:
+
+| count | archive | materials |
+|---|---|---|
+| 15 | `/misc/menu_link.zar:menu_link_ura.cmb` | 0..14 |
+| 15 | `/misc/menu_link.zar:menu_link_omote.cmb` | 0..14 |
+| 6 | `zelda_gi_grass.zar:gi_grass_model.cmb` | 0..5 |
+| 6 | `zelda_ganon.zar:gn1_handR2_xx_model.cmb` | 0..5 |
+| 5 | `zelda_gi_ocarina_0.zar:gi_ocarina_0_model.cmb` | 0..4 |
+| 4 | `dk_spia.zar:spia5m_model.cmb` | 0..3 |
+
+`/scene/spot99_info.zsi` — the title's own scene — has **none**. So even a perfect title route, with
+every draw captured, could not produce a fragment-lit fixture: there is no material in that scene
+that asks for one. That is stronger than "the register was never enabled", and it is a property of the
+retail content rather than of the route.
+
+### 2. The two largest fragment-lit populations are the equipment screen, and the title does not enter a menu
+
+`menu_link_ura.cmb` and `menu_link_omote.cmb` are 30 of the 205 — the equipment screen's Link model,
+and the only large fragment-lit population reachable without gameplay. Reaching it needs the menu,
+and the title does not get there:
+
+* pressing START mid-title does nothing and the script keeps advancing — the title is a **scripted
+  playback** (`title.oot3d-not-play`), so input is ignored until the script ends;
+* running the host title to `cs=2401` (past `end=2400`) and pressing START there leaves the same
+  scene: 65 draws, one model, `fragLit=0` on all of them, and a static camera, with the cursor
+  continuing to advance past the script's end.
+
+So the host never transitions out of the title presentation, which matches the recorded oracle-side
+behaviour ("Start at the logo -> 200 frames black -> sky-only screen, stuck 2400+ frames"). The
+instrument that made this measurable is `fragLit=` on the per-draw `[Zelda3D_SG] draw N` list: the
+corpus says which materials carry the flag and the draw list says which of them were actually drawn,
+so "no fragment-lit draw" is now a per-frame number rather than an inference from the register.
+
+### 3. MM3D cannot supply one either, for a different reason
+
+MM3D has **6,428 of 6,791** materials fragment-lit, so MM needs no rare fixture — it needs any MM
+scene at all, and MM3D has **no oracle capture whatsoever** (no visual evidence of any kind). That is
+not the same blocker as OoT3D's and must not be folded into it: OoT3D is blocked on reaching gameplay,
+MM3D is blocked on having any MM3D image to compare against.
+
+### What would actually open it
+
+* **OoT3D:** a state that already has a menu, so the equipment screen can be walked to. The
+  equipment screen is the highest-value single target in the corpus by a wide margin (30 of 205
+  materials, all in one place, all reachable without combat), and `menu_link_omote`/`ura` are already
+  named in this note as "grounded counterfactual candidates" for exactly this reason.
+* **MM3D:** any MM3D frame at all. Until then no MM3D fragment-lighting claim is checkable, and the
+  honest status stays "implemented-but-unverified" rather than "verified".
+
+Do not re-attempt this from the title screen. The three reasons above are measurements, not obstacles
+to try harder against.
