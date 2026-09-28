@@ -1149,12 +1149,19 @@ instrument that made this measurable is `fragLit=` on the per-draw `[Zelda3D_SG]
 corpus says which materials carry the flag and the draw list says which of them were actually drawn,
 so "no fragment-lit draw" is now a per-frame number rather than an inference from the register.
 
-### 3. MM3D cannot supply one either, for a different reason
+### 3. ~~MM3D cannot supply one either~~ — WITHDRAWN, see the section below this list
 
-MM3D has **6,428 of 6,791** materials fragment-lit, so MM needs no rare fixture — it needs any MM
-scene at all, and MM3D has **no oracle capture whatsoever** (no visual evidence of any kind). That is
-not the same blocker as OoT3D's and must not be folded into it: OoT3D is blocked on reaching gameplay,
-MM3D is blocked on having any MM3D image to compare against.
+**This item was wrong and is withdrawn, not merely superseded.** The reasoning it recorded — "MM needs
+any MM scene at all, and MM3D has no oracle capture whatsoever (no visual evidence of any kind)" — is
+refuted: MM3D boots in the Azahar oracle, and its counterfactual was measured. MM3D's opening is
+fragment-lit on **116–143 of 131–161 draws per frame**, and `lighting_capture` gives
+`max_light_index=1`/`slot_mapping=[0,1,...]` 12 of 12, `config0=0x80000400` 12 of 12 and `config1`
+`0xff7fffff` 11 of 12 against `0xff7effff` 1 of 12. See "FOUND: the configuration counterfactual,
+measured in MM3D" below. The heading is struck through rather than deleted so the withdrawal is visible
+in a heading scan, which is how most readers meet this file.
+
+What survives from it: the *separation* was right even though the conclusion was wrong. OoT3D and MM3D
+were, and still are, blocked on different things, and must not be folded together.
 
 ### What would actually open it
 
