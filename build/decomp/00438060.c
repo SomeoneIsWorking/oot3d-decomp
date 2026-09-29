@@ -1,0 +1,34 @@
+// OoT3D decomp @ 00438060  name=FUN_00438060  size=148
+
+int * FUN_00438060(int *param_1,int *param_2)
+
+{
+  int *piVar1;
+  int *piVar2;
+  int iVar3;
+  int *unaff_r6;
+
+  *param_1 = 0;
+  piVar1 = DAT_004380f4;
+  if (param_2 != (int *)0x0) {
+    unaff_r6 = (int *)*param_2;
+  }
+  if (param_2 != (int *)0x0 && unaff_r6 != (int *)0x0) {
+    piVar2 = (int *)(**(code **)*unaff_r6)(unaff_r6);
+    do {
+      if (piVar2 == piVar1) goto LAB_004380b0;
+      piVar2 = (int *)*piVar2;
+    } while (piVar2 != (int *)0x0);
+    unaff_r6 = (int *)0x0;
+LAB_004380b0:
+    if (unaff_r6 != (int *)0x0) {
+      *param_1 = (int)unaff_r6;
+      iVar3 = (**(code **)(*unaff_r6 + 0x18))();
+      if (iVar3 != 0) {
+        (**(code **)(*(int *)*param_1 + 0x1c))();
+      }
+      *(int **)(*param_1 + 0x2090) = param_1;
+    }
+  }
+  return param_1;
+}

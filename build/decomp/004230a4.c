@@ -1,0 +1,140 @@
+// OoT3D decomp @ 004230a4  name=FUN_004230a4  size=640
+
+void FUN_004230a4(undefined4 *param_1)
+
+{
+  undefined4 *puVar1;
+  undefined4 *puVar2;
+  undefined4 uVar3;
+  undefined4 *puVar4;
+  undefined4 uVar5;
+  int iVar6;
+  undefined4 uVar7;
+  undefined4 uVar8;
+  undefined4 uVar9;
+  uint in_fpscr;
+  double dVar10;
+  float fVar11;
+  undefined4 uVar12;
+  double dVar13;
+  double dVar14;
+  double dVar15;
+  short local_40;
+  short local_3e;
+  short local_3c;
+  short local_3a;
+  short local_38;
+  short local_36;
+  short local_34;
+  short local_32;
+  float local_30;
+
+  *(undefined1 *)(param_1 + 0x215) = 0;
+  *(undefined1 *)((int)param_1 + 0x855) = 1;
+  uVar12 = DAT_004231f0;
+  *(undefined1 *)((int)param_1 + 0x856) = 1;
+  param_1[0x216] = uVar12;
+  FUN_0043654c(param_1);
+  param_1[0x21a] = DAT_004231f4;
+  param_1[0x21b] = DAT_004231f8;
+  FUN_0043657c(param_1);
+  *(undefined1 *)((int)param_1 + 0x857) = 0;
+  FUN_0030155c(param_1 + 0x1e2);
+  uVar12 = DAT_004231fc;
+  param_1[0x1fb] = DAT_004231fc;
+  param_1[0x1fc] = uVar12;
+  param_1[0x1fd] = uVar12;
+  puVar1 = DAT_00423200;
+  uVar3 = DAT_00423200[1];
+  uVar5 = DAT_00423200[2];
+  uVar7 = DAT_00423200[3];
+  uVar8 = DAT_00423200[4];
+  uVar9 = DAT_00423200[5];
+  puVar2 = DAT_00423200 + 6;
+  param_1[0x1fe] = *DAT_00423200;
+  param_1[0x1ff] = uVar3;
+  param_1[0x200] = uVar5;
+  param_1[0x201] = uVar7;
+  param_1[0x202] = uVar8;
+  param_1[0x203] = uVar9;
+  uVar3 = puVar1[7];
+  uVar5 = puVar1[8];
+  param_1[0x204] = *puVar2;
+  param_1[0x205] = uVar3;
+  param_1[0x206] = uVar5;
+  puVar1 = DAT_00423204;
+  *param_1 = 0;
+  uVar3 = puVar1[1];
+  uVar5 = puVar1[2];
+  param_1[0x208] = *puVar1;
+  param_1[0x209] = uVar3;
+  param_1[0x20a] = uVar5;
+  param_1[0x1f8] = param_1[0x208];
+  param_1[0x1f9] = param_1[0x209];
+  param_1[0x1fa] = param_1[0x20a];
+  uVar3 = puVar1[1];
+  uVar5 = puVar1[2];
+  param_1[0x228] = *puVar1;
+  param_1[0x229] = uVar3;
+  param_1[0x22a] = uVar5;
+  param_1[0x21e] = uVar12;
+  param_1[0x21d] = uVar12;
+  param_1[0x21c] = uVar12;
+  uVar12 = DAT_00423208;
+  param_1[0x211] = DAT_00423208;
+  param_1[0x52e] = uVar12;
+  param_1[0x52d] = uVar12;
+  param_1[0x52c] = uVar12;
+  param_1[0x52b] = 0;
+  param_1[0x42b] = 0;
+  iVar6 = 0xff;
+  param_1[0x32b] = 0;
+  puVar1 = param_1 + 0x52a;
+  puVar2 = param_1 + 0x42a;
+  puVar4 = param_1 + 0x32a;
+  do {
+    *puVar1 = 0;
+    *puVar2 = 0;
+    iVar6 = iVar6 + -1;
+    *puVar4 = 0;
+    puVar1 = puVar1 + -1;
+    puVar2 = puVar2 + -1;
+    puVar4 = puVar4 + -1;
+  } while (iVar6 != 0);
+  param_1[0x22b] = 0;
+  param_1[0x212] = DAT_0042320c;
+  param_1[0x213] = DAT_00423210;
+  param_1[0x214] = DAT_00423214;
+  iVar6 = FUN_0044a528(&local_40);
+  if (iVar6 < 0) {
+    FUN_0030e3ac(iVar6,DAT_004367c4,0);
+    FUN_002fb928(0);
+  }
+  dVar13 = (double)VectorSignedToFloat((int)local_3e - (int)local_3c,(byte)(in_fpscr >> 0x15) & 3);
+  dVar13 = dVar13 * DAT_004367cc;
+  dVar14 = (double)VectorSignedToFloat((int)local_38 - (int)local_36,(byte)(in_fpscr >> 0x15) & 3);
+  dVar14 = dVar14 * DAT_004367cc;
+  dVar15 = (double)VectorSignedToFloat((int)local_32 - (int)local_30._0_2_,
+                                       (byte)(in_fpscr >> 0x15) & 3);
+  dVar15 = dVar15 * DAT_004367cc;
+  iVar6 = FUN_0044a570(&local_30);
+  if (iVar6 < 0) {
+    FUN_0030e3ac(iVar6,DAT_004367c4,0);
+    FUN_002fb928(0);
+  }
+  dVar10 = (double)local_30;
+  uVar5 = VectorSignedToFloat((int)local_34,(byte)(in_fpscr >> 0x15) & 3);
+  fVar11 = DAT_004367d8 / (local_30 * DAT_004367d4);
+  param_1[0x210] = fVar11;
+  param_1[0x20f] = fVar11;
+  param_1[0x20e] = fVar11;
+  *(double *)(param_1 + 0x222) = dVar10 / dVar13;
+  *(double *)(param_1 + 0x224) = dVar10 / dVar14;
+  uVar12 = VectorSignedToFloat((int)local_40,(byte)(in_fpscr >> 0x15) & 3);
+  uVar3 = VectorSignedToFloat((int)local_3a,(byte)(in_fpscr >> 0x15) & 3);
+  *(double *)(param_1 + 0x226) = dVar10 / dVar15;
+  param_1[0x21f] = uVar12;
+  param_1[0x220] = uVar3;
+  param_1[0x221] = uVar5;
+  return;
+}

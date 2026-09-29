@@ -1,0 +1,81 @@
+// OoT3D decomp @ 003a5778  name=FUN_003a5778  size=392
+
+void FUN_003a5778(undefined4 *param_1,undefined4 *param_2,short *param_3,undefined4 *param_4)
+
+{
+  undefined4 uVar1;
+  float fVar2;
+  undefined4 uVar3;
+  undefined4 uVar4;
+  uint in_fpscr;
+  float fVar5;
+  undefined1 auStack_120 [48];
+  undefined4 local_f0;
+  undefined4 local_ec;
+  undefined4 local_e8;
+  undefined4 local_e4;
+  undefined4 local_e0;
+  undefined4 local_dc;
+  undefined4 local_d8;
+  undefined4 local_d4;
+  undefined4 local_d0;
+  undefined4 local_cc;
+  undefined4 local_c8;
+  undefined4 local_c4;
+  undefined1 auStack_c0 [48];
+  undefined1 auStack_90 [48];
+  undefined1 auStack_60 [48];
+  undefined4 local_30;
+  undefined4 local_2c;
+  undefined4 local_28;
+
+  param_1[1] = 0;
+  *param_1 = 0x3f800000;
+  param_1[2] = 0;
+  uVar3 = *param_4;
+  param_1[4] = 0;
+  param_1[5] = 0x3f800000;
+  uVar1 = DAT_003a5900;
+  param_1[3] = uVar3;
+  param_1[6] = 0;
+  uVar3 = DAT_003a5904;
+  uVar4 = param_4[1];
+  param_1[8] = 0;
+  param_1[7] = uVar4;
+  param_1[9] = 0;
+  param_1[10] = 0x3f800000;
+  param_1[0xb] = param_4[2];
+  fVar2 = DAT_003a5908;
+  local_30 = uVar1;
+  local_2c = uVar3;
+  local_28 = uVar3;
+  fVar5 = (float)VectorSignedToFloat((int)*param_3,(byte)(in_fpscr >> 0x15) & 3);
+  FUN_003625f8(fVar5 * DAT_003a5908,auStack_60,&local_30);
+  local_30 = uVar3;
+  local_2c = uVar1;
+  local_28 = uVar3;
+  fVar5 = (float)VectorSignedToFloat((int)param_3[1],(byte)(in_fpscr >> 0x15) & 3);
+  FUN_003625f8(fVar5 * fVar2,auStack_90,&local_30);
+  local_30 = uVar3;
+  local_2c = uVar3;
+  local_28 = uVar1;
+  fVar5 = (float)VectorSignedToFloat((int)param_3[2],(byte)(in_fpscr >> 0x15) & 3);
+  FUN_003625f8(fVar5 * fVar2,auStack_c0,&local_30);
+  FUN_0036c174(auStack_120,auStack_90,auStack_60);
+  FUN_0036c174(auStack_120,auStack_120,auStack_c0);
+  FUN_0036c174(auStack_120,param_1,auStack_120);
+  local_f0 = *param_2;
+  local_ec = 0;
+  local_e8 = 0;
+  local_e4 = 0;
+  local_e0 = 0;
+  local_dc = param_2[1];
+  local_d8 = 0;
+  local_d4 = 0;
+  local_d0 = 0;
+  local_cc = 0;
+  local_c8 = param_2[2];
+  local_c4 = 0;
+  FUN_0036c174(param_1,auStack_120,&local_f0);
+  return;
+}

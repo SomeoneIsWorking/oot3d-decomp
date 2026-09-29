@@ -1,0 +1,97 @@
+// OoT3D decomp @ 002ea458  name=FUN_002ea458  size=532
+
+void FUN_002ea458(float param_1,float *param_2)
+
+{
+  float fVar1;
+  float fVar2;
+  float fVar3;
+  float fVar4;
+  float fVar5;
+  float fVar6;
+  float fVar7;
+  float fVar8;
+  float fVar9;
+  float fVar10;
+  float fVar11;
+  float fVar12;
+  float fVar13;
+  float fVar14;
+  float fVar15;
+  float fVar16;
+  float fVar17;
+  float fVar18;
+  float fVar19;
+  float fVar20;
+  float fVar21;
+  float fVar22;
+
+  fVar2 = DAT_002ea670;
+  fVar1 = DAT_002ea66c;
+  do {
+    fVar6 = *param_2;
+    fVar3 = param_2[1];
+    fVar4 = param_2[2];
+    fVar5 = fVar1 / SQRT(fVar6 * fVar6 + fVar3 * fVar3 + fVar4 * fVar4);
+    *param_2 = fVar6 * fVar5;
+    param_2[1] = fVar3 * fVar5;
+    param_2[2] = fVar4 * fVar5;
+    *param_2 = *param_2;
+    param_2[1] = param_2[1];
+    param_2[2] = param_2[2];
+    fVar3 = param_2[3];
+    fVar4 = param_2[4];
+    fVar5 = param_2[5];
+    fVar6 = fVar1 / SQRT(fVar3 * fVar3 + fVar4 * fVar4 + fVar5 * fVar5);
+    param_2[3] = fVar3 * fVar6;
+    param_2[4] = fVar4 * fVar6;
+    param_2[5] = fVar5 * fVar6;
+    param_2[3] = param_2[3];
+    param_2[4] = param_2[4];
+    param_2[5] = param_2[5];
+    fVar6 = param_2[6];
+    fVar3 = param_2[7];
+    fVar4 = param_2[8];
+    fVar5 = fVar1 / SQRT(fVar6 * fVar6 + fVar3 * fVar3 + fVar4 * fVar4);
+    param_2[6] = fVar6 * fVar5;
+    param_2[7] = fVar3 * fVar5;
+    param_2[8] = fVar4 * fVar5;
+    param_2[6] = param_2[6];
+    param_2[7] = param_2[7];
+    param_2[8] = param_2[8];
+    fVar5 = param_2[8];
+    fVar4 = param_2[5];
+    fVar6 = param_2[7];
+    fVar7 = param_2[6];
+    fVar8 = param_2[3];
+    fVar9 = param_2[2];
+    fVar10 = param_2[1];
+    fVar3 = param_2[4];
+    fVar11 = *param_2;
+    fVar17 = fVar4 * fVar7 - fVar8 * fVar5;
+    fVar22 = fVar3 * fVar5 - fVar4 * fVar6;
+    fVar15 = fVar8 * fVar6 - fVar3 * fVar7;
+    fVar20 = fVar6 * fVar9 - fVar5 * fVar10;
+    fVar16 = fVar5 * fVar11 - fVar7 * fVar9;
+    fVar12 = fVar7 * fVar10 - fVar6 * fVar11;
+    fVar19 = fVar10 * fVar4 - fVar9 * fVar3;
+    fVar13 = fVar9 * fVar8 - fVar11 * fVar4;
+    fVar14 = fVar11 * fVar3 - fVar10 * fVar8;
+    fVar21 = SQRT(fVar22 * fVar22 + fVar17 * fVar17 + fVar15 * fVar15);
+    fVar18 = fVar1 / fVar21;
+    *param_2 = (fVar11 + fVar18 * fVar22) * fVar2;
+    param_2[1] = (fVar10 + fVar18 * fVar17) * fVar2;
+    param_2[2] = (fVar9 + fVar18 * fVar15) * fVar2;
+    fVar9 = SQRT(fVar20 * fVar20 + fVar16 * fVar16 + fVar12 * fVar12);
+    fVar10 = fVar1 / fVar9;
+    param_2[3] = (fVar8 + fVar10 * fVar20) * fVar2;
+    param_2[4] = (fVar3 + fVar10 * fVar16) * fVar2;
+    param_2[5] = (fVar4 + fVar10 * fVar12) * fVar2;
+    fVar3 = SQRT(fVar19 * fVar19 + fVar13 * fVar13 + fVar14 * fVar14);
+    fVar4 = fVar1 / fVar3;
+    param_2[6] = (fVar7 + fVar4 * fVar19) * fVar2;
+    param_2[7] = (fVar6 + fVar4 * fVar13) * fVar2;
+    param_2[8] = (fVar5 + fVar4 * fVar14) * fVar2;
+  } while (fVar21 + fVar9 + fVar3 < param_1);
+  return;
+}

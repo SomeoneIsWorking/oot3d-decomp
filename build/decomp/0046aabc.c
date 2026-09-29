@@ -1,0 +1,98 @@
+// OoT3D decomp @ 0046aabc  name=FUN_0046aabc  size=332
+
+void FUN_0046aabc(float param_1,float param_2,float param_3,float param_4,undefined4 param_5,
+                 undefined4 param_6)
+
+{
+  float *local_15c;
+  undefined4 local_158;
+  undefined4 uStack_154;
+  undefined4 local_150;
+  undefined4 *local_14c;
+  undefined4 local_148;
+  undefined4 local_144;
+  undefined4 local_140;
+  undefined2 local_13c;
+  undefined2 local_13a;
+  undefined4 local_138;
+  undefined2 local_134;
+  undefined2 local_132;
+  undefined2 local_130;
+  undefined2 local_12e;
+  short local_12c;
+  short local_12a;
+  short local_128;
+  undefined2 local_126;
+  undefined2 local_124;
+  undefined2 local_122;
+  undefined2 local_120;
+  undefined2 local_11e;
+  short local_11c;
+  undefined2 local_11a;
+  undefined2 local_118;
+  ushort local_116;
+  ushort local_114;
+  ushort local_112;
+  undefined2 local_110;
+  undefined4 local_44;
+  undefined4 local_40;
+  float local_3c;
+  float local_38;
+  undefined4 uStack_34;
+  float local_30;
+  float local_2c;
+  undefined4 local_28;
+  float local_24;
+  float local_20;
+  undefined4 uStack_1c;
+  float local_18;
+  float local_14;
+  undefined4 uStack_10;
+
+  uStack_34 = 0;
+  local_2c = param_4 - param_2;
+  local_28 = 0;
+  uStack_1c = 0;
+  uStack_10 = 0;
+  local_15c = &local_3c;
+  local_40 = *(undefined4 *)(DAT_0046ac08 + 0xc);
+  local_44 = *(undefined4 *)(DAT_0046ac08 + 8);
+  local_14c = &local_44;
+  local_3c = 0.0 - param_1;
+  local_38 = 0.0 - param_2;
+  local_30 = 0.0 - param_1;
+  local_24 = param_3 - param_1;
+  local_20 = 0.0 - param_2;
+  local_158 = 0;
+  local_150 = 4;
+  local_148 = 4;
+  local_140 = 0x14;
+  local_144 = 2;
+  local_13c = 1;
+  local_13a = 2;
+  local_130 = 1;
+  local_138 = 1;
+  local_12e = 1;
+  local_134 = 0x1e01;
+  local_132 = 0x1e01;
+  local_12c = (short)DAT_0046ac0c;
+  local_128 = local_12c + -2;
+  local_126 = (undefined2)(DAT_0046ac0c + -3);
+  local_116 = (ushort)(DAT_0046ac0c + -3 >> 0xe) | 0x300;
+  local_120 = 0x300;
+  local_122 = 0x300;
+  local_11e = 0x300;
+  local_110 = 0;
+  uStack_154 = param_6;
+  local_12a = local_12c;
+  local_124 = local_126;
+  local_11c = local_128;
+  local_11a = local_126;
+  local_118 = local_126;
+  local_114 = local_116;
+  local_112 = local_116;
+  local_18 = local_24;
+  local_14 = local_2c;
+  FUN_002d2754(param_5,0,&local_15c);
+  return;
+}

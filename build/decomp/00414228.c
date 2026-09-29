@@ -1,0 +1,14 @@
+// OoT3D decomp @ 00414228  name=FUN_00414228  size=76
+
+void FUN_00414228(void)
+
+{
+  int iVar1;
+
+  iVar1 = DAT_00414278;
+  FUN_0034338c(DAT_00414278 + 0x28,DAT_00414274,0x28);
+  FUN_0034338c(iVar1 + 0x50,DAT_0041427c,0x28);
+  FUN_0034338c(iVar1 + 0x78,DAT_00414280,0x28);
+  FUN_0034338c(iVar1 + 0x140,DAT_00414284,0x28);
+  return;
+}

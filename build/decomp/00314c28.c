@@ -1,0 +1,9 @@
+// OoT3D decomp @ 00314c28  name=FUN_00314c28  size=52
+
+void FUN_00314c28(void)
+
+{
+  FUN_003757a8();
+  FUN_0037547c(DAT_00314c64,0,4,DAT_00314c60,DAT_00314c60,DAT_00314c5c);
+  return;
+}

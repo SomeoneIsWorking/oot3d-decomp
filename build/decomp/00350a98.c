@@ -1,0 +1,83 @@
+// OoT3D decomp @ 00350a98  name=FUN_00350a98  size=132
+
+undefined4 FUN_00350a98(undefined4 param_1,undefined4 *param_2)
+
+{
+  undefined4 *puVar1;
+  undefined4 uVar2;
+  undefined4 uVar3;
+  undefined4 uVar4;
+  undefined4 uVar5;
+  undefined4 uVar6;
+  undefined4 *puVar7;
+
+  uVar2 = DAT_00350b1c[1];
+  uVar3 = DAT_00350b1c[2];
+  uVar4 = DAT_00350b1c[3];
+  uVar5 = DAT_00350b1c[4];
+  uVar6 = DAT_00350b1c[5];
+  *param_2 = *DAT_00350b1c;
+  param_2[1] = uVar2;
+  param_2[2] = uVar3;
+  param_2[3] = uVar4;
+  param_2[4] = uVar5;
+  param_2[5] = uVar6;
+  puVar1 = DAT_00350b20;
+  uVar2 = DAT_00350b20[1];
+  uVar3 = DAT_00350b20[2];
+  uVar4 = DAT_00350b20[3];
+  puVar7 = DAT_00350b20 + 4;
+  param_2[6] = *DAT_00350b20;
+  param_2[7] = uVar2;
+  param_2[8] = uVar3;
+  param_2[9] = uVar4;
+  uVar2 = puVar1[5];
+  uVar3 = puVar1[6];
+  uVar4 = puVar1[7];
+  param_2[10] = *puVar7;
+  param_2[0xb] = uVar2;
+  param_2[0xc] = uVar3;
+  param_2[0xd] = uVar4;
+  uVar2 = puVar1[9];
+  param_2[0xe] = puVar1[8];
+  param_2[0xf] = uVar2;
+  uVar2 = *(undefined4 *)(DAT_00350b24 + 0x14);
+  param_2[7] = *(undefined4 *)(DAT_00350b24 + 0x18);
+  puVar1 = DAT_00350b28;
+  param_2[6] = uVar2;
+  uVar2 = puVar1[1];
+  uVar3 = puVar1[2];
+  param_2[8] = *puVar1;
+  param_2[9] = uVar2;
+  param_2[10] = uVar3;
+  uVar2 = puVar1[0xe];
+  uVar3 = puVar1[0xf];
+  uVar4 = puVar1[0x10];
+  uVar5 = puVar1[0x11];
+  param_2[0x10] = puVar1[0xd];
+  param_2[0x11] = uVar2;
+  param_2[0x12] = uVar3;
+  param_2[0x13] = uVar4;
+  param_2[0x14] = uVar5;
+  uVar2 = puVar1[0x13];
+  uVar3 = puVar1[0x14];
+  uVar4 = puVar1[0x15];
+  uVar5 = puVar1[0x16];
+  param_2[0x15] = puVar1[0x12];
+  param_2[0x16] = uVar2;
+  param_2[0x17] = uVar3;
+  param_2[0x18] = uVar4;
+  param_2[0x19] = uVar5;
+  uVar2 = puVar1[0x18];
+  uVar3 = puVar1[0x19];
+  uVar4 = puVar1[0x1a];
+  uVar5 = puVar1[0x1b];
+  uVar6 = puVar1[0x1c];
+  param_2[0x1a] = puVar1[0x17];
+  param_2[0x1b] = uVar2;
+  param_2[0x1c] = uVar3;
+  param_2[0x1d] = uVar4;
+  param_2[0x1e] = uVar5;
+  param_2[0x1f] = uVar6;
+  return 1;
+}

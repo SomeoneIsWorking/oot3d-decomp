@@ -1,0 +1,85 @@
+// OoT3D decomp @ 0030b174  name=FUN_0030b174  size=392
+
+void FUN_0030b174(int *param_1)
+
+{
+  int iVar1;
+  undefined4 uVar2;
+  int iVar3;
+  int iVar4;
+  int iVar5;
+
+  uVar2 = (**(code **)(*param_1 + 0x20))(param_1);
+  iVar3 = FUN_0030c550();
+  param_1[1] = 0;
+  param_1[2] = 0;
+  param_1[3] = 0;
+  param_1[4] = 0;
+  param_1[5] = 0;
+  param_1[6] = 0;
+  *(undefined1 *)((int)param_1 + 0x8a) = 0;
+  param_1[0x27] = -1;
+  param_1[7] = 0;
+  param_1[8] = 0;
+  param_1[9] = 0;
+  param_1[10] = 0;
+  param_1[0xb] = 0;
+  *(undefined1 *)((int)param_1 + 0x8b) = 0;
+  iVar4 = DAT_0030b2fc;
+  *(undefined1 *)(param_1 + 0x23) = 0;
+  *(undefined1 *)((int)param_1 + 0x85) = 0;
+  *(undefined1 *)((int)param_1 + 0x86) = 0;
+  *(undefined1 *)((int)param_1 + 0x87) = 0;
+  *(undefined1 *)(param_1 + 0x22) = 0;
+  *(undefined1 *)((int)param_1 + 0x89) = 0;
+  param_1[0x24] = 0;
+  iVar1 = DAT_0030b300;
+  param_1[0x25] = 0;
+  param_1[0x19] = iVar4;
+  param_1[0x1a] = iVar4;
+  param_1[0x1b] = 0;
+  param_1[0x1c] = 0;
+  param_1[0x1d] = iVar1;
+  param_1[0x1e] = iVar1;
+  param_1[0x1f] = 0;
+  param_1[0x20] = 0;
+  iVar5 = FUN_0030b44c(param_1 + 0x19);
+  param_1[0x19] = iVar5;
+  param_1[0x1a] = iVar1;
+  param_1[0x1b] = 1;
+  param_1[0x1c] = 0;
+  param_1[0x2c] = iVar1;
+  param_1[0x2e] = iVar1;
+  param_1[0x2d] = iVar4;
+  param_1[0x28] = iVar1;
+  param_1[0x29] = iVar1;
+  param_1[0x2a] = 0;
+  param_1[0x2b] = 0;
+  param_1[0x2f] = iVar4;
+  *(undefined1 *)((int)param_1 + 0x99) = 0;
+  param_1[0x30] = iVar4;
+  param_1[0x34] = iVar4;
+  param_1[0x31] = iVar4;
+  param_1[0x32] = iVar4;
+  param_1[0x33] = iVar4;
+  param_1[0xc] = iVar1;
+  param_1[0xd] = iVar1;
+  param_1[0xe] = iVar4;
+  param_1[0xf] = iVar4;
+  param_1[0x10] = iVar4;
+  param_1[0x11] = iVar4;
+  param_1[0x12] = iVar4;
+  param_1[0x13] = 0;
+  param_1[0x14] = 0;
+  param_1[0x17] = iVar1;
+  param_1[0x16] = iVar1;
+  param_1[0x18] = iVar4;
+  iVar4 = FUN_0030c20c(iVar3,6);
+  *(undefined4 *)(iVar4 + 0xc) = *(undefined4 *)(iVar3 + 0x180);
+  *(undefined1 *)(iVar4 + 4) = 3;
+  *(int *)(iVar4 + 0x14) = (int)param_1 + 0x89;
+  *(undefined4 *)(iVar4 + 0x10) = uVar2;
+  FUN_0030c1e8(iVar3);
+  *(undefined1 *)(param_1 + 0x21) = 1;
+  return;
+}
