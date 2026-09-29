@@ -1376,3 +1376,45 @@ direction encoding is a register-semantics question, not a reading of this funct
 record count (8), and the packed-destination stride (0x38).
 **What it does not close:** who fills the 0x2C records, and the register meaning of each triple. The
 producer question is now a question about a *known* structure rather than a guessed one.
+
+### Where the 14 written words must land, and what is still not claimed
+
+`FUN_0040d1a8` writes 14 words (0x00..0x35) and returns `param_2 + 0xe`. The hardware slot is
+`LightSrc` (`Azahar/src/video_core/pica/regs_lighting.h:136`), which `static_assert`s to **0x10
+words**, and the PICA light block is addressed at `0x140 + slot*0x10` — 16 words per slot. So the
+14 written words are a *packed* record and the serialiser advances by 14, not by the 16 the hardware
+slot occupies; the 14 must therefore be read against `LightSrc`'s field order with that two-word
+shortfall in mind, not one-to-one by index.
+
+`LightSrc`'s order is: `specular_0`, `specular_1`, `diffuse`, `ambient` (each a `LightColor`),
+then `x`/`y` as a half2 pair, `z` as a half, then `spot_x`/`spot_y`, `spot_z` as fixed1.1.11
+direction words, then padding, then `config` (`directional` bit 0, `two_sided_diffuse` bit 1,
+`geometric_factor_0` bit 2, `geometric_factor_1` bit 3), then `dist_atten_bias`, `dist_atten_scale`,
+then more padding.
+
+**This ordering is NOT yet assigned to the serialiser's destination words, and no assignment is
+claimed here.** The two obvious-looking readings are both unproven and one is already known to be
+tempting-wrong:
+
+- Treating `param_2[0]`, `param_2[2]`, `param_2[3]`, `param_2[4]` as the four colours in order is
+  attractive — they are each three 10-bit fields, which is what a `LightColor` holds — but
+  `param_2[1]` is built as `b*0x10 + 0x140 | 0x80bf0000`, which is not a colour read from the record
+  at all. A word can be a colour with a *precomputed product* in it, and this project's own history
+  is a record of believing otherwise: `+0x18A` was a `shadow_secondary` config bit long read as a
+  colour-mode byte, and the LUT-select shift was `0x13` long read as `0x19`.
+- Treating `param_2[0xa]` as `config` is likewise unproven. It is built from four record bytes
+  tested `!= 0` into bits 0..3 — which *shape-matches* `LightSrc::config`'s four low bits — with
+  `param_1[0x18]` supplying the low byte. Shape is not identity: those bits may be
+  `directional`/`two_sided_diffuse`/`geometric_factor_*`, or an unrelated enable plane, and
+  `FUN_0040d15c`'s separate 8-byte enable array at `+0x164` is the more obvious home for
+  per-slot enables.
+
+**The decisive test, and it is cheap:** take one oracle-captured PICA light slot (the
+`0x140 + slot*0x10` block) together with the guest's live 0x2C record, run the packing rule, and
+require a bit-exact match. That assigns every field from hardware rather than from plausibility, and
+it falsifies any wrong ordering immediately. The project's `picaLit=0`-on-207-draws result means
+those captures are all vertex-lit, so a *lit* capture is required — the same
+gameplay-scene prerequisite this file's other open questions already carry.
+
+`tools/pica_lighting_registers.py` already parses this register map rather than transcribing it,
+which is what a wrong bit would otherwise turn into a clean wrong number.
