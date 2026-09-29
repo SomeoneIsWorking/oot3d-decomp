@@ -1306,3 +1306,73 @@ s8 scale — the live register's `x = 0.9365` gives `0.9365 * 127 = 118.9`, whic
 consistent with, and does NOT confirm, the x127 scale**: the opening's palette is not in the recovered
 table at all, because the opening is not a scene ZSI, so the two sides cannot be joined. The scale stays
 open with that reason attached rather than being closed by a plausible multiplication.
+
+## The light structure is laid out exactly, from decompiled source (2026-09-29)
+
+The blocker this section retires was: *"the eight slot-enable bytes" are among the unknowns feeding
+the configuration builder*. They are now located, because driving the whole inventory through the
+decompiler (`tools/decomp_fill.py`, OoT3D 15.32% -> 99.99%) recovered the two functions the
+fragment-lighting note had been reading as names only.
+
+`FUN_0040d15c(param_1, param_2)` is the light submit loop, and it is short enough to read as proof:
+
+```c
+void FUN_0040d15c(int param_1, undefined4 param_2) {
+  uint uVar1;
+  uVar1 = 0;
+  do {
+    if (*(char *)(param_1 + uVar1 + 0x164) != '\0') {          // slot enable byte
+      param_2 = func_0x0040d1a8(param_1 + uVar1 * 0x2c + 4, param_2);  // slot record
+    }
+    uVar1 = uVar1 + 1;
+  } while (uVar1 < 8);
+}
+```
+
+`FUN_0040d1a8` returns `param_2 + 0xe`, so each serialised slot advances the destination by 0x38
+bytes and enabled slots pack contiguously in ascending slot order.
+
+That fixes the layout, with no inference:
+
+| offset from `param_1` | size | content |
+|---|---|---|
+| `+0x00` | 4 | header, not read by the submit loop |
+| `+0x04 + slot*0x2C` | `0x2C` | slot record, `slot` in 0..7 — spans `+0x04..+0x163` |
+| `+0x164 + slot` | 1 | slot enable byte, `slot` in 0..7 — spans `+0x164..+0x16B` |
+
+The arithmetic closes: `4 + 8 * 0x2C = 0x164`, so the eight enable bytes begin exactly where the
+eight records end, and the structure is `0x16C` bytes. Eight records of 0x2C is a *different* stride
+from the 0x4C8 per-material CMB record, so these are two distinct structures and the slot enables do
+not live in the 0x4C8 object this file's earlier sections chase.
+
+### What the 0x2C record contains, to the precision the source gives
+
+`FUN_0040d1a8` reads `param_1` as a byte pointer and writes 14 words (0x38) to `param_2`:
+
+| source read | destination word | shape |
+|---|---|---|
+| `[0x0b]`, `[0x0a]`, `[0x0c]` | `param_2[0]` | three bytes at bits 0/10/20 |
+| `*param_1` (u8) | `param_2[1]` | `b*0x10 + 0x140 \| 0x80bf0000` |
+| `[0x0f]`, `[0x0e]`, `[0x0d]` | `param_2[2]` | three bytes at bits 0/10/20 |
+| `[4]`,`[5]`,`[6]` | `param_2[3]` | three bytes at bits 0/10/20 |
+| `[7]`,`[8]`,`[9]` | `param_2[4]` | three bytes at bits 0/10/20 |
+| `+0x10` (u32) | `param_2[5]` | verbatim |
+| `+0x14` (u32) | `param_2[6]` | verbatim |
+| `+0x24` (u32) | `param_2[7]` | verbatim |
+| `+0x28` (u32) | `param_2[8]` | verbatim |
+| — | `param_2[9]`, `param_2[0xd]` | written as 0 |
+| `[0]`,`[1]`,`[2]`,`[3]` non-zero, `[0x18]` | `param_2[0xa]` | bits 0..3 from the first four, low byte from `[0x18]` |
+| `+0x1c` (u32) | `param_2[0xb]` | verbatim |
+| `+0x20` (u32) | `param_2[0xc]` | verbatim |
+
+So the record carries **three** consecutive RGB triples — `[4..6]`, `[7..9]`, `[0xd..0xf]` — plus the
+`[0x0a..0x0c]` triple in word 0. The port's existing per-slot reading is "diffuse, specular_0 and the
+light direction"; the source shows four triple-shaped fields, so a record naming only three of them
+is incomplete. The exact PICA slot semantics of each triple are **not** claimed here: `0x80bf0000` is
+recognisable as the light enable/config word, but which triple is specular_1 and which is the
+direction encoding is a register-semantics question, not a reading of this function.
+
+**What this closes:** the eight slot-enable bytes' location (`+0x164`), the record stride (`0x2C`), the
+record count (8), and the packed-destination stride (0x38).
+**What it does not close:** who fills the 0x2C records, and the register meaning of each triple. The
+producer question is now a question about a *known* structure rather than a guessed one.
