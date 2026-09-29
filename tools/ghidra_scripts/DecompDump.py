@@ -91,6 +91,31 @@ def decompile_at(vaddr):
     return fn, res.getDecompiledFunction().getC()
 
 
+INVENTORY = os.path.join(OUT, "functions.csv")
+
+
+def record_inventory(fn):
+    """Merge one function into functions.csv, creating it if the inventory does not exist yet.
+
+    The inventory pass runs in its own -noanalysis invocation, so a function force-created during
+    a decompile pass is invisible to it. 77 recovered functions were consequently reported as
+    orphans -- real recovered work the denominator refused to credit. This keeps one source of
+    truth for "what functions exist in the image".
+    """
+    entry = fn.getEntryPoint().getOffset()
+    existing = []
+    if os.path.isfile(INVENTORY):
+        existing = open(INVENTORY).read().splitlines()
+    if not existing or existing[0] != "vaddr,size,name":
+        existing = ["vaddr,size,name"]
+    if any(line.startswith("%08x," % entry) for line in existing[1:]):
+        return
+    existing.append("%08x,%d,%s" % (entry, fn.getBody().getNumAddresses(), fn.getName()))
+    handle = open(INVENTORY, "w")
+    handle.write("\n".join(existing) + "\n")
+    handle.close()
+
+
 targets_file = os.environ.get("DECOMP_TARGETS", os.path.join(OUT, "targets.txt"))
 if os.path.isfile(targets_file):
     addrs = []
@@ -120,6 +145,12 @@ if os.path.isfile(targets_file):
         f.write(c)
         f.close()
         print("WROTE %s (%d bytes C)" % (p, len(c)))
+        # Record this function in the inventory. A function that had to be FORCE-CREATED (its
+        # address was not already a function) can never appear in a later inventory pass, because
+        # the inventory is written by a separate -noanalysis run -- so 77 genuinely recovered
+        # functions were being reported as "outside the inventory". Merging here keeps one
+        # source of truth and makes the denominator honest.
+        record_inventory(fn)
 else:
     # inventory pass
     p = os.path.join(OUT, "functions.csv")
