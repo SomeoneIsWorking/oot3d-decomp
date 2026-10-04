@@ -139,9 +139,21 @@ i.e. `uv = 0.5 * n.xy + 0.5` with `n` the normalized **view-space** normal. This
 reached only from coordinator 1's mapping-4 arm (words 169 and 173):
 
 ```
-r4.x = (r4.x == 0) ? r4.x - 32 : r4.x + 32
-r4.y = (r4.y == 0) ? r4.y - 32 : r4.y + 32
+r4.x = (0 >= r4.x) ? r4.x - 32 : r4.x + 32
+r4.y = (0 >= r4.y) ? r4.y - 32 : r4.y + 32
 ```
+
+**Correction (2026-10-04).** The comparison is `0 >= x`, NOT `x == 0`: word 300 is
+`cmp cc[0] = (c93.x) >= (r4.x)` and word 301 takes the `-32` arm when `cc[0] == 1`. An earlier
+rendering of this helper wrote `x == 0`, which would have made the step a no-op for every
+negative coordinate. The `ifc` semantics used here are Azahar's `evaluate_condition`
+(`shader_interpreter.cpp:85`): the condition is `refx == conditional_code[0]` under `JustX`, so
+`refx=1` means "take the branch when cc[0] is 1".
+
+What the step is FOR is still open, but it is measurably INERT on retail data: it shifts a
+texture coordinate by exactly 32, and the only two wrap modes on the method-4 population's
+texture unit 1 are `GL_REPEAT` (0x2901) and `GL_MIRRORED_REPEAT` (0x8370) — periods 1 and 2,
+both of which divide 32. The gate around it therefore cannot change a sampled texel either.
 
 ## 4. The mapping switch (words 122-202), per coordinator
 
@@ -193,10 +205,11 @@ t.xy += 0.5
 ```
 
 So the step runs for every vertex except those where `zPre > 0` and `t.z <= 0` simultaneously.
-**The host cannot express it at all** — it is a per-vertex component transform, not a matrix, and
-it is applied to the *already transformed* coordinate, not to the source attribute. For
-coordinator 1 the honest current target is `t.xy + 0.5` with the step omitted, recorded as an
-approximation, not as parity.
+**The host expresses it now** (2026-10-04): both the gate and the step are per-vertex GLSL in
+`zelda3d_sdl3gpu_shaders.cpp`'s vertex template, the same place that already computes `vUv1` for
+the plain and sphere arms, because it needs the skinned position and the world normal and nothing
+else has them. `zPre` reduces to the world normal's `z` and `t.z` to the placed position's `z`
+(§11).
 
 ## 5. Retail reach (OoT3D, 1,997 CMBs / 11,172 materials)
 
@@ -394,5 +407,95 @@ What the title draw then shows, for the mapping arms specifically:
   `p = uInvView . viewPos` the *model*-space position — the host's own `aPosition`, so the mapping-4
   arm would need no new uniform. One identity-matrix draw cannot prove the rule, so this is the next
   measurement, and the decoder is what makes it one command away.
+  **CORRECTED 2026-10-04 — this bullet is wrong, and §11 is the replacement.** `uInvView` is the
+  identity only on the `ShaderMode.w == 2` overlay draws; on the wordmark draw (draw 77 of title
+  cs1093 / frame 2010) it is a full rigid matrix. And the conclusion drawn from it — that `p` is the
+  *model-space* position — is wrong: `p` is the position with the camera removed, i.e. after the
+  model matrix. The practical consequence for the port is the same (no new uniform is needed), but
+  the quantity is the PLACED position, not the raw attribute.
 * `TexMtx` row 2 is `(0, 0, 1, 0)` for all three coordinators in the capture, so the row the host has
   never carried is a constant rather than authored data.
+
+## 11. What `uInvView` actually is (2026-10-04) — and the port
+
+The uniform replay above was re-run here with `tools/pica_command_list.py` (which survives; the
+measurement scripts that first used it were deleted in `1607162c`) and the `tools/`-independent
+`ShaderSetup::WriteUniformFloatReg` protocol re-implemented against Azahar's
+`video_core/pica/shader_setup.cpp` + `packed_attribute.h`. Cross-check on the wordmark draw: the
+replay reproduces **15 of Azahar's own logged uniforms exactly** at the same command-list cursor —
+`proj0..3`, `modelView0..3`, `texSlotMap`, `texMtx0_0..2`, `texMtx1_0..2`, `vtxScl0`,
+`texMappingMethod` — so the decode is sound at that cursor, and these are its results for the
+uniforms Azahar does *not* print:
+
+```
+c76 = ( 0.927877, -0.048877, -0.369670,  -602.811)
+c77 = ( 4.5e-06,  0.991374, -0.131066,    86.4319)
+c78 = ( 0.372887,  0.121611,  0.919873,  7705.71 )
+```
+
+Three facts follow, all measured rather than assumed:
+
+1. **`uInvView` is a RIGID matrix**: its rows are orthonormal to 1e-6 and `det = +1`, and it carries
+   a world-scale translation. A texture matrix is not rigid; an inverse camera matrix is. This is
+   what the shader's two uses require anyway — `dp3(uInvView, viewNormal)` (words 156-158) applies
+   the rotation to a direction with no translation, `dp4(uInvView · (viewPos, 1))` (words 161-163)
+   applies it to a point.
+2. **`uInvView` is NOT `inverse(uModelView)`**, which is the alternative the uniform's name allows.
+   On that draw `uModelView` is a pure translation `(0, 2.39058, 0)` in row 3, so its inverse would be
+   `(0, -2.39058, 0)` with identity rows. The measured `uInvView` is neither. Instead the product
+   `uInvView · uModelView` is a rigid transform whose translation is
+   `(-2314.03, -1049.86, -7299.79)` — an ordinary object placement in 3DS world coordinates, which
+   is what a model matrix looks like. So on this draw `uModelView = view · model` and
+   `uInvView = inverse(view)`, which makes
+   `p = uInvView · viewPos = model · modelPos`: **the placed position**, camera removed.
+3. **`uInvView` is written per draw, not once per frame.** The title command list interleaves blocks
+   — identity `c76..c79` for the mode-2 overlay draws, the rigid camera inverse for the model-path
+   draws — so the value a draw sees is that draw's own camera state.
+
+The host's equivalent needs no new uniform, and that is measured rather than argued: the host's
+`DrawModel` receives `mv16` = the RSP modelview-stack top, and the Zelda3D draw sites push the
+ACTOR's world matrix there with `G_MTX_MODELVIEW|G_MTX_LOAD` while the camera lives in
+`P_matrix` (`room_render.cpp`: "MP_matrix at opcode time is then model(identity)·view·proj").
+`MPTRACE`'s printed `mv` translation equals the actor's own `world.pos` exactly (Kokiri: `mv =
+(-65.97, -79.0, 938.59)` against `posinfo link = (-66, -79, 939)`), so `uMV * sp` — already
+computed in the vertex shader as `vWorld` — is the host's `p`.
+
+The texture matrix the arm multiplies is also settled for retail data, and it is the IDENTITY:
+every method-4 material in both games' actor containers carries a unity coordinator transform
+(`scale (1,1)`, `trans (0,0)`, `rot 0`) — 106 materials across 60 CMBs in OoT3D's 1,387 ZAR actor
+CMBs, and 73 across 41 CMBs in MM3D's 1,477 GAR actor CMBs — and the one runtime capture measures
+`TexMtx1` rows as `(1,0,0,0)`, `(0,1,0,0)`, `(0,0,1,0)`. Together with row 2 = `(0,0,1,0)` that
+reduces the whole arm to
+
+```
+uv = placedPosition.xy + 0.5          (+ the inert ±32 step, §3)
+```
+
+i.e. the texture tiles once per world unit, which is a planar projection — what
+"ProjectionMap" means in the DCC that authored these materials.
+
+`TexCoordSlot` (the §7 open question) is also answerable from the corpus, and the answer is *not*
+"always its own index": over OoT3D's actor containers `sourceCoordinate` is 0 for coordinator 0 in
+all 3,542 materials, 0 for coordinator 1 in 3,500 and 1 in 42, and 0 for coordinator 2 in 3,537 and
+1 in 5 (MM3D: 4 / 3,005+23 / 3,019+9 the same way). Coordinators 1 and 2 overwhelmingly source
+**attribute 0**, which the host's plain path already transports as `coord*_source`. For mapping 4
+the question is moot anyway: that arm never reads an `aTexCoord` input at all — words 156-177 go
+straight from the position to `TexMtx1`, with no `sub@276` call.
+
+Blast radius, from the same two corpora: only **17 of the 106** OoT3D and **14 of the 73** MM3D
+method-4 materials bind texture unit 1 at all, so most of the population computes a coordinate that
+nothing samples.
+
+## 12. What is still open
+
+* `uInvView = inverse(view)` is now supported by the structure and the §11 measurement above, but
+  only on a draw whose own model-view rows 0-2 are identity. Every cached capture (title and
+  gameplay) has identity-rotation `uModelView` on every draw, and the cached gameplay command lists
+  never select `c0..c7` or `c76..c78` at all — their 390 uniform writes span only 17 distinct
+  indices (the lights, `c8`, the `TexMtx` blocks, `c89`, `c92`, `c90`, `c20`) — so the camera state
+  that produced them was written in a packet window those captures do not span. Confirming the rule
+  on a rotated-camera draw needs a fresh capture.
+* A method-4 draw has never been captured, so the arm has no measured fragment read. That needs a
+  gameplay draw whose bound C material is identifiable: Azahar's per-draw `vsuni` line prints `idx`
+  as `(int)is_indexed` (the PICA indexed-draw flag, `Azahar/src/video_core/pica/pica_core.cpp`),
+  so nothing in it names the material, and the C program is what decides what each index means.
