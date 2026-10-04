@@ -1418,3 +1418,292 @@ gameplay-scene prerequisite this file's other open questions already carry.
 
 `tools/pica_lighting_registers.py` already parses this register map rather than transcribing it,
 which is what a wrong bit would otherwise turn into a clean wrong number.
+
+---
+
+## FOUND: the 0x2C record is fully mapped, both open questions are closed (2026-10-04)
+
+The two questions the previous section left open — *who fills the 0x2C per-slot records*, and *what
+each of the four triples means* — are both answered, and not from the serialiser's shape: from the
+command-list format the serialiser writes into. The key is that a PICA command list is a stream of
+**64-bit (value, header) pairs**, not of (header, value) words.
+
+### The decoder, read from the oracle's own source
+
+`Azahar/src/video_core/pica/pica_core.cpp:230-265`:
+
+```cpp
+if (cmd_list.current_index % 2 != 0) { cmd_list.current_index++; }
+const u32 value  = cmd_list.head[cmd_list.current_index++];
+const CommandHeader header{cmd_list.head[cmd_list.current_index++]};
+WriteInternalReg(header.cmd_id, value, header.parameter_mask, stop_requested);
+for (u32 i = 0; i < header.extra_data_length; ++i) {
+    const u32 cmd = header.cmd_id + (header.group_commands ? i + 1 : 0);
+    WriteInternalReg(cmd, cmd_list.head[cmd_list.current_index++], header.parameter_mask, ...);
+}
+```
+
+with `CommandHeader` (`pica_core.cpp:61-67`) = `cmd_id` bits 0..15, `parameter_mask` bits 16..19,
+`extra_data_length` bits 20..27, `group_commands` bit 31.
+
+So `FUN_0040d1a8`'s 14 written words are **one register write plus eleven extra writes**:
+
+* word 1 is the header `0x80BF0000 | (0x140 + record[0]*0x10)`, i.e. `cmd_id = 0x140 + slot*0x10`,
+  `parameter_mask = 0xF` (`ExpandBitsToBytes[15] = 0xffffffff`, a full 32-bit write),
+  `extra_data_length = (0x80BF0140 >> 20) & 0xFF = 11`, `group_commands = 1`;
+* word 0 is that write's **value** (it precedes its header);
+* words 2..13 are the eleven extras, landing on `cmd_id + 1 .. cmd_id + 12`.
+
+The result is **13 consecutive 32-bit register writes at `0x140 + slot*0x10 + 0..12`** — and
+`Azahar/src/video_core/pica/regs_internal.h:105` asserts `ASSERT_REG_POSITION(lighting, 0x140)`, with
+`LightSrc` (`regs_lighting.h:136-174`) `static_assert`ed to 0x10 words. The header stride `0x10` is
+therefore words, not bytes, and the two-word shortfall the previous section could not place is exactly
+`LightSrc`'s trailing `INSERT_PADDING_WORDS(0x4)`.
+
+**Everything below is confirmed against ARM disassembly, not only the Ghidra C.**
+`python3 tools/disasm.py 0x0040d1a8 300` reproduces the decompiled expressions exactly, including
+`0x0040d1c8 orr r3, r3, #0x80000000` / `0x0040d1d0 orr r3, r3, #0xbf0000` for the header and the
+three-byte colour packs at `0x0040d1c4/0x0040d1cc/0x0040d1d4`, `0x0040d1f0/0x0040d1f4/0x0040d1f8`,
+`0x0040d210/0x0040d214/0x0040d21c`, `0x0040d230/0x0040d234/0x0040d238`.
+
+### The register map, field for field
+
+| record source | serialiser word | register | `LightSrc` field | value's origin |
+|---|---|---|---|---|
+| `[0x0A]`,`[0x0B]`,`[0x0C]` | `[0]` | `+0x00` | **`specular_0`** | `material +0xAC..0xAE` × `light +0xA8..0xB0` |
+| `[0x0D]`,`[0x0E]`,`[0x0F]` | `[2]` | `+0x01` | **`specular_1`** | `material +0xB0..0xB2` × `light +0xB8..0xC0` |
+| `[0x04]`,`[0x05]`,`[0x06]` | `[3]` | `+0x02` | **`diffuse`** | `material +0xA8..0xAA` × `light +0x88..0x90` |
+| `[0x07]`,`[0x08]`,`[0x09]` | `[4]` | `+0x03` | **`ambient`** | `material +0xA4..0xA6` × `light +0x98..0xA0` |
+| u32 `+0x10` | `[5]` | `+0x04` | `x`/`y` (binary16) | `-(light +0xD8)`, `-(light +0xDC)` |
+| u32 `+0x14` | `[6]` | `+0x05` | `z` (binary16) | `-(light +0xE0)` |
+| u32 `+0x24` | `[7]` | `+0x06` | `spot_x`/`spot_y` (1.1.11) | explicitly 0 (`FUN_004c7c80`) |
+| u32 `+0x28` | `[8]` | `+0x07` | `spot_z` (1.1.11) | explicitly 0 (`FUN_004c7c80`) |
+| — | `[9] = 0` | `+0x08` | padding | — |
+| `[0x18]`,`[1]`,`[2]`,`[3]` | `[10]` | `+0x09` | **`config`** | `[0x18]` = 1 ⇒ `directional`; `[1..3]` default 0 |
+| u32 `+0x1C` | `[11]` | `+0x0A` | `dist_atten_bias` (20 bits) | explicitly 0 (`FUN_004c7c80`) |
+| u32 `+0x20` | `[12]` | `+0x0B` | `dist_atten_scale` (20 bits) | explicitly 0 (`FUN_004c7c80`) |
+| — | `[13] = 0` | `+0x0C` | padding | — |
+
+So the four triples are **`diffuse`, `ambient`, `specular_0`, `specular_1`**, in the record's byte
+order, and **each triple's three bytes are R, G, B**: the packs place `[T+0]` at bits 20..29 (`r`),
+`[T+1]` at bits 10..19 (`g`) and `[T+2]` at bits 0..9 (`b`), which is `LightColor`'s field order.
+The bytes are 8-bit with 255 == 1.0: `FUN_003fa5d0` computes `clamp(v, 0, 1)` and then
+`(u8)(0.5f + 255.0f * v)` (`0.003921568859368563`, `255.0`, `0.5`, `1.0`, `0.0` sit at
+`0x003fa9dc..0x003fa9ec`, read as literal floats from `code.bin`).
+
+**Two claims this retires.** The record does not hold "diffuse, specular_0 and the light direction":
+it holds **four colours**, and the light direction is a separate pair of binary16 halves at
+`+0x10`/`+0x14`, not a triple. And `[0x07..0x09]` is **ambient**, not a second specular — which is
+why the oracle's MM3D slots show `ambient` and `specular_1` both `(0,0,0)` while `diffuse` and
+`specular_0` carry real colour.
+
+### Four independent confirmations, all from values already on record
+
+1. **`directional`.** `FUN_003fa5d0` writes one byte, `object[0x2C*i + 0x1C] = 1`, which is
+   `record[0x18]`, i.e. `config` bit 0. MM3D's captured `config` is `directional` on both lit slots.
+2. **Attenuation.** `dist_atten_bias`, `dist_atten_scale` and both `spot_*` words are written
+   explicitly to 0 by `FUN_004c7c80` and never again, so they read 0. MM3D's capture reads
+   `dist_bias, dist_scale` = `0, 0`.
+3. **The whole packet layout, from the sibling serialiser.** `FUN_0040cdd8` emits the identical
+   14-word [value, header, value, …] shape, and its six rodata headers at `0x0040d02c..0x0040d03c`
+   decode to `cmd_id` `0x008F`, `0x01C0`, `0x01C2`, `0x01C3`, `0x01C4`, `0x01C6` — with `0x01C4`
+   produced as `0x0F01C3 + 1` and `0x01D9` as `0x0F01C6 + 0x13`. Against
+   `LightingRegs`' field order (`light[8]` at `0x140..0x1BF`, `global_ambient` `0x1C0`,
+   `max_light_index` `0x1C2`, `config0` `0x1C3`, `config1` `0x1C4`, `disable` `0x1C6`,
+   `light_enable` `0x1D9`) that is an exact hit on all seven, including the doc's independently
+   observed `config0` write at `0x1c3` and `light_enable` at `0x1c6`. `parameter_mask = 0xF` and
+   `group_commands = 0` on these, so each is a single register write — the shape the whole reading
+   depends on is validated in both directions.
+4. **RGB, cross-checked against a different serialiser.** `FUN_0040cdd8` also packs the object's
+   three header bytes as `object[2] | object[1] << 10 | object[0] << 20` into register `0x01C0`, i.e.
+   `global_ambient`, whose own comment is *"Emission + (material.ambient * lighting.ambient)"* — and
+   whose bytes are written by `FUN_003fa34c` from `material +0xA0/+0xA1/+0xA2`. So the material
+   colour block is **R, G, B in memory**, the same permutation the light packs use.
+
+### Question 1 answered: who fills the 0x2C records
+
+Four functions touch the structure, and only two of them write a record byte on a live draw.
+
+**1. `FUN_004c7c80` (`0x004c7c80`, 104 B) — the PER-RECORD INITIALISER, and the reason the records
+are not zero.** It has **no ARM `BL` caller and no decompiled dump**: it is reached only through the
+data literal at `0x004c6360` (`ldr r1, [pc, #0xdc]`, whose word is `0x004c7c80` — the literal appears
+exactly once in the 4.36 MiB image), passed to `FUN_00350820` as the per-block callback. That helper
+is not a fill: `FUN_00350820`'s ARM is `mov lr, pc` / `mov pc, r6` (`0x00350844`/`0x00350848`), i.e.
+it *calls* the pointer `count` times with `dst` advancing by `stride`. So `FUN_004c6264` calls
+`FUN_004c7c80(record[i])` for all eight slots, and the record's initial state is **not zero**:
+
+```
+004c7c80  mov   r1, #0
+004c7c90  mov   r2, #0xff
+004c7c84  strb  r1, [r0]        ; [0x00] = 0    slot index (overwritten below by the loop)
+004c7c88  strb  r1, [r0, #1]    ; [0x01] = 0    config bit 1
+004c7c8c  strb  r1, [r0, #2]    ; [0x02] = 0    config bit 2
+004c7c94  strb  r1, [r0, #3]    ; [0x03] = 0    config bit 3
+004c7c98  strb  r2, [r0, #4]    ; [0x04] = 255  diffuse    R
+004c7c9c  strb  r2, [r0, #5]    ; [0x05] = 255  diffuse    G
+004c7ca0  strb  r2, [r0, #6]    ; [0x06] = 255  diffuse    B
+004c7ca4  strb  r1, [r0, #7]    ; [0x07] = 0    ambient    R
+004c7ca8  strb  r1, [r0, #8]    ; [0x08] = 0    ambient    G
+004c7cac  strb  r1, [r0, #9]    ; [0x09] = 0    ambient    B
+004c7cb0  strb  r2, [r0, #0xa]  ; [0x0A] = 255  specular_0 R
+004c7cb4  strb  r2, [r0, #0xb]  ; [0x0B] = 255  specular_0 G
+004c7cb8  strb  r2, [r0, #0xc]  ; [0x0C] = 255  specular_0 B
+004c7cbc  strb  r2, [r0, #0xd]  ; [0x0D] = 255  specular_1 R
+004c7cc0  strb  r2, [r0, #0xe]  ; [0x0E] = 255  specular_1 G
+004c7cc4  strb  r2, [r0, #0xf]  ; [0x0F] = 255  specular_1 B
+004c7cc8  str   r1, [r0, #0x10] ; x/y   = 0
+004c7ccc  str   r1, [r0, #0x14] ; z     = 0
+004c7cd0  strb  r1, [r0, #0x18] ; config bit 0 = 0   (NOT directional)
+004c7cd4  str   r1, [r0, #0x1c] ; dist_atten_bias  = 0
+004c7cd8  str   r1, [r0, #0x20] ; dist_atten_scale = 0
+004c7cdc  str   r1, [r0, #0x24] ; spot_x/spot_y    = 0
+004c7ce0  str   r1, [r0, #0x28] ; spot_z           = 0
+```
+
+**This is the field's default and it is not neutral: `diffuse`, `specular_0` and `specular_1` default
+to white (255) and `ambient` defaults to black.** Read against the writer in §2 that is exactly "the
+material's own colour at full strength for the three lit terms and none for ambient", i.e. a record
+that survives untouched is a *white point light*, not a black one. `config` bit 0 defaults to **0**,
+so the default record is a **non-directional** (point/spot) light with a zero direction vector and
+zeroed attenuation — which is why `FUN_003fa5d0` has to write `record[0x18] = 1` explicitly, and why
+the retail path's spot/attenuation words can safely stay at their defaults. A host port that
+allocates a slot record as zeros produces a *black* light instead of a white one; that is a real
+behavioural difference, not a cosmetic default.
+
+**2. `FUN_004c6264` (`0x004c6264`, 252 B) — the per-material object CONSTRUCTOR**, called once per
+material from `FUN_004c34ac` at `0x004c3528`. Its closing loop overwrites `record[0]` with the slot
+index, the byte `FUN_0040d1a8` spends on the register-block index:
+
+```
+004c632c  add   r4, r0, #4          ; r4 = first record
+004c6330  mov   r5, #0              ; the slot index
+004c6334  mov   r7, #8
+004c633c  strb  r6, [r1], #1        ; +0x164 + i = 0   (slot enables)
+004c6340  strb  r6, [r2], #1        ; +0x16C + i = 0
+004c6344  strb  r6, [r3], #1        ; +0x174 + i = 0
+004c6348  strb  r6, [ip], #1        ; +0x17C + i = 0
+004c634c  strb  r5, [r4], #0x2c     ; record[i][0] = i     <-- the slot index
+004c6350  subs  r7, r7, #1
+004c6354  add   r5, r5, #1
+004c6358  bne   #0x4c633c
+```
+
+The same loop clears **four** 8-byte planes (`+0x164`, `+0x16C`, `+0x174`, `+0x17C`) and stamps the
+records' index byte. The previous revision's "four planes at `+0x160/+0x168/+0x170/+0x178`" is the
+same bytes read through a different base: Ghidra renders `pcVar1` as `param_1 + 4`.
+
+**2. `FUN_003fa5d0` (`0x003fa5d0`, 1,608 B) — the CmbRenderer vtable `+0x14` method, and the only
+writer of the colour/direction payload on a real draw.** It is the sole ARM `BL` caller of
+`FUN_004093f8`
+(call site `0x003fab80`, one caller on the validated `tools/callers_bl.py`), and `FUN_004093f8`,
+`FUN_0040d15c` and `FUN_0040d1a8` each occur **zero** times as a 32-bit literal in the 4.36 MiB image
+(also zero in Thumb-bit form), so the submit chain has no indirect entry either. For each `i` in 0..2
+whose light record `+0xE4 == 1.0f` it writes, with `piVar8 = param_2 + 0x10` (the object):
+
+| write | ARM store | value |
+|---|---|---|
+| `object[0x164 + i] = 1` | `0x003fa7b0 strb r7, [r0, #0x164]` | the slot-enable byte `FUN_0040d15c` tests (`r7 = 1` from `0x003fa698`) |
+| `record[0x04..0x06]` | `0x003fa8e8/924/960 strb, [r0, #8/#9/#0xa]` | `light[+0x88/0x8C/0x90] ×` the material diffuse vector from `+0xA8..0xAB` |
+| `record[0x07..0x09]` | `0x003fa998/9d0 strb, [r0, #0xb/#0xc]` + `#0xd` | `light[+0x98/0x9C/0xA0] × material +0xA4/0xA5/0xA6 × (1/255)` |
+| `record[0x0A..0x0C]` | `0x003faa20/58/90 strb, [r0, #0xe/#0xf/#0x10]` | `light[+0xA8/0xAC/0xB0] × material +0xAC/0xAD/0xAE × (1/255)` |
+| `record[0x0D..0x0F]` | `0x003faaac8/ab08/ab3c strb, [r0, #0x11/#0x12/#0x13]` | `light[+0xB8/0xBC/0xC0] × material +0xB0/0xB1/0xB2 × (1/255)` |
+| `record[0x10..0x13]` | `0x003fa84c str, [r2, #0x10]` / `0x003fa88c str, [r2, #0x14]` | `-(light[+0xD8])`, `-(light[+0xDC])`, `-(light[+0xE0])` as IEEE binary16 |
+| `record[0x18] = 1` | `0x003fa890 strb r7, [r2, #0x18]` | `config` bit 0 = `directional` |
+
+The stride is in the ARM too: `0x003fa7b8 add r0, lr, lr, lsl #1` then
+`0x003fa7c0 add r0, r0, lr, lsl #3` gives `lr * 11 = lr * 0x2C`, with `r2 = r0 + 4` the record base
+and `r0 = object + slot*0x2C`. Every colour load is a literal material offset —
+`0x003fa624 ldrb r0, [r2, #0xa8]` through `0x003fa710 ldrb r0, [r0, #0xb2]` — so the provenance table
+above is read, not inferred.
+
+Three details worth keeping. The diffuse product is the only one that does **not** carry the extra
+`× (1/255)` factor, because it comes in through a four-float vector (`+0xA8..0xAB`) that the other
+three build byte-by-byte. The specular-1 triple has a second form: when the runtime byte at
+**`object[0x191]`** is non-zero (`0x003faacc ldrb r2, [sl, #0x91]`, `sl = object + 0x100`) the three
+components take `light[+0xB8/+0xBC/+0xC0]` **unscaled by the material specular-1 colour**. And that
+byte is the same one `FUN_004c6364` writes from the descriptor's `flag_14` — so **`flag_14` has two
+consumers**: it selects the specular-1 transport *and* it is the builder's LUT-enable byte driving
+`config1` bits 20..22. A host that carries it must carry it once, for both.
+
+**4. `FUN_003fa34c` (`0x003fa34c`, 672 B), vtable `+0x18` — writes NO record byte.** Its three byte
+stores are `object[0]`, `object[1]`, `object[2]` (`*(char *)piVar7` with `piVar7 = param_2 + 4`, and
+`(int)param_2 + 0x11 / +0x12`), i.e. the `global_ambient` colour described above — *not* `record[1]`
+and `record[2]`, which the decompiled `(int)param_2 + 0x11` reads ambiguously. This is the third
+`param_1`-base confusion in this file, and it is why the record's `config` bits 1..3 have no writer.
+
+**Never written after initialisation, therefore permanently zero:** `record[0x01..0x03]`
+(`two_sided_diffuse`, `geometric_factor_0/1`), `record[0x1C..0x1F]` (`dist_atten_bias`),
+`record[0x20..0x23]` (`dist_atten_scale`), `record[0x24..0x27]` (`spot_x`/`spot_y`) and
+`record[0x28..0x2B]` (`spot_z`) — each of them is written **explicitly to 0** by `FUN_004c7c80` and
+never touched again. The evidence is fourfold and does not rest on "not in the decompiled set": the
+per-record initialiser is the only thing that touches a fresh record besides two named writers;
+`FUN_004c6264` is the object constructor and the writer of `record[0]`; `FUN_003fa5d0` is the only
+submitter and the only payload writer; and `FUN_004c6364` (the descriptor feed) touches only
+`+0x199/+0x198/+0x19A/+0x18C/+0x18B/+0x191/+0x188/+0x189/+0x192/+0x193/+0x194/+0x195` plus
+`+4/+5/+6`, so no mode byte can leak in either.
+
+**The retail consequence, and its one condition:** PICA **spot attenuation, distance attenuation and
+the three non-directional `config` bits are never used**, and `config` is exactly `directional` on
+every enabled slot — because `FUN_003fa5d0` writes `object[0x164 + i] = 1` (the enable byte) and
+`record[0x18] = 1` (`directional`) **inside the same `if`**, so no slot can be enabled without also
+being made directional. A host that enables a slot without setting `directional` lands on the
+`FUN_004c7c80` default, which is a point light with a zero direction.
+
+### Question 2 answered, with the open part named precisely
+
+All four triples are identified (above). Nothing about them remains open. The one thing this reading
+could **not** reach is upstream of the record: the 0x60-byte runtime light records at
+`renderer + 0x10 + i*0x60` — their colour floats at `+0x88/0x98/0xA8/0xB8`, their direction at
+`+0xD8`, and their enable field at `+0xE4` — still have **no located producer**. This file's existing
+validated negative (record `+0x5C`, which is `+0xE4` bank-relative, has no writer under any ARM store
+encoding) stands and is not re-litigated here. The cheapest thing that would close it is the same
+instrument class already in use: a write-watch on `light[0] + 0xE4` (and on `+0x88`) in the
+cache-owned MM3D frame, which is fragment-lit on 116–143 draws per frame, with `writer PC` reported.
+A PC in the 0x2xxxxx–0x3xxxxx renderer range would name it immediately; a PC in a bank-setup function
+would give the descriptor to trace next. **No speculative instrumentation is warranted** — one
+watchpoint on a known address answers it.
+
+### Correction: the constructor sets `+0x18E`, not `+0x18A` (2026-10-04)
+
+Found while reading the mode bytes for this step, and it invalidates a claim this file repeats in
+several places, so it is corrected here rather than annotated.
+
+Ghidra's `FUN_004c6264` prints the mode block against a base four bytes past `param_1`
+(`pcVar1 = (char *)FUN_00350820(param_1 + 4, …)`), so its `pcVar1[0x18a]` is `param_1[0x18E]`. The ARM
+is unambiguous (`0x004c62bc strb r1, [r0, #0x18e]` with `r1 = 1` from `0x004c6290 mov r1, #1`, and
+`0x004c62c8 strb r1, [r0, #0x191]`):
+
+| the note/tool said | the ARM says |
+|---|---|
+| constructor sets `+0x18A = 1` | constructor sets **`+0x18E = 1`** |
+| constructor sets `+0x18D = 1` | constructor sets **`+0x191 = 1`** |
+| therefore `config0` bit `0x11` is set | therefore `config0` bit **`0x1B`** is set (`0x0040cfb8 orr r3, r4, r3, lsl #27`, after `0x0040cf74 ldrb r6, [sl, #0x8e]`) |
+
+`0x0040cd30/0x0040cf30` confirm the register map from ARM as well: `sl = param_1 + 0x100`, so
+`ldrsb r3, [sl, #0x8a]` is `param_1[0x18A]` and `orr r5, r5, r3, lsl #17` at `0x0040cf6c` is
+**`config0` bit 17 = `shadow_secondary`** — the naming already settled here is right; only the
+constructor's byte was wrong.
+
+Consequences, all of them checkable:
+
+* **`+0x18A` is never set by anything**, so "the ordinary lit path clears `+0x18A`" is not a question
+  about a clearing at all — there is nothing to clear. What the builder actually disagrees with the
+  oracle about is **`config0` bit 27 = `clamp_highlights`**, which the constructor *does* set and
+  which nothing in the recovered chain writes: the constructor's defaults give
+  `config0 = 0x88000400` against the observed `0x80000400`, a difference of exactly bit 27.
+* **`+0x191` is set by the constructor and then overwritten** by `FUN_004c6364` at `0x004c63dc` from
+  the descriptor's `flag_14`, which is why the observed `config1 = 0xff7fffff` is reachable at all —
+  that word needs `param_1[0x191] == 0`, because the builder's `+0x14` group is
+  `0x191 ? 0 : 7 << 20` (`config1` bits 20..22 = `disable_lut_rr/rg/rb`).
+* **`tools/pica_lighting_config.py::CONSTRUCTOR_MODE_DEFAULTS` is `{0x18A: 1, 0x18D: 1, 0x190: 0}`
+  and must become `{0x18E: 1, 0x191: 1}`.** As written it predicts `config0` bit `0x11` set and bit
+  `0x1B` clear — the exact opposite of the source — and it suppresses the `config1` bits 20..22 that
+  the observed word requires. The tool is **not** changed in this step: its 13 mutation-verified tests
+  pin the recorded (wrong) `0x80020400`, and re-deriving those expectations is the tool owner's
+  change, not a footnote. The correction is recorded here and in the frontier row so it cannot rot
+  unnoticed.
+
+The neighbouring decompiled read is likewise offset, and it is the *same* mistake: `FUN_0040cdd8`'s C
+uses `param_1[399]` and `param_1[400]` for `0x18F` and `0x190`, where the ARM reads
+`ldrb r2, [r0, #0x18f]` (`0x0040cdf0`) and `[sl, #0x90]` (`0x0040ce30`). Any offset in this file
+written as `399`/`400` is really `0x18F`/`0x190`.
