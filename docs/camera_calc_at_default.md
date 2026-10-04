@@ -274,6 +274,116 @@ while the active latch is set, add `unk_6C4 * -0.01f` to `atTarget.y`. When
 the latch is clear (including the Kakariko-idle control), the result remains
 the stock SoH computation.
 
+## MEASURED: live host A/B of the producer (2026-10-04)
+
+`tools/parity_at_default_ybias.py` drives a real free-walk/run staircase
+traversal and replays the recovered rule over the recorded producer state.
+Every number it checks is read back out of the ported module's own state
+(`atdefault trace`, which steps one frozen 20 Hz logic frame at a time), so
+no part of the rule is re-derived from engine state at measurement time.
+
+**Site.** Temple of Time (`warp 0x60`), the dais staircase behind the Door of
+Time. `floorgrid` measures flat (`ny = 1.000`) treads 20 units deep with 9-11
+unit risers at x = 120, z = 1290..1360 — a non-slope, non-dynamic floor, which
+is the only combination the recovered predicate admits. This is the only
+stepped static-floor run found in Kokiri Forest (its wall scan has no riser
+ladders); the same staircase exists in both engines because both use the same
+OoT3D collision set.
+
+Live trace, 60 host updates, `walkhold … 0 127`:
+
+| frame | rise | accumulator after rise | authored ticks | clear offset (observed) | decay per authored update |
+| --- | --- | --- | --- | --- | --- |
+| 9 | 9.9991 | 999.91 | 1 | 2 | 400.0 |
+| 12 | 10.0003 | 1000.03 | 1 | 2 | 400.0 |
+| 16 | 11.0003 | 1100.03 | 1 | 2 | 400.0 |
+| 19 | 9.0003 | 900.03 | 2 | 2 | 400.0 |
+
+Four qualifying rises, zero per-frame disagreements against the replayed rule,
+and every tail measures exactly **400 accumulator units per authored update =
+12000 units/s**.
+
+### What the 20 Hz observer can and cannot resolve, measured
+
+The host observes this producer at 20 Hz while OoT3D runs it at 30 Hz, so the
+decay is only visible through the 30:20 accumulator. The discriminator
+therefore normalizes by *authored ticks*, which removes the 1/2-tick phase
+entirely, and separately reports the clearing host-update offset under both
+hypotheses. For these events:
+
+| rise frame | accumulator | recovered (400/authored update) clears at | dropped accumulator (400/host update) clears at | margin |
+| --- | --- | --- | --- | --- |
+| 12 | 1000.03 | host update 2 | host update 3 | **1 update (50 ms)** |
+| 19 | 900.03 | host update 2 | host update 3 | **1 update (50 ms)** |
+
+So the 20 Hz observer **does** separate the two: not because it resolves the
+decay continuously, but because the clearing update lands one update later when
+the accumulator is dropped. The margin is one host update, which is the whole
+resolution available at 20 Hz for a ~1000-unit pulse, and it is positive in
+both measurable events. The frames at 9 and 16 cannot resolve it because their
+tails are interrupted by the next riser before the alternative would have
+cleared.
+
+A longer pulse would widen the margin: the separation grows with the
+accumulator (≈ `accumulator / 1200` host updates), so a staircase that
+qualifies on consecutive updates — treads narrower than Link's per-update
+travel — would give several updates of margin. The Temple of Time dais has
+20-unit treads against ~12 units of per-update travel, so it cannot.
+
+## MEASURED: the live control (2026-10-04)
+
+A discriminator that cannot fail proves nothing, so the ported producer was
+perturbed and re-measured through the same live path. The perturbation is one
+line: drop the 30:20 accumulator from the decay, so every 20 Hz host update
+removes exactly 400 units whatever the tick count.
+
+```
+-        player->unk_6C4 -= kDecayPerAuthoredUpdate * static_cast<f32>(authoredUpdates);
++        player->unk_6C4 -= kDecayPerAuthoredUpdate;
+```
+
+Nothing else changed — threshold, rise scale, branch predicate and latch are
+untouched. The perturbed `libsoh_core.so` was built, copied out, the source
+restored and the shipping core rebuilt in the same run, then loaded through
+`ZELDA3D_CORE_OOT`. That override must name a core sitting beside the
+shipping one: the launcher `chdir`s into the core's own directory before
+`dlopen`, so pointing it at a copy under `scratch/` makes the run die in
+`AutoExtract` with `Unable to read config file`.
+
+Same staircase, same drive, same 60 host updates:
+
+| | shipped port | control (accumulator dropped) |
+| --- | --- | --- |
+| verdict | **PASS** | **FAIL** |
+| per-frame disagreements | 0 | 9, first at host update 10 |
+| rise frames | 9, 13, 16, 20 | 9, 16, 21 |
+| decay per authored update | 400.0 | **266.67** |
+| decay per second | 12000.0 | **8000.0** |
+| host updates to clear | 2 (all four events) | **3** (all three events) |
+
+The control lands exactly on the `dropped_accumulator_400_per_host_update`
+prediction the report prints beside the recovered one, and its first
+disagreement is 400 accumulator units at host update 10 — the very first
+decaying update. So the falsifier fires on the real binary, not only on a
+synthetic trace.
+
+A second live control checks vacuity: the same 60-update drive on the flat
+floor above the staircase produces 60 rows with the producer running
+(`branchOwned=1`, `walkRun=1`, ticks alternating 1/2) and `max_rise = 0.000`,
+which the tool reports **INCONCLUSIVE** — never PASS. A check that cannot
+reach the predicate says so instead of claiming success.
+
+## What remains
+
+The oracle half. `tools/parity_at_default_ybias.py oracle|compare` reads the
+OoT3D producer's own latch (`PLAYER+0x29B8 & 0x100`), accumulator
+(`PLAYER+0x1760`) and rise pair (`PLAYER+0x2C` / `PLAYER+0x10C`) at two
+`retro_run`s per 30 Hz update, on the same staircase, and compares the decay
+rate in accumulator units per second. It cannot run today: the embedded
+oracle has no gameplay savestate (`scratch/gameplay_settled.<marker>.state`
+is absent; `docs/issues/0023`, S006), so the cold title route has to reach a
+loaded save first.
+
 ## Companion: Player_GetHeight (FUN_00367ef0)
 
 Hand-derived alongside (also small — 12 ARM instructions):

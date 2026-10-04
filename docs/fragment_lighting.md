@@ -223,7 +223,7 @@ the fixture's recorded input bytes:
 
 and the two-slot count agrees with the recorded slot mapping. Three independent values predicted from
 source, so the builder is understood well enough to port rather than merely described.
-`tests/test_pica_lighting_config.py` (13 cases) runs that check on every invocation, and each output
+`tests/test_pica_lighting_config.py` (28 cases) runs that check on every invocation, and each output
 was mutation-verified: dropping the unconditional `0x400` from `config0`, replacing the slot index with
 a constant in the light-enable mask, and moving the LUT-select shift into the top byte each make it
 fail.
@@ -246,6 +246,9 @@ descriptor and the builder type the object:
 * **`FUN_004c6264` (252 bytes) is the CONSTRUCTOR.** It zeroes four 8-byte light-slot planes at
   `+0x160`/`+0x168`/`+0x170`/`+0x178` — covering the whole `+0x160..+0x17F` block the builder indexes —
   zeroes the mode block `+0x180..+0x19C`, and sets exactly two mode bytes: `+0x18A = 1` and `+0x18D = 1`.
+  **Both bytes here are wrong — the constructor sets `+0x18E = 1` and `+0x191 = 1`.** See "Correction:
+  the constructor sets `+0x18E`, not `+0x18A`" at the end of this file; the two are four bytes apart
+  and only the Ghidra base confusion separates them.
 * **`FUN_003fa5d0` (1,608 bytes) and `FUN_003fa34c` (672 bytes) set the eight slot-enable bytes** at
   `+0x164..+0x16B` for occupied slots — the `+0x164 = 1` the fixture shows.
 * **`FUN_004c6364` (224 bytes) is the DESCRIPTOR FEED.** Given the nested descriptor the shipping
@@ -261,6 +264,10 @@ Two results follow, and the second is the important one:
    value — with no descriptor applied at all. That is a second, independent path to the same word
    (the object's initialiser rather than the fixture's recorded input bytes), which is much stronger
    than either alone.
+   **RETRACTED 2026-10-04: this was a coincidence, not a second path.** It held only because the
+   then-current `CONSTRUCTOR_MODE_DEFAULTS` omitted `+0x191` and so left it at 0 — the value the
+   observed word happens to need. The constructor really sets `+0x191 = 1`, which yields
+   `config1 = 0xff0fffff`. The word is reproduced one step later, through `FUN_004c6364`'s `flag_14`.
 2. **`config0` comes out `0x80020400` against the observed `0x80000400`: a difference of exactly bit
    `0x11` and nothing else.** That bit is `param_1[0x18A] << 0x11`, and the constructor sets `+0x18A =
    1`. So the Hut's path **clears `+0x18A` somewhere between construction and the builder**, and no
@@ -268,6 +275,10 @@ Two results follow, and the second is the important one:
    `+0x193`/`+0x195`). This is asserted in
    `tests/test_pica_lighting_config.py::ConstructorDefaultsReproduceConfig1::test_config0_differs_from_the_fixture_by_exactly_one_bit`,
    so the gap is a standing red-to-green test rather than a sentence that can rot.
+   **CORRECTED 2026-10-04:** the constructor does not set `+0x18A`; it sets `+0x18E`, so the predicted
+   word is `0x88000400` and the difference is bit `0x1B` (`clamp_highlights`), not bit `0x11`. There is
+   nothing to clear — `+0x18A` has one store site in the image and it writes 0. The test now lives in
+   `ConstructorDefaultsContradictTheFixture::test_config0_contradicts_the_fixture_by_exactly_bit_27`.
 
 The same tests also record that `flag_14` is the authored switch between the no-LUT and LUT forms: it
 drives `+0x191`, which is the builder's LUT-enable mode byte, so a material with `flag_14` set gets a
@@ -338,6 +349,14 @@ bytes through `tools/pica_lighting_config.py`:
 | **1** | **`0x80000400`** | **`0xff7fffff`** | `0x00000000` |
 | 2 | `0xd1000400` | `0xff7fffff` | `0x00000000` |
 | 3 | `0xd0000400` | `0xf37fffff` | `0x00007632` |
+
+**`config0` for slots 0, 2 and 3 is superseded 2026-10-04.** These are the *tool's predictions*, not
+observed registers, and the model has since been corrected: bit 30 is a constant zero rather than a
+`+0x187`/`+0x18D` gate, bits 0..1 come from the `+0x189`/`+0x18A` OR and were missing, and the five
+shifted bytes now land whole. Every slot above with bit 30 set loses it, and slot 0 (`+0x18A = 0x80`)
+also gains bits 0 and 1. Slot 1 is unchanged and remains the only row with an observed word behind it.
+The raw dumps are not in the tree, so the corrected hex is not restated; see "`param_2[6]` had two
+more transcription errors" at the end of this file for the exact deltas.
 
 Slot 1 returns **exactly** the `config0`/`config1` pair the oracle's own registers were recorded at
 (`0x80000400` / `0xff7fffff`). Its `light_enable` is 0 where the recorded fixture says `0x00000010`,
@@ -1216,6 +1235,11 @@ constructor's `+0x18A = 1`, a byte `FUN_004c6364` covers but does not write. MM3
 on 12 of 12 draws in a *different title*, so "the ordinary lit path clears `+0x18A`" is now a
 cross-title fact rather than a single observation. **Which code clears it remains unknown and is not
 guessed** — the code-image search for its 0x4C8-byte source is already a recorded dead end.
+**SUPERSEDED 2026-10-04.** The premise was the Ghidra base error: the constructor does not set
+`+0x18A`, so there is no `+0x18A` bit to be cross-title clear, and the "one open bit" is bit `0x1B`.
+The cross-title fact survives and is still the strongest evidence in this section — `0x80000400` is
+12 of 12 in a *different title's* separate material compiler — but it now says the builder's input is
+not the constructor's output, not that anything clears a byte.
 
 **3. `config1` is NOT a constant.** `0xff7effff` differs from `0xff7fffff` at bit `0x11`, which the
 builder names `MODE_SPOT_INDEX` (object `+0x190`). So a host that hardcodes `config1` is wrong for the
@@ -1695,13 +1719,179 @@ Consequences, all of them checkable:
   the descriptor's `flag_14`, which is why the observed `config1 = 0xff7fffff` is reachable at all —
   that word needs `param_1[0x191] == 0`, because the builder's `+0x14` group is
   `0x191 ? 0 : 7 << 20` (`config1` bits 20..22 = `disable_lut_rr/rg/rb`).
-* **`tools/pica_lighting_config.py::CONSTRUCTOR_MODE_DEFAULTS` is `{0x18A: 1, 0x18D: 1, 0x190: 0}`
-  and must become `{0x18E: 1, 0x191: 1}`.** As written it predicts `config0` bit `0x11` set and bit
-  `0x1B` clear — the exact opposite of the source — and it suppresses the `config1` bits 20..22 that
-  the observed word requires. The tool is **not** changed in this step: its 13 mutation-verified tests
-  pin the recorded (wrong) `0x80020400`, and re-deriving those expectations is the tool owner's
-  change, not a footnote. The correction is recorded here and in the frontier row so it cannot rot
-  unnoticed.
+* **`tools/pica_lighting_config.py::CONSTRUCTOR_MODE_DEFAULTS` was `{0x18A: 1, 0x18D: 1, 0x190: 0}`
+  and is now `{0x18E: 1, 0x191: 1}`.** As written it predicted `config0` bit `0x11` set and bit `0x1B`
+  clear — the exact opposite of the source — and it suppressed the `config1` bits 20..22 that the
+  observed word requires. Fixed in `tools/pica_lighting_config.py` with its tests re-derived; see the
+  next section for what the corrected table produces and which expectations had to move with it.
+
+### The tool is corrected, and the two errors were not the same kind (2026-10-04, same change)
+
+`CONSTRUCTOR_MODE_DEFAULTS` is now `{0x18E: 1, 0x191: 1}`, and the tests that pinned the old table's
+output were re-derived from the corrected source rather than adjusted to keep passing. What the fixed
+builder produces:
+
+| input | `config0` | `config1` | xor vs observed |
+| --- | --- | --- | --- |
+| the recorded fixture's own captured bytes | `0x80000400` | `0xff7fffff` | `0` / `0` |
+| all-zero 0x4C8 object | `0x80000400` | `0xff7fffff` | `0` / `0` |
+| constructor only | `0x88000400` | `0xff0fffff` | `0x08000000` / `0x00700000` |
+| constructor + descriptor feed (`flag_14 = 0`) | `0x88000400` | `0xff7fffff` | `0x08000000` / `0` |
+
+**The fixture is unaffected, and it was never in question.** `HUT_LIGHTING_OBJECT` supplies the
+oracle's own captured builder input — `+0x184..+0x190` all zero, `+0x164 = 0x00000101` — so it never
+consults the constructor at all, and all three observed words still come out. The same is true of the
+all-zero object. Nothing was bent to preserve that.
+
+**The two old expectations failed for different reasons, and only one of them was visible.**
+
+* `config0 = 0x80020400` was wrong in **direction**: bit `0x11` set where the hardware has it clear,
+  and bit `0x1B` clear where the hardware has it set. The corrected gap is bit 27
+  (`clamp_highlights`) and nothing else.
+* `config1 = 0xff7fffff` from the constructor alone was wrong in a way **no fixture check could
+  see**. It matched exactly, because the old table omitted `+0x191` from the defaults and therefore
+  left it at 0 — which is the observed value. The constructor sets that byte to 1, so the agreement
+  was a coincidence with a good disguise: it looked like an independent second path to the recorded
+  word, and it was not. That path only exists one step later, through the descriptor feed, and the
+  corrected tests assert *that*.
+
+**The `+0x18E` gap is now a different and weaker question than the one it replaces.** The old claim
+was "something clears `+0x18A`". There is nothing to clear: `+0x18A` has exactly **one** store site in
+the whole 4.36 MiB code image, the constructor's own `0x004c62ac strb r6, [r0, #0x18a]`, which writes
+**0**. So config0 bit 17 (`shadow_secondary`) is never set on this path, which the recorded word agrees
+with. `+0x18E` has exactly one store site too — `0x004c62bc`, the constructor's, writing 1 — so the
+constructor sets `clamp_highlights` and nothing in the ARM image ever writes it again.
+
+That leaves two possibilities, and this change does not pick between them: either the builder's input
+is not the constructor's output (the unresolved 0x1CC-vs-0x4C8 stride conflict recorded above), or
+something outside the code image clears `+0x18E` before `FUN_0040cdd8`. The recorded builder input at
+`0x081d1538` has `+0x18E = 0`, which is consistent with both. Do not restate this as a missing
+clearing at `+0x18A`.
+
+**`+0x191` has exactly two store sites in the image** — `0x004c62c8` (the constructor, 1) and
+`0x004c63dc` (`FUN_004c6364`, from `descriptor + 0x14`) — and it is the only mode byte with two
+writers. That is the "one byte, two consumers" shape already recorded for `flag_14`, now confirmed
+from the store census rather than from two readers of the C.
+
+The store census is exhaustive and cheap, and it is the check that would have caught this: decode
+every byte-addressable load/store in `build/code.bin` (capstone, `0b001`/`0b010` in bits 27..25) and
+list the `strb` immediate offsets. 1,233 distinct offsets; `+0x18E` appears once, `+0x191` twice,
+`+0x18A` once. **Do not re-derive the constructor's mode defaults from the decompiled C.**
+
+Independently re-run for this change, over all 1,141,759 aligned words (1,126,612 decode; 1,543
+distinct `strb` immediate offsets), the mode-block sites are exactly: `+0x184`…`+0x18F` and `+0x190`…
+`+0x19E` each once at `0x004c6294`–`0x004c62ec` (the constructor) except `+0x189`/`+0x18B`/`+0x18C`/
+`+0x188`/`+0x191`/`+0x194`/`+0x195`/`+0x198`/`+0x199`/`+0x19A`, which gain a second site in
+`0x004c6380`–`0x004c643c` (`FUN_004c6364`), and `+0x192`/`+0x193`/`+0x195`, whose second/only sites are
+the feed's. **`+0x18D` has exactly one `strb` site in the whole image — the constructor's, writing 0.**
+
+### `param_2[6]` had two more transcription errors, and the decompiled C is wrong about both
+
+The constructor's bytes were not the only thing the tool took from `build/decomp/0040cdd8.c` without
+checking. Reading the ARM for the config0 build as well turned up two more, both of the same species:
+the C renders something the machine does not do, and neither can raise.
+
+**1. config0 bit 30 (`disable_bump_renorm`): NOT ESTABLISHED. Two readings of the ARM disagree, and
+an earlier revision of this section claimed otherwise — the claim is retracted here.** The C's last
+term is `(param_1[0x187] != 0 && param_1[0x18d] == 0) << 0x1e`. Reading that `orrs` as if it ran
+unconditionally gives a constant zero:
+
+```
+0040cfb4  cmp    r0, #0        ; Z = (param_1[+0x187] == 0)
+0040cfc4  movne  r0, #0        ; MOV has no S bit, so it does not touch the flags
+0040cfc8  moveq  r0, #1
+0040cfcc  orrs   r0, r0, r4    ; CONDITIONAL on NE, and ORRS does write Z
+0040cfd0  movne  r0, #0
+0040cfd4  moveq  r0, #1
+0040cfd8  orr    r0, r3, r0, lsl #30
+```
+
+That reasoning treats a **skipped** conditional instruction as though it had written Z, and it is
+refutable. On the `+0x187 == 0` path `orrs` never executes, so Z is still 1 from `cmp`, both `moveq`
+pairs fire, and `r0` reaches `0x0040cfd8` as 1 — bit 30 **set**. On the `+0x187 != 0` path the `orrs`
+does run and writes Z, leaving bit 30 set only when `+0x18D == 0`. Taken literally the ARM therefore
+sets bit 30 unless (`+0x187 != 0` **and** `+0x18D != 0`).
+
+The literal reading is **not** adopted, and the reason is evidence rather than preference: the Hut's
+captured builder input has `+0x187 == 0` and `+0x18D == 0`, and the oracle's `config0 = 0x80000400`
+has bit 30 **clear** — a word the literal reading cannot produce (it yields `0xc0000400`). So either the
+recorded input and the recorded output are not one consistent observation of this function, or the
+literal reading is wrong. Every value on record agrees under both candidates, so nothing observed so
+far separates them.
+
+**One capture settles it, and it should not be replaced by more reading:** force a material whose
+`bump_mode` (`+0x187`) is non-zero while `+0x18D` is zero. That single combination is the only one on
+which the candidates differ — the decomp's gate predicts bit 30 set, the literal reading predicts it
+clear — and the recorded `config0` decides. Until then `tools/pica_lighting_config.py` keeps the gate,
+because it is the reading the observation supports, **not** because it is proven.
+
+Two things here are settled and not part of the dispute: `0x0040cfc0 orr r3, r3, r0, lsl #28` places
+`+0x187` in bits 28..29 (`bump_mode`), and that field is real; and the decomp mislabels `+0x187` as a
+shadow gate when it is `bump_mode`.
+
+**2. The builder packs config0 two different ways, and one table cannot express both.** The five
+COMPARED bytes (`+0x189`/`+0x18A`/`+0x18B`/`+0x18C`/`+0x18E`) are normalised to 0/1, but the five
+SHIFTED bytes land whole: `+0x185` at `<<2`, `+0x184` at `<<4`, `+0x188` at `<<22`, `+0x186` at `<<24`,
+`+0x187` at `<<28` (`0x0040cf50`, `0x0040cf54`, `0x0040cfa0`, `0x0040cfa8`, `0x0040cfc0`). The register
+map is the proof that these are fields and not flags — bit 4 is a 4-bit `LightingConfig`, and bit 22
+`bump_selector` and bit 28 `bump_mode` are 2 bits each. The old tool applied `1 << bit` to all ten, so
+`+0x185 = 3` set bit 2 where the hardware sets bits 2 **and** 3.
+
+**3. config0 bit 0 (`enable_shadow`) was missing from the model entirely, and bit 1 is unreachable.**
+`0x0040cf3c orr r6, r5, r3` ORs `+0x189` with `+0x18A`, `0x0040cf44 orrs r6, r6, r4` /
+`0x0040cf48 movne r6, #1` normalise that OR to 1, and `0x0040cf50 orr r5, r6, r7, lsl #2` places it at
+bit 0 — so bit 0 comes from the single OR, not from either byte alone. The `orrs` folds `+0x18B` in and
+the `movne` then overwrites the result, so `+0x18B` must *not* reach bit 0; the decomp's `(a || b) || c`
+gets that wrong. This term is live, not dead: `+0x189` is written by `FUN_004c6364` from
+`descriptor + 0x1c`, so bit 0 is reachable from an authored material field.
+
+**Bit 1 is set by no instruction in this function, and an intermediate revision of the tool got that
+wrong by emitting `0b11`.** Every contribution to the `param_2[6]` accumulator is either an immediate
+(`0x80000000`, `0x400`), a whole byte shifted by one of 2/4/16/17/18/19/22/24/28, or the normalised
+0-or-1 value in `r6` that `0x0040cf50` places at bit 0. No shift reaches bit 1 and no immediate has it.
+That revision also named bits 0 and 1 `gamma` and `enable_primary_alpha`, both of which are wrong for
+the register map: `gamma` is not a field in `regs_lighting.h` at all, and `enable_primary_alpha` is
+bit **2** (`regs_lighting.h:183`), fed by `+0x185`'s low bit through the same `lsl #2`. Bit 0 is
+`enable_shadow` (`regs_lighting.h:182`).
+
+None of the three touches a ground-truthed word — the Hut's captured input and the all-zero object
+both have `+0x184`…`+0x190` zero, and both still produce `0x80000400` / `0xff7fffff` — so nothing
+recorded from the oracle moves. What moves is the tool's prediction for the **live per-material
+objects** tabulated above: every slot whose object has `+0x187 != 0` loses bit 30, and slot 0 (whose
+`+0x18A` is `0x80`) also gains bits 0 and 1. The raw dumps those predictions were computed from are
+not in the tree, so the corrected hex is not restated here; the deltas are the two bit sets and they
+are exact. Slot 1 (`0x80000400`) is unchanged and remains the one prediction with an observed word
+behind it.
+
+`tools/pica_lighting_config.py` now carries `CONFIG0_FLAG_BITS`, `CONFIG0_SHIFTED_BYTES`,
+`CONFIG0_LOW_BITS_SOURCES` and `CONFIG0_ENABLE_SHADOW_BIT`, each with the ARM addresses in its comment,
+plus `CONFIG0_BUMP_RENORM_GATE_OFFSET`/`CONFIG0_BUMP_RENORM_INHIBIT_OFFSET` for the disputed bit-30 term.
+`tests/test_pica_lighting_config.py::Config0FieldPacking` pins all of it: the normalisation sweep, the
+verbatim shift, the low-bit OR, the tables' disjointness, a sweep asserting bit 1 is never set by any
+mode byte, and the bit-30 case pinning the *shape* of the disagreement rather than a proven value.
+29 cases total, mutation-verified — including mutations that restore each of the errors above
+(`0b11` → 8 failures, `+0x18E` → `+0x18A` → 3, `+0x191` default dropped → 3, `clamp_highlights` on
+bit `0x11` → 3, bit-30 gate → constant 0 → 3, unconditional `0x400` dropped → 3).
+
+**What the 13 old cases pinned, and why each was wrong.** They were not random: every one of them
+passed against a builder that predicted the inverse of the hardware.
+
+* 10 asserted `config0`/`config1`/`light_enable`/`slot_map` behaviour that the corrected source still
+  produces, because they never touched a constructor default byte. Those are unchanged.
+* `test_config0_differs_from_the_fixture_by_exactly_one_bit` pinned `0x80020400` — the fixture plus
+  bit `0x11` — and asserted the XOR was `0x20000`. Replaced with the corrected constant: the XOR is
+  now `0x8000000`, bit 27. Same *shape* of test, the right bit, and the old bit was the inverse of the
+  hardware.
+* `test_config1_needs_no_descriptor_at_all` asserted `config1 == 0xff7fffff` from the constructor
+  alone. **This one was worse than a wrong bit**: it was a wrong byte producing a right answer, because
+  the old table left `+0x191` at 0, which is the value the observed word needs. It looked like a second
+  independent path to a recorded register and it was not one — it was a coincidence. Its replacement
+  asserts the contradiction (`0xff0fffff`, XOR `0x00700000`) *and* that the path through
+  `FUN_004c6364` does reproduce `0xff7fffff`, which is the cross-check that actually exists.
+* `test_flag_14_drives_the_lut_enable_mode_byte` asserted the constructor leaves `config1` bits 20..22
+  **set**. Same wrong byte, opposite sign: with `+0x191 = 1` they come out clear, so LUTs start enabled
+  after construction and `flag_14 = 0` is what disables them. Every recorded word is in the disabled
+  state, which is why this one also looked validated.
 
 The neighbouring decompiled read is likewise offset, and it is the *same* mistake: `FUN_0040cdd8`'s C
 uses `param_1[399]` and `param_1[400]` for `0x18F` and `0x190`, where the ARM reads
