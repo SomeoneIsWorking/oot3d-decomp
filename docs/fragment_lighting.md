@@ -223,7 +223,7 @@ the fixture's recorded input bytes:
 
 and the two-slot count agrees with the recorded slot mapping. Three independent values predicted from
 source, so the builder is understood well enough to port rather than merely described.
-`tests/test_pica_lighting_config.py` (28 cases) runs that check on every invocation, and each output
+`tests/test_pica_lighting_config.py` (29 cases) runs that check on every invocation, and each output
 was mutation-verified: dropping the unconditional `0x400` from `config0`, replacing the slot index with
 a constant in the light-enable mask, and moving the LUT-select shift into the top byte each make it
 fail.
@@ -1897,3 +1897,33 @@ The neighbouring decompiled read is likewise offset, and it is the *same* mistak
 uses `param_1[399]` and `param_1[400]` for `0x18F` and `0x190`, where the ARM reads
 `ldrb r2, [r0, #0x18f]` (`0x0040cdf0`) and `[sl, #0x90]` (`0x0040ce30`). Any offset in this file
 written as `399`/`400` is really `0x18F`/`0x190`.
+
+
+## `+0x18B` DOES reach config0 bit 0 — a third transcription error, found by audit
+
+The corrected constructor table above was itself carrying a wrong claim, and the test that "verified"
+it was the reason it survived:
+
+```
+0040cf3c  orr   r6, r5, r3           ; +0x189 | +0x18A
+0040cf44  orrs  r6, r6, r4           ; |= +0x18B      <- also sets Z
+0040cf48  movne r6, #1               ; normalises the OR
+0040cf50  orr   r5, r6, r7, lsl #2   ; lands at bit 0
+```
+
+The earlier reading held that `+0x18B` "has no effect here -- it drives bit 19", because `movne`
+overwrites r6 with a plain 1. That inverts the instruction: **`movne` fires BECAUSE the OR is
+non-zero**, so `+0x18B` alone is sufficient to set bit 0. It was never excluded; it was the one byte
+that could set the bit with `+0x189` and `+0x18A` clear.
+
+The old test varied only `+0x189` and `+0x18A`, so it could not see this — it was a mutation-verified
+test that was mutation-blind in exactly the region that mattered. And the ground-truthed Hut fixture
+cannot catch it either, because its `+0x18B` is 0. Both the fixture (`config0=0x80000400`) and the
+full suite (59 tests) are unaffected by the fix, which is the point: nothing that was pinned to a real
+observation changed.
+
+Three separate claims in this one expression have now been wrong in the same way — reading an ARM
+instruction's *effect* where its *condition* was meant. `bit 30` was a constant zero, `bit 0` was
+missing a source, and the constructor's mode bytes were the wrong offsets. The register map is read
+rather than transcribed precisely because of this pattern; it did not prevent these, and the only
+thing that did was re-deriving each one from the disassembly.

@@ -88,12 +88,18 @@ CONFIG0_SHIFTED_BYTES = {
     0x186: 0x18,  # shadow_selector (2 bits)
     0x187: 0x1C,  # bump_mode (2 bits, LightingBumpMode)
 }
-# config0 bit 0 is `enable_shadow` (Azahar regs_lighting.h:182) and it comes from the OR of two
-# bytes, not from either alone: `0x0040cf3c orr r6, r5, r3` (`+0x189` | `+0x18A`) then
-# `0x0040cf44 orrs r6, r6, r4` / `0x0040cf48 movne r6, #1` normalise the pair to 1, and
-# `0x0040cf50 orr r5, r6, r7, lsl #2` places it at bit 0. The `orrs` folds `+0x18B` into r6 first,
-# but `movne` then overwrites r6 with a plain 1, so `+0x18B` has no effect here -- it drives bit 19.
-CONFIG0_LOW_BITS_SOURCES = (0x189, 0x18A)
+# config0 bit 0 is `enable_shadow` (Azahar regs_lighting.h:182) and it comes from the OR of THREE
+# bytes, not from any alone:
+#     0x0040cf3c  orr   r6, r5, r3      ; +0x189 | +0x18A
+#     0x0040cf44  orrs  r6, r6, r4      ; |= +0x18B      <- ALSO sets Z
+#     0x0040cf48  movne r6, #1          ; normalises the OR
+#     0x0040cf50  orr   r5, r6, r7, lsl #2   ; lands at bit 0
+#
+# An earlier reading of this claimed `+0x18B` "has no effect here" because `movne` overwrites r6 with
+# a plain 1. That inverts the instruction: `movne` fires BECAUSE the OR is non-zero, so `+0x18B`
+# alone is sufficient to set bit 0. It was not excluded -- it was the one byte that could set the bit
+# with the other two clear, which is exactly the case a test that only varies 0x189/0x18A misses.
+CONFIG0_LOW_BITS_SOURCES = (0x189, 0x18A, 0x18B)
 CONFIG0_ENABLE_SHADOW_BIT = 0b01
 # config0 bit 1 IS NOT SET BY THIS FUNCTION AT ALL, and that is a fact about the ARM rather than
 # about the register map. Every contribution to the `param_2[6]` accumulator is either an immediate

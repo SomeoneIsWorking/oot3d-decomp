@@ -302,23 +302,32 @@ class Config0FieldPacking(unittest.TestCase):
     def test_shift_and_flag_tables_do_not_overlap(self) -> None:
         """A byte in both tables would be packed twice, and the two packings can disagree."""
         self.assertEqual(set(CONFIG0_FLAG_BITS) & set(CONFIG0_SHIFTED_BYTES), set())
-        self.assertEqual(set(CONFIG0_LOW_BITS_SOURCES) & set(CONFIG0_FLAG_BITS), {0x189, 0x18A})
+        self.assertEqual(set(CONFIG0_LOW_BITS_SOURCES) & set(CONFIG0_FLAG_BITS), {0x189, 0x18A, 0x18B})
 
-    def test_bit_0_is_the_or_of_0x189_and_0x18a(self) -> None:
-        """config0 bit 0 is `enable_shadow`, and it comes from the OR of two bytes, not either alone.
+    def test_bit_0_is_the_or_of_0x189_0x18a_and_0x18b(self) -> None:
+        """config0 bit 0 is `enable_shadow`, and it comes from the OR of THREE bytes, not any alone.
 
-        `0x0040cf3c orr r6, r5, r3` ORs `+0x189` with `+0x18A`, `0x0040cf44 orrs r6, r6, r4` /
-        `0x0040cf48 movne r6, #1` normalise that OR to 1, and `0x0040cf50 orr r5, r6, r7, lsl #2`
-        places it at bit 0. `+0x18B` is folded into the `orrs` and then overwritten by the `movne`,
-        so it must NOT reach bit 0 -- it drives bit 19. Only bit 0 is set; `test_config0_bit_1_is_never_set`
-        covers the adjacent bit, which is unreachable.
+            0x0040cf3c  orr   r6, r5, r3           ; +0x189 | +0x18A
+            0x0040cf44  orrs  r6, r6, r4           ; |= +0x18B       <- also sets Z
+            0x0040cf48  movne r6, #1               ; normalises the OR
+            0x0040cf50  orr   r5, r6, r7, lsl #2   ; lands at bit 0
+
+        An earlier version of this test asserted `+0x18B` must NOT reach bit 0, on the reasoning that
+        `movne` overwrites it with a plain 1. That inverts the instruction: `movne` fires BECAUSE the
+        OR is non-zero, so `+0x18B` on its own sets the bit. The old test never varied `+0x18B`, which
+        is precisely why it passed while wrong -- and the pinned `config0` of the ground-truthed
+        fixture has `+0x18B` zero, so the fixture could not catch it either.
         """
         for value in (1, 0x80):
             self.assertEqual(build_lighting_config({0x189: value}).config0 & 0b01, 0b01)
             self.assertEqual(build_lighting_config({0x18A: value}).config0 & 0b01, 0b01)
+            self.assertEqual(build_lighting_config({0x18B: value}).config0 & 0b01, 0b01)
             self.assertEqual(build_lighting_config({0x18A: value}).config0 & 0x30000, 0x20000)
-        self.assertEqual(build_lighting_config({0x18B: 1}).config0 & 0b01, 0, "+0x18B is bit 19 only")
-        self.assertEqual(build_lighting_config({0x18B: 1}).config0 & 0x80000, 0x80000)
+
+    def test_bit_0_stays_clear_when_all_three_sources_are_zero(self) -> None:
+        """The complement of the above, so the OR cannot be satisfied by accident."""
+        for empty in ({}, {0x184: 0xFF}, {0x187: 0xFF}):
+            self.assertEqual(build_lighting_config(empty).config0 & 0b01, 0b00)
 
     def test_bit_30_is_the_unresolved_renorm_gate(self) -> None:
         """NOT ESTABLISHED: two readings of `0x0040cfb4..0x0040cfd8` disagree, and the fixture
